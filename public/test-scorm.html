@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SCORM Test</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #1a1a1a;
+      color: white;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    h1 {
+      margin-bottom: 20px;
+      color: #3b82f6;
+    }
+    .test-section {
+      background: #2a2a2a;
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+    iframe {
+      width: 100%;
+      height: 600px;
+      border: 2px solid #3b82f6;
+      border-radius: 8px;
+      background: white;
+    }
+    .info {
+      background: #1e3a5f;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+    }
+    button {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+    button:hover {
+      background: #2563eb;
+    }
+    .log {
+      background: #0a0a0a;
+      padding: 15px;
+      border-radius: 5px;
+      font-family: monospace;
+      font-size: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 10px;
+    }
+    .log div {
+      margin: 3px 0;
+      padding: 3px;
+    }
+    .success { color: #10b981; }
+    .error { color: #ef4444; }
+    .warning { color: #f59e0b; }
+    .info-log { color: #3b82f6; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 SCORM Player Direct Test</h1>
+
+    <div class="info">
+      <strong>Test Purpose:</strong> This page tests the SCORM lesson loading directly without any complex processing.
+      <br><strong>Expected Result:</strong> You should see a colorful SCORM lesson below with a purple gradient background.
+    </div>
+
+    <div class="test-section">
+      <h2>Test 1: Direct iframe load (simplest method)</h2>
+      <button onclick="loadTest1()">Reload Test 1</button>
+      <div id="test1-container" style="margin-top: 10px;">
+        <iframe id="iframe1" src="/scorm_test_lesson/index.html" title="Test 1"></iframe>
+      </div>
+      <div class="log" id="log1"></div>
+    </div>
+
+    <div class="test-section">
+      <h2>Test 2: Programmatic iframe creation</h2>
+      <button onclick="loadTest2()">Load Test 2</button>
+      <button onclick="inspectIframe2()">Inspect Content</button>
+      <div id="test2-container" style="margin-top: 10px;"></div>
+      <div class="log" id="log2"></div>
+    </div>
+
+    <div class="test-section">
+      <h2>Test 3: Fetch and display content</h2>
+      <button onclick="loadTest3()">Load Test 3</button>
+      <div id="test3-container" style="margin-top: 10px;"></div>
+      <div class="log" id="log3"></div>
+    </div>
+  </div>
+
+  <script>
+    function log(testNum, message, type = 'info-log') {
+      const logDiv = document.getElementById(`log${testNum}`);
+      const entry = document.createElement('div');
+      entry.className = type;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logDiv.appendChild(entry);
+      logDiv.scrollTop = logDiv.scrollHeight;
+      console.log(`Test ${testNum}:`, message);
+    }
+
+    // Test 1: Simple direct load
+    function loadTest1() {
+      log(1, 'Reloading iframe...', 'info-log');
+      const iframe = document.getElementById('iframe1');
+      iframe.src = iframe.src; // Force reload
+
+      iframe.onload = function() {
+        log(1, 'Iframe loaded successfully', 'success');
+        try {
+          const doc = iframe.contentDocument || iframe.contentWindow.document;
+          log(1, `Document title: ${doc.title}`, 'success');
+          log(1, `Body children: ${doc.body.children.length}`, 'success');
+          log(1, `Body text length: ${doc.body.innerText.length}`, 'success');
+        } catch (e) {
+          log(1, `Cannot access iframe content: ${e.message}`, 'warning');
+        }
+      };
+
+      iframe.onerror = function(e) {
+        log(1, `Iframe error: ${e}`, 'error');
+      };
+    }
+
+    // Test 2: Programmatic creation
+    function loadTest2() {
+      const container = document.getElementById('test2-container');
+      container.innerHTML = '';
+      log(2, 'Creating new iframe...', 'info-log');
+
+      const iframe = document.createElement('iframe');
+      iframe.id = 'iframe2';
+      iframe.style.width = '100%';
+      iframe.style.height = '600px';
+      iframe.style.border = '2px solid #3b82f6';
+      iframe.style.borderRadius = '8px';
+      iframe.style.background = 'white';
+
+      iframe.onload = function() {
+        log(2, 'Iframe loaded!', 'success');
+        inspectIframe2();
+      };
+
+      iframe.onerror = function(e) {
+        log(2, `Iframe error: ${e}`, 'error');
+      };
+
+      container.appendChild(iframe);
+      iframe.src = '/scorm_test_lesson/index.html';
+      log(2, 'Iframe created and src set', 'info-log');
+    }
+
+    function inspectIframe2() {
+      const iframe = document.getElementById('iframe2');
+      if (!iframe) {
+        log(2, 'Iframe not found', 'error');
+        return;
+      }
+
+      try {
+        const doc = iframe.contentDocument || iframe.contentWindow.document;
+        log(2, `✓ Document accessible`, 'success');
+        log(2, `✓ Title: "${doc.title}"`, 'success');
+        log(2, `✓ Body exists: ${!!doc.body}`, 'success');
+        log(2, `✓ Body HTML length: ${doc.body.innerHTML.length}`, 'success');
+        log(2, `✓ Body children: ${doc.body.children.length}`, 'success');
+
+        // Check for the container div
+        const container = doc.querySelector('.container');
+        if (container) {
+          log(2, `✓ Found .container element`, 'success');
+          const computedStyle = doc.defaultView.getComputedStyle(container);
+          log(2, `✓ Container display: ${computedStyle.display}`, 'success');
+          log(2, `✓ Container visibility: ${computedStyle.visibility}`, 'success');
+        } else {
+          log(2, `✗ .container element not found`, 'error');
+        }
+
+        // Check body background
+        const bodyStyle = doc.defaultView.getComputedStyle(doc.body);
+        log(2, `✓ Body background: ${bodyStyle.background.substring(0, 100)}`, 'info-log');
+
+      } catch (e) {
+        log(2, `✗ Cannot access content: ${e.message}`, 'error');
+      }
+    }
+
+    // Test 3: Fetch and display
+    async function loadTest3() {
+      const container = document.getElementById('test3-container');
+      log(3, 'Fetching SCORM content...', 'info-log');
+
+      try {
+        const response = await fetch('/scorm_test_lesson/index.html');
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const html = await response.text();
+        log(3, `✓ Fetched ${html.length} bytes`, 'success');
+        log(3, `HTML preview: ${html.substring(0, 200)}...`, 'info-log');
+
+        // Create iframe with srcdoc
+        const iframe = document.createElement('iframe');
+        iframe.style.width = '100%';
+        iframe.style.height = '600px';
+        iframe.style.border = '2px solid #3b82f6';
+        iframe.style.borderRadius = '8px';
+        iframe.style.background = 'white';
+        iframe.srcdoc = html;
+
+        iframe.onload = function() {
+          log(3, '✓ Iframe loaded with srcdoc', 'success');
+        };
+
+        container.innerHTML = '';
+        container.appendChild(iframe);
+        log(3, '✓ Iframe added to page', 'success');
+
+      } catch (e) {
+        log(3, `✗ Error: ${e.message}`, 'error');
+      }
+    }
+
+    // Initialize Test 1 on load
+    window.addEventListener('load', function() {
+      log(1, 'Page loaded, iframe should be loading...', 'info-log');
+      const iframe1 = document.getElementById('iframe1');
+      if (iframe1.contentDocument && iframe1.contentDocument.readyState === 'complete') {
+        log(1, 'Iframe already loaded', 'success');
+        loadTest1();
+      }
+    });
+  </script>
+</body>
+</html>

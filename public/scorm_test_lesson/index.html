@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SCORM Test Lesson</title>
+  <script src="scorm_api.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      max-width: 800px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+
+    h1 {
+      color: #333;
+      margin-bottom: 20px;
+      font-size: 2.5rem;
+    }
+
+    .lesson-content {
+      color: #555;
+      line-height: 1.8;
+      margin-bottom: 30px;
+    }
+
+    .lesson-content h2 {
+      color: #667eea;
+      margin: 30px 0 15px;
+      font-size: 1.8rem;
+    }
+
+    .lesson-content p {
+      margin-bottom: 15px;
+    }
+
+    .lesson-content ul {
+      margin: 15px 0 15px 30px;
+    }
+
+    .lesson-content li {
+      margin-bottom: 10px;
+    }
+
+    .progress-section {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 10px;
+      margin-top: 30px;
+    }
+
+    .progress-bar {
+      background: #e9ecef;
+      height: 10px;
+      border-radius: 5px;
+      overflow: hidden;
+      margin: 15px 0;
+    }
+
+    .progress-fill {
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      height: 100%;
+      transition: width 0.3s ease;
+      width: 0%;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 15px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 12px 30px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      font-weight: 600;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .status {
+      background: #e7f3ff;
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 20px;
+      font-family: monospace;
+      font-size: 14px;
+      color: #0066cc;
+    }
+
+    .badge {
+      display: inline-block;
+      background: #28a745;
+      color: white;
+      padding: 5px 15px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 600;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎓 SCORM Test Lesson</h1>
+
+    <div class="lesson-content">
+      <h2>Welcome to the SCORM Interactive Lesson!</h2>
+
+      <p>This is a demonstration of a SCORM 1.2 compliant learning object. SCORM (Sharable Content Object Reference Model) is a set of technical standards for e-learning software products.</p>
+
+      <h2>What is SCORM?</h2>
+      <ul>
+        <li><strong>S</strong>harable: Content can be shared across different systems</li>
+        <li><strong>C</strong>ontent: Learning materials and assessments</li>
+        <li><strong>O</strong>bject: Modular, reusable learning components</li>
+        <li><strong>R</strong>eference: Standardized guidelines</li>
+        <li><strong>M</strong>odel: Framework for implementation</li>
+      </ul>
+
+      <h2>Key Features</h2>
+      <p>SCORM enables:</p>
+      <ul>
+        <li>Tracking learner progress and completion</li>
+        <li>Recording scores and assessment results</li>
+        <li>Bookmarking to resume where you left off</li>
+        <li>Portability between different LMS platforms</li>
+      </ul>
+    </div>
+
+    <div class="progress-section">
+      <h3 style="margin-bottom: 10px;">Your Progress</h3>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressBar"></div>
+      </div>
+      <p id="progressText">Progress: 0%</p>
+      <div id="completionBadge"></div>
+    </div>
+
+    <div class="buttons">
+      <button onclick="updateProgress(25)">Start Lesson (25%)</button>
+      <button onclick="updateProgress(50)">Continue (50%)</button>
+      <button onclick="updateProgress(75)">Almost Done (75%)</button>
+      <button onclick="completeLesson()">Complete Lesson</button>
+    </div>
+
+    <div class="buttons">
+      <button onclick="setScore(85)">Set Score to 85</button>
+      <button onclick="setScore(95)">Set Score to 95</button>
+      <button onclick="checkStatus()">Check SCORM Status</button>
+    </div>
+
+    <div class="status" id="status">
+      Status: Ready to start learning!
+    </div>
+  </div>
+
+  <script>
+    let currentProgress = 0;
+
+    function updateProgress(percent) {
+      currentProgress = percent;
+      document.getElementById('progressBar').style.width = percent + '%';
+      document.getElementById('progressText').textContent = 'Progress: ' + percent + '%';
+
+      // Update SCORM progress
+      setValue('cmi.core.lesson_location', percent.toString());
+      setValue('cmi.core.lesson_status', percent === 100 ? 'completed' : 'incomplete');
+      commit();
+
+      document.getElementById('status').textContent =
+        'Progress updated to ' + percent + '%. SCORM data saved!';
+    }
+
+    function completeLesson() {
+      currentProgress = 100;
+      document.getElementById('progressBar').style.width = '100%';
+      document.getElementById('progressText').textContent = 'Progress: 100% - Completed!';
+
+      // Mark as completed in SCORM
+      setValue('cmi.core.lesson_location', '100');
+      setValue('cmi.core.lesson_status', 'completed');
+      commit();
+
+      document.getElementById('completionBadge').innerHTML =
+        '<div class="badge">✓ Lesson Completed!</div>';
+
+      document.getElementById('status').textContent =
+        'Congratulations! Lesson completed and reported to LMS.';
+    }
+
+    function setScore(score) {
+      setValue('cmi.core.score.raw', score.toString());
+      setValue('cmi.core.score.min', '0');
+      setValue('cmi.core.score.max', '100');
+      commit();
+
+      document.getElementById('status').textContent =
+        'Score set to ' + score + '/100 and saved to LMS!';
+    }
+
+    function checkStatus() {
+      var lessonStatus = getValue('cmi.core.lesson_status');
+      var lessonLocation = getValue('cmi.core.lesson_location');
+      var scoreRaw = getValue('cmi.core.score.raw');
+      var studentName = getValue('cmi.core.student_name');
+
+      var statusText = 'SCORM Status:\n';
+      statusText += '• Student: ' + (studentName || 'Unknown') + '\n';
+      statusText += '• Lesson Status: ' + (lessonStatus || 'not attempted') + '\n';
+      statusText += '• Location: ' + (lessonLocation || '0') + '%\n';
+      statusText += '• Score: ' + (scoreRaw || 'Not set') + '\n';
+      statusText += '• API Found: ' + (getAPI() ? 'Yes' : 'No (Standalone mode)');
+
+      document.getElementById('status').textContent = statusText;
+    }
+
+    // Initialize on load
+    window.addEventListener('load', function() {
+      var lessonLocation = getValue('cmi.core.lesson_location');
+      if (lessonLocation) {
+        currentProgress = parseInt(lessonLocation);
+        updateProgress(currentProgress);
+      }
+
+      setTimeout(checkStatus, 500);
+    });
+  </script>
+</body>
+</html>

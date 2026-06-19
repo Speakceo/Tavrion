@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Testing Dashboard</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .test-section {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      border-bottom: 3px solid #2563eb;
+      padding-bottom: 10px;
+    }
+    h2 {
+      color: #2563eb;
+      margin-top: 0;
+    }
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      margin-right: 10px;
+      margin-bottom: 10px;
+    }
+    button:hover {
+      background: #1d4ed8;
+    }
+    button:disabled {
+      background: #94a3b8;
+      cursor: not-allowed;
+    }
+    .result {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 15px;
+      margin-top: 10px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 13px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .success {
+      color: #059669;
+      font-weight: bold;
+    }
+    .error {
+      color: #dc2626;
+      font-weight: bold;
+    }
+    .loading {
+      color: #2563eb;
+      font-style: italic;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+      margin-bottom: 10px;
+      font-family: inherit;
+    }
+    textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+    .status-indicator {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+    .status-online {
+      background: #10b981;
+    }
+    .status-offline {
+      background: #ef4444;
+    }
+  </style>
+</head>
+<body>
+  <h1>🧪 API Testing Dashboard</h1>
+
+  <div class="test-section">
+    <h2><span class="status-indicator status-online"></span>AI Tutor Chat</h2>
+    <p>Test the AI tutor functionality</p>
+    <input type="text" id="tutorInput" placeholder="Ask a question..." value="What is Amberstudent?">
+    <button onclick="testAITutor()">Test AI Tutor</button>
+    <div id="tutorResult" class="result" style="display: none;"></div>
+  </div>
+
+  <div class="test-section">
+    <h2><span class="status-indicator status-online"></span>Mock Call Agent</h2>
+    <p>Test the mock call AI agent</p>
+    <select id="scenarioSelect" style="width: 100%; padding: 8px; margin-bottom: 10px;">
+      <option value="budget_concern">Budget-Conscious Student</option>
+      <option value="location_specific">Location-Focused Student</option>
+      <option value="safety_parent">Concerned Parent</option>
+      <option value="amenities_luxury">Premium Seeker</option>
+      <option value="urgent_booking">Urgent Booking</option>
+    </select>
+    <input type="text" id="mockCallInput" placeholder="Your message..." value="Hi, I'm looking for accommodation">
+    <button onclick="testMockCall()">Test Mock Call</button>
+    <div id="mockCallResult" class="result" style="display: none;"></div>
+  </div>
+
+  <div class="test-section">
+    <h2><span class="status-indicator status-online"></span>Mock Call Evaluation</h2>
+    <p>Test the call evaluation functionality</p>
+    <button onclick="testEvaluation()">Test Evaluation</button>
+    <div id="evaluationResult" class="result" style="display: none;"></div>
+  </div>
+
+  <div class="test-section">
+    <h2><span class="status-indicator status-online"></span>Course Generation</h2>
+    <p>Test AI course generation</p>
+    <input type="text" id="courseTopicInput" placeholder="Course topic..." value="Customer Service Basics">
+    <button onclick="testCourseGeneration()">Generate Course</button>
+    <div id="courseResult" class="result" style="display: none;"></div>
+  </div>
+
+  <div class="test-section">
+    <h2><span class="status-indicator status-online"></span>OpenAI Proxy (Text-to-Speech)</h2>
+    <p>Test text-to-speech functionality</p>
+    <input type="text" id="ttsInput" placeholder="Text to speak..." value="Hello, this is a test of the text to speech system.">
+    <button onclick="testTextToSpeech()">Test TTS</button>
+    <div id="ttsResult" class="result" style="display: none;"></div>
+    <audio id="audioPlayer" controls style="width: 100%; margin-top: 10px; display: none;"></audio>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://xrhnazsfntkwuzgalvwq.supabase.co';
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+
+    async function testAITutor() {
+      const resultDiv = document.getElementById('tutorResult');
+      const input = document.getElementById('tutorInput').value;
+      resultDiv.style.display = 'block';
+      resultDiv.innerHTML = '<span class="loading">Testing AI Tutor...</span>';
+
+      try {
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/ai-chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          },
+          body: JSON.stringify({
+            action: 'chat-tutor',
+            userMessage: input,
+            userRole: 'employee',
+            context: 'Testing'
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+        }
+
+        const data = await response.json();
+        resultDiv.innerHTML = `<span class="success">✓ Success!</span>\n\n${JSON.stringify(data, null, 2)}`;
+      } catch (error) {
+        resultDiv.innerHTML = `<span class="error">✗ Error:</span>\n${error.message}`;
+      }
+    }
+
+    async function testMockCall() {
+      const resultDiv = document.getElementById('mockCallResult');
+      const input = document.getElementById('mockCallInput').value;
+      const scenario = document.getElementById('scenarioSelect').value;
+      resultDiv.style.display = 'block';
+      resultDiv.innerHTML = '<span class="loading">Testing Mock Call Agent...</span>';
+
+      try {
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/mock-call-agent`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          },
+          body: JSON.stringify({
+            scenarioType: scenario,
+            userMessage: input,
+            conversationHistory: []
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+        }
+
+        const data = await response.json();
+        resultDiv.innerHTML = `<span class="success">✓ Success!</span>\n\n${JSON.stringify(data, null, 2)}`;
+      } catch (error) {
+        resultDiv.innerHTML = `<span class="error">✗ Error:</span>\n${error.message}`;
+      }
+    }
+
+    async function testEvaluation() {
+      const resultDiv = document.getElementById('evaluationResult');
+      resultDiv.style.display = 'block';
+      resultDiv.innerHTML = '<span class="loading">Testing Call Evaluation...</span>';
+
+      const sampleTranscript = [
+        { role: 'customer', message: 'Hi, I\'m looking for accommodation' },
+        { role: 'agent', message: 'Hello! I\'d be happy to help you find the perfect accommodation. What\'s your budget?' },
+        { role: 'customer', message: 'Around £150 per week' },
+        { role: 'agent', message: 'Great! I have several options in that price range. Let me show you some properties that include bills.' }
+      ];
+
+      try {
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/mock-call-evaluate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          },
+          body: JSON.stringify({
+            scenarioType: 'budget_concern',
+            transcript: sampleTranscript
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+        }
+
+        const data = await response.json();
+        resultDiv.innerHTML = `<span class="success">✓ Success!</span>\n\n${JSON.stringify(data, null, 2)}`;
+      } catch (error) {
+        resultDiv.innerHTML = `<span class="error">✗ Error:</span>\n${error.message}`;
+      }
+    }
+
+    async function testCourseGeneration() {
+      const resultDiv = document.getElementById('courseResult');
+      const topic = document.getElementById('courseTopicInput').value;
+      resultDiv.style.display = 'block';
+      resultDiv.innerHTML = '<span class="loading">Generating Course (this may take 30-60 seconds)...</span>';
+
+      try {
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/ai-chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          },
+          body: JSON.stringify({
+            action: 'generate-course',
+            topic: topic,
+            targetRole: 'employee',
+            country: 'UK'
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+        }
+
+        const data = await response.json();
+        resultDiv.innerHTML = `<span class="success">✓ Success!</span>\n\n${JSON.stringify(data, null, 2)}`;
+      } catch (error) {
+        resultDiv.innerHTML = `<span class="error">✗ Error:</span>\n${error.message}`;
+      }
+    }
+
+    async function testTextToSpeech() {
+      const resultDiv = document.getElementById('ttsResult');
+      const audioPlayer = document.getElementById('audioPlayer');
+      const text = document.getElementById('ttsInput').value;
+      resultDiv.style.display = 'block';
+      audioPlayer.style.display = 'none';
+      resultDiv.innerHTML = '<span class="loading">Converting text to speech...</span>';
+
+      try {
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/openai-proxy`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          },
+          body: JSON.stringify({
+            action: 'text-to-speech',
+            text: text,
+            voice: 'nova'
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+        }
+
+        const audioBlob = await response.blob();
+        const audioUrl = URL.createObjectURL(audioBlob);
+        audioPlayer.src = audioUrl;
+        audioPlayer.style.display = 'block';
+
+        resultDiv.innerHTML = `<span class="success">✓ Success! Audio generated (${(audioBlob.size / 1024).toFixed(2)} KB)</span>\n\nClick play on the audio player below to listen.`;
+      } catch (error) {
+        resultDiv.innerHTML = `<span class="error">✗ Error:</span>\n${error.message}`;
+      }
+    }
+  </script>
+</body>
+</html>
