@@ -12,6 +12,7 @@ import { AITutor } from './pages/AITutor';
 import { MockCalls } from './pages/MockCalls';
 import { MockCallsNew } from './pages/MockCallsNew';
 import { LiveCalls } from './pages/LiveCalls';
+import { DnaStudio } from './pages/DnaStudio';
 import { Social } from './pages/Social';
 import { Polls } from './pages/Polls';
 import { Events } from './pages/Events';
@@ -146,6 +147,13 @@ function App() {
               <ProtectedRoute>
                 <LiveCalls />
               </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/dna-studio"
+            element={
+              <DnaStudio />
             }
           />
 
