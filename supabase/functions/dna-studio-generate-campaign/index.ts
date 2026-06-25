@@ -14,6 +14,77 @@ const PLATFORM_RULES: Record<string, string> = {
   facebook: "Conversational, shareable, community-focused. Max 500 chars. 2-4 hashtags.",
 };
 
+type ColorRole = { hex: string; usage?: string; name?: string };
+
+type BrandInput = {
+  name: string;
+  tagline?: string;
+  industry?: string;
+  category?: string;
+  keywords?: string[];
+  tone?: { primary?: string; description?: string; formality?: number; energy?: number; warmth?: number };
+  audience?: { primary?: string; secondary?: string; ageRange?: string };
+  colorPalette?: ColorRole[];
+  detectedColors?: string[];
+  summary?: string;
+  logoUrl?: string | null;
+  previewImage?: string | null;
+};
+
+type CampaignBrief = {
+  purpose: string;
+  useCase?: string;
+  keyMessage?: string;
+  ctaIntent?: string;
+  audienceOverride?: string;
+};
+
+/** Design system is always derived from extracted DNA — never user-editable */
+function buildDesignSystemFromDna(brand: BrandInput) {
+  const palette = brand.colorPalette?.length
+    ? brand.colorPalette
+    : (brand.detectedColors || []).map((hex, i) => ({
+      hex,
+      usage: i === 0 ? "primary" : i === 1 ? "secondary" : "accent",
+    }));
+
+  const primary = palette.find((c) => c.usage === "primary")?.hex || palette[0]?.hex || "#6366f1";
+  const secondary = palette.find((c) => c.usage === "secondary")?.hex || palette[1]?.hex || primary;
+  const accent = palette.find((c) => c.usage === "accent")?.hex || palette[2]?.hex || secondary;
+
+  const tone = brand.tone?.primary || "professional";
+  const toneDesc = brand.tone?.description || "Clear, confident brand voice";
+
+  const imageStyleRules = [
+    `Brand: ${brand.name}`,
+    `Primary color ${primary}, secondary ${secondary}, accent ${accent}`,
+    `Visual tone: ${tone} — ${toneDesc}`,
+    `Industry aesthetic: ${brand.industry || "general"} / ${brand.category || "business"}`,
+    `Composition: clean, modern, on-brand photography or illustration`,
+    `Color grading must match brand palette — no off-brand hues`,
+    `No text, logos, or watermarks rendered inside the image`,
+    brand.logoUrl ? `Reference brand has logo at ${brand.logoUrl} — style should feel cohesive` : "",
+  ].filter(Boolean).join(". ");
+
+  const copyVoiceRules = [
+    `Voice: ${tone} (${toneDesc})`,
+    `Formality ${brand.tone?.formality ?? 60}/100, energy ${brand.tone?.energy ?? 50}/100, warmth ${brand.tone?.warmth ?? 50}/100`,
+    `Always sound like ${brand.name}, never generic marketing speak`,
+    `Use keywords where natural: ${(brand.keywords || []).slice(0, 6).join(", ")}`,
+  ].join(". ");
+
+  return {
+    brandName: brand.name,
+    palette: { primary, secondary, accent, all: palette },
+    tone: { primary: tone, description: toneDesc },
+    imageStyleRules,
+    copyVoiceRules,
+    tagline: brand.tagline || "",
+    industry: brand.industry || "",
+    defaultAudience: brand.audience?.primary || "General audience",
+  };
+}
+
 async function getSecret(key: string): Promise<string> {
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -30,12 +101,22 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { brand, goal, platforms } = await req.json();
-    if (!brand || !goal) throw new Error("brand and goal are required");
+    const body = await req.json();
+    const brand: BrandInput = body.brand;
+    const platforms: string[] = body.platforms;
+    const brief: CampaignBrief = body.brief || { purpose: body.goal || "" };
 
-    const selectedPlatforms: string[] = Array.isArray(platforms) && platforms.length
+    if (!brand?.name) throw new Error("brand is required");
+    if (!brief.purpose?.trim()) {
+      throw new Error("Campaign purpose is required — describe what this campaign is for");
+    }
+
+    const selectedPlatforms = Array.isArray(platforms) && platforms.length
       ? platforms
       : ["instagram", "linkedin", "twitter", "facebook"];
+
+    const designSystem = buildDesignSystemFromDna(brand);
+    const campaignAudience = brief.audienceOverride?.trim() || designSystem.defaultAudience;
 
     const apiKey = await getSecret("OPENAI_API_KEY");
     const platformContext = selectedPlatforms
@@ -55,41 +136,53 @@ Deno.serve(async (req: Request) => {
         messages: [
           {
             role: "system",
-            content: `You are a world-class social media strategist. Generate on-brand campaign content.
+            content: `You are a world-class social media strategist.
+
+CRITICAL RULE — TWO LAYERS:
+1. DESIGN (LOCKED FROM BRAND DNA): Colors, visual style, tone of voice, and image aesthetics are FIXED from the brand's extracted DNA. You MUST NOT invent new brand colors, change voice, or drift from the design system.
+2. MESSAGING (FROM USER BRIEF): Ad copy, captions, CTAs, campaign angles, and what the post is ABOUT come entirely from the user's campaign brief. The user defines purpose and message — you write copy that delivers it in the brand's locked voice.
+
+For every imagePrompt, START with the exact designSystem.imageStyleRules string, then append a scene description that supports the user's campaign purpose (not generic brand awareness).
+
 Return JSON:
 {
+  "designSystem": { "primaryColor": "#hex", "tone": "...", "note": "Design locked from brand DNA" },
   "concepts": [
     {
-      "name": "Campaign concept name",
-      "description": "1 sentence theme",
+      "name": "Campaign angle name tied to user purpose",
+      "description": "1 sentence — how this angle serves the user's stated purpose",
       "assets": [
         {
           "platform": "instagram|linkedin|twitter|facebook",
-          "caption": "post copy",
+          "caption": "post copy about USER purpose in brand voice",
           "hashtags": ["tag1","tag2"],
-          "cta": "call to action",
-          "imagePrompt": "detailed image generation prompt using brand colors, no text in image"
+          "cta": "call to action aligned with user ctaIntent or purpose",
+          "imagePrompt": "designSystem.imageStyleRules + scene for this campaign"
         }
       ]
     }
   ]
 }
-Generate exactly 3 concepts. Each concept must include one asset per requested platform.
+Generate exactly 3 distinct creative angles, all serving the SAME user purpose but with different hooks.
+Each concept must include one asset per requested platform.
 Platform rules:\n${platformContext}`,
           },
           {
             role: "user",
             content: JSON.stringify({
-              goal,
+              designSystem,
+              userBrief: {
+                purpose: brief.purpose.trim(),
+                useCase: brief.useCase?.trim() || null,
+                keyMessage: brief.keyMessage?.trim() || null,
+                ctaIntent: brief.ctaIntent?.trim() || null,
+                targetAudience: campaignAudience,
+              },
               platforms: selectedPlatforms,
-              brand: {
+              brandContext: {
                 name: brand.name,
                 tagline: brand.tagline,
                 industry: brand.industry,
-                tone: brand.tone,
-                audience: brand.audience,
-                keywords: brand.keywords,
-                colors: brand.colorPalette || brand.detectedColors,
                 summary: brand.summary,
               },
             }),
@@ -109,7 +202,14 @@ Platform rules:\n${platformContext}`,
 
     const parsed = JSON.parse(content);
 
-    return new Response(JSON.stringify(parsed), {
+    return new Response(JSON.stringify({
+      ...parsed,
+      designSystem: parsed.designSystem || {
+        primaryColor: designSystem.palette.primary,
+        tone: designSystem.tone.primary,
+        note: "Design locked from extracted brand DNA",
+      },
+    }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

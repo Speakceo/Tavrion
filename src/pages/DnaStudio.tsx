@@ -49,6 +49,14 @@ type CampaignConcept = {
   assets: CampaignAsset[];
 };
 
+type CampaignBrief = {
+  purpose: string;
+  useCase: string;
+  keyMessage: string;
+  ctaIntent: string;
+  audienceOverride: string;
+};
+
 const T = {
   bg: '#060608', bgElevated: '#0f0f14', bgCard: '#14141c',
   text: '#fafafa', textBody: '#a1a1aa', textMuted: '#71717a',
@@ -74,13 +82,21 @@ const FEATURES = [
 ];
 
 const STEPS = [
-  { n: '01', title: 'Paste a URL', desc: 'Any marketing site, landing page, or product homepage worldwide.' },
-  { n: '02', title: 'Extract DNA', desc: 'Colors, copy, tone, audience, and industry — structured instantly.' },
-  { n: '03', title: 'Ship campaigns', desc: 'Generate platform-specific posts and image prompts in one click.' },
+  { n: '01', title: 'Paste a URL', desc: 'Extract logo, colors, tone, and voice automatically from any site.' },
+  { n: '02', title: 'Define your campaign', desc: 'You choose the purpose, message, and use case — design stays on-brand.' },
+  { n: '03', title: 'Generate assets', desc: 'Platform-specific ad copy and image prompts, styled by DNA.' },
 ];
 
 const EXAMPLE_URLS = ['https://jointavrion.com', 'https://stripe.com', 'https://linear.app'];
-const CAMPAIGN_GOALS = ['Brand awareness', 'Product launch', 'Lead generation', 'Event promotion'];
+
+const USE_CASE_EXAMPLES = [
+  'Product launch',
+  'Feature announcement',
+  'Developer recruitment',
+  'Enterprise sales push',
+  'Event promotion',
+  'Customer success story',
+];
 
 function proxyImage(url: string) {
   const base = import.meta.env.VITE_SUPABASE_URL;
@@ -134,7 +150,7 @@ function SocialPreview({ asset, brand, previewImage, primaryColor = '#8b5cf6' }:
         </p>
         {asset.cta && <p style={{ fontSize: 12, fontWeight: 600, color: T.accent, margin: 0 }}>{asset.cta}</p>}
         <details style={{ marginTop: 12 }}>
-          <summary style={{ fontSize: 11, color: T.textMuted, cursor: 'pointer' }}>Image generation prompt</summary>
+          <summary style={{ fontSize: 11, color: T.textMuted, cursor: 'pointer' }}>Image prompt (design locked from DNA)</summary>
           <p style={{ fontSize: 11, color: T.textBody, marginTop: 8, lineHeight: 1.5 }}>{asset.imagePrompt}</p>
         </details>
       </div>
@@ -148,7 +164,13 @@ export function DnaStudio() {
   const [error, setError] = useState('');
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['instagram', 'linkedin', 'twitter', 'facebook']);
-  const [campaignGoal, setCampaignGoal] = useState(CAMPAIGN_GOALS[0]);
+  const [brief, setBrief] = useState<CampaignBrief>({
+    purpose: '',
+    useCase: '',
+    keyMessage: '',
+    ctaIntent: '',
+    audienceOverride: '',
+  });
   const [campaigns, setCampaigns] = useState<CampaignConcept[] | null>(null);
   const [campaignLoading, setCampaignLoading] = useState(false);
   const [campaignError, setCampaignError] = useState('');
@@ -186,6 +208,10 @@ export function DnaStudio() {
 
   const generateCampaign = async () => {
     if (!result) return;
+    if (!brief.purpose.trim()) {
+      setCampaignError('Describe your campaign purpose — what should this ad copy achieve?');
+      return;
+    }
     setCampaignLoading(true);
     setCampaignError('');
     setCampaigns(null);
@@ -198,8 +224,21 @@ export function DnaStudio() {
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
         },
         body: JSON.stringify({
-          brand: { ...result.brand, colorPalette: result.colorPalette, detectedColors: result.detectedColors, summary: result.summary },
-          goal: campaignGoal,
+          brand: {
+            ...result.brand,
+            colorPalette: result.colorPalette,
+            detectedColors: result.detectedColors,
+            summary: result.summary,
+            logoUrl: result.logoUrl,
+            previewImage: result.previewImage,
+          },
+          brief: {
+            purpose: brief.purpose.trim(),
+            useCase: brief.useCase.trim() || undefined,
+            keyMessage: brief.keyMessage.trim() || undefined,
+            ctaIntent: brief.ctaIntent.trim() || undefined,
+            audienceOverride: brief.audienceOverride.trim() || undefined,
+          },
           platforms: selectedPlatforms,
         }),
       });
@@ -258,7 +297,7 @@ export function DnaStudio() {
           </span>
         </h1>
         <p style={{ fontSize: 18, color: T.textBody, maxWidth: 560, margin: '0 auto 40px', lineHeight: 1.6 }}>
-          Decode colors, tone, audience, and positioning — then generate platform-specific social campaigns.
+          Brand design is extracted automatically. You define the campaign purpose and message.
         </p>
 
         <form onSubmit={(e) => { e.preventDefault(); analyze(); }} style={{ maxWidth: 640, margin: '0 auto 16px', display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
@@ -375,26 +414,106 @@ export function DnaStudio() {
             </div>
           </div>
 
-          {/* Campaign generator */}
-          <div style={{ background: `linear-gradient(135deg, rgba(139,92,246,0.15), rgba(6,182,212,0.1))`, border: `1px solid ${T.border}`, borderRadius: 16, padding: 28, marginBottom: 24 }}>
-            <h3 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 8px' }}>Generate social campaign</h3>
-            <p style={{ fontSize: 14, color: T.textBody, margin: '0 0 20px' }}>Create platform-specific posts with captions, hashtags, CTAs, and image prompts.</p>
-
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, color: T.textMuted, display: 'block', marginBottom: 8 }}>Campaign goal</label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {CAMPAIGN_GOALS.map((g) => (
-                  <button key={g} type="button" onClick={() => setCampaignGoal(g)}
-                    style={{ padding: '8px 14px', borderRadius: 8, border: `1px solid ${campaignGoal === g ? T.accent : T.border}`, background: campaignGoal === g ? 'rgba(139,92,246,0.2)' : T.bgCard, color: T.text, cursor: 'pointer', fontSize: 13 }}>
-                    {g}
-                  </button>
+          {/* Campaign generator — user defines messaging; DNA locks design */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, marginBottom: 24 }}>
+            {/* Locked design from DNA */}
+            <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 16, padding: 24 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                <Palette size={16} color={T.accent} />
+                <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Design system — locked from DNA</h3>
+              </div>
+              <p style={{ fontSize: 13, color: T.textMuted, margin: '0 0 16px', lineHeight: 1.5 }}>
+                Logo, colors, tone, and image style are auto-applied to every asset. You cannot edit these — they come from {result.brand.name}&apos;s extracted brand DNA.
+              </p>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+                {(result.colorPalette.length ? result.colorPalette : result.detectedColors.map((hex) => ({ hex, usage: 'accent' }))).slice(0, 5).map((c) => (
+                  <div key={c.hex} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 8, background: T.bgElevated, border: `1px solid ${T.border}` }}>
+                    <div style={{ width: 16, height: 16, borderRadius: 4, background: c.hex }} />
+                    <span style={{ fontSize: 11, fontFamily: 'monospace', color: T.textBody }}>{c.hex}</span>
+                  </div>
                 ))}
+              </div>
+              <div style={{ fontSize: 12, color: T.textBody, lineHeight: 1.6 }}>
+                <div><strong style={{ color: T.text }}>Voice:</strong> {result.brand.tone.primary} — {result.brand.tone.description}</div>
+                <div style={{ marginTop: 6 }}><strong style={{ color: T.text }}>Industry:</strong> {result.brand.industry}</div>
+                {result.logoUrl && (
+                  <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <strong style={{ color: T.text }}>Logo:</strong>
+                    <img src={proxyImage(result.logoUrl)} alt="" style={{ width: 28, height: 28, borderRadius: 4, background: '#fff', padding: 2, objectFit: 'contain' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  </div>
+                )}
               </div>
             </div>
 
-            <div style={{ marginBottom: 20 }}>
+            {/* User campaign brief */}
+            <div style={{ background: `linear-gradient(135deg, rgba(139,92,246,0.15), rgba(6,182,212,0.1))`, border: `1px solid ${T.border}`, borderRadius: 16, padding: 24, gridColumn: 'span 1' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <Target size={16} color={T.accent2} />
+                <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Your campaign brief</h3>
+              </div>
+              <p style={{ fontSize: 13, color: T.textBody, margin: '0 0 20px', lineHeight: 1.5 }}>
+                Define what this campaign is for. Example for Stripe: &quot;Promote our new Payments API to developers&quot; — design stays Stripe, message is yours.
+              </p>
+
+              <label style={{ fontSize: 12, color: T.textMuted, display: 'block', marginBottom: 6 }}>
+                Campaign purpose <span style={{ color: T.accent3 }}>*</span>
+              </label>
+              <textarea
+                required
+                value={brief.purpose}
+                onChange={(e) => setBrief((b) => ({ ...b, purpose: e.target.value }))}
+                placeholder="e.g. Announce Stripe Treasury for enterprise CFOs and drive demo signups"
+                rows={3}
+                style={{ width: '100%', padding: 12, fontSize: 14, borderRadius: 10, border: `1px solid ${T.border}`, background: T.bgCard, color: T.text, resize: 'vertical', boxSizing: 'border-box', marginBottom: 14 }}
+              />
+
+              <label style={{ fontSize: 12, color: T.textMuted, display: 'block', marginBottom: 6 }}>Use case (optional)</label>
+              <input
+                type="text"
+                value={brief.useCase}
+                onChange={(e) => setBrief((b) => ({ ...b, useCase: e.target.value }))}
+                placeholder="e.g. Product launch, hiring, feature release"
+                list="use-case-suggestions"
+                style={{ width: '100%', padding: 12, fontSize: 14, borderRadius: 10, border: `1px solid ${T.border}`, background: T.bgCard, color: T.text, boxSizing: 'border-box', marginBottom: 14 }}
+              />
+              <datalist id="use-case-suggestions">
+                {USE_CASE_EXAMPLES.map((u) => <option key={u} value={u} />)}
+              </datalist>
+
+              <label style={{ fontSize: 12, color: T.textMuted, display: 'block', marginBottom: 6 }}>Key message (optional)</label>
+              <textarea
+                value={brief.keyMessage}
+                onChange={(e) => setBrief((b) => ({ ...b, keyMessage: e.target.value }))}
+                placeholder="The one thing you want people to remember or do"
+                rows={2}
+                style={{ width: '100%', padding: 12, fontSize: 14, borderRadius: 10, border: `1px solid ${T.border}`, background: T.bgCard, color: T.text, resize: 'vertical', boxSizing: 'border-box', marginBottom: 14 }}
+              />
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                <div>
+                  <label style={{ fontSize: 12, color: T.textMuted, display: 'block', marginBottom: 6 }}>CTA intent (optional)</label>
+                  <input
+                    type="text"
+                    value={brief.ctaIntent}
+                    onChange={(e) => setBrief((b) => ({ ...b, ctaIntent: e.target.value }))}
+                    placeholder="e.g. Book a demo, Start free trial"
+                    style={{ width: '100%', padding: 12, fontSize: 14, borderRadius: 10, border: `1px solid ${T.border}`, background: T.bgCard, color: T.text, boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: T.textMuted, display: 'block', marginBottom: 6 }}>Audience override (optional)</label>
+                  <input
+                    type="text"
+                    value={brief.audienceOverride}
+                    onChange={(e) => setBrief((b) => ({ ...b, audienceOverride: e.target.value }))}
+                    placeholder={result.brand.audience.primary}
+                    style={{ width: '100%', padding: 12, fontSize: 14, borderRadius: 10, border: `1px solid ${T.border}`, background: T.bgCard, color: T.text, boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+
               <label style={{ fontSize: 12, color: T.textMuted, display: 'block', marginBottom: 8 }}>Platforms</label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
                 {PLATFORMS.map((p) => (
                   <button key={p.id} type="button" onClick={() => togglePlatform(p.id)}
                     style={{ padding: '8px 14px', borderRadius: 8, border: `1px solid ${selectedPlatforms.includes(p.id) ? p.color : T.border}`, background: selectedPlatforms.includes(p.id) ? `${p.color}22` : T.bgCard, color: T.text, cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -402,18 +521,22 @@ export function DnaStudio() {
                   </button>
                 ))}
               </div>
-            </div>
 
-            <button type="button" onClick={generateCampaign} disabled={campaignLoading}
-              style={{ padding: '14px 24px', borderRadius: 10, border: 'none', background: `linear-gradient(135deg, ${T.accent}, ${T.accent2})`, color: '#fff', fontWeight: 700, fontSize: 14, cursor: campaignLoading ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-              {campaignLoading ? <><Loader2 size={16} /> Generating campaign…</> : <><Share2 size={16} /> Generate campaign assets</>}
-            </button>
-            {campaignError && <p style={{ color: '#fca5a5', fontSize: 13, marginTop: 12 }}>{campaignError}</p>}
+              <button type="button" onClick={generateCampaign} disabled={campaignLoading || !brief.purpose.trim()}
+                style={{ padding: '14px 24px', borderRadius: 10, border: 'none', background: campaignLoading || !brief.purpose.trim() ? T.textMuted : `linear-gradient(135deg, ${T.accent}, ${T.accent2})`, color: '#fff', fontWeight: 700, fontSize: 14, cursor: campaignLoading || !brief.purpose.trim() ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                {campaignLoading ? <><Loader2 size={16} /> Generating…</> : <><Share2 size={16} /> Generate on-brand assets</>}
+              </button>
+              {campaignError && <p style={{ color: '#fca5a5', fontSize: 13, marginTop: 12 }}>{campaignError}</p>}
+            </div>
           </div>
 
           {/* Campaign results */}
           {campaigns && campaigns.length > 0 && (
             <div>
+              <p style={{ fontSize: 13, color: T.textMuted, marginBottom: 16 }}>
+                3 creative angles for: <strong style={{ color: T.text }}>{brief.purpose}</strong>
+                {brief.useCase && <> · {brief.useCase}</>}
+              </p>
               <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
                 {campaigns.map((c, i) => (
                   <button key={c.name} type="button" onClick={() => setActiveConcept(i)}
