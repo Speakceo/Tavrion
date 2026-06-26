@@ -52,6 +52,21 @@ const STEPS = [
 
 const EXAMPLE_URLS = ['https://jointavrion.com', 'https://stripe.com/docs', 'https://docs.anthropic.com'];
 
+const CRAWL_STEPS = [
+  { label: 'Connecting to website', icon: Globe2 },
+  { label: 'Crawling pages (up to 20)', icon: Search },
+  { label: 'Extracting & cleaning content', icon: Layers },
+  { label: 'Chunking for RAG pipeline', icon: Code2 },
+  { label: 'Generating embeddings', icon: Sparkles },
+  { label: 'Storing knowledge base', icon: CheckCircle2 },
+];
+
+function formatElapsed(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
 function apiHeaders() {
   return {
     'Content-Type': 'application/json',
@@ -78,10 +93,32 @@ export function TavrionBot() {
   const [waPhoneId, setWaPhoneId] = useState('');
   const [waToken, setWaToken] = useState('');
   const [waSaving, setWaSaving] = useState(false);
+  const [engineInfo, setEngineInfo] = useState<string | null>(null);
+  const [crawlElapsed, setCrawlElapsed] = useState(0);
+  const [crawlStep, setCrawlStep] = useState(0);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    if (!loading) {
+      setCrawlElapsed(0);
+      setCrawlStep(0);
+      return;
+    }
+    const started = Date.now();
+    const tick = setInterval(() => {
+      setCrawlElapsed(Math.floor((Date.now() - started) / 1000));
+    }, 1000);
+    const advance = setInterval(() => {
+      setCrawlStep((s) => Math.min(s + 1, CRAWL_STEPS.length - 1));
+    }, 7000);
+    return () => {
+      clearInterval(tick);
+      clearInterval(advance);
+    };
+  }, [loading]);
 
   const siteOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://jointavrion.com';
 
@@ -120,8 +157,12 @@ export function TavrionBot() {
       setBot(data.bot);
       setPages(data.pages || []);
       setMessages([{ role: 'assistant', content: data.bot.welcome_message }]);
-      if (data.crawlEngine || data.ragEngine) {
-        console.info(`Engines: crawl=${data.crawlEngine}, rag=${data.ragEngine}`);
+      const crawl = data.crawlEngine || 'unknown';
+      const rag = data.ragEngine || crawl;
+      if (crawl === 'edge-fallback') {
+        setEngineInfo('Lightweight mode (no Docker/Python). Works on static sites. For JS-heavy SPAs, run services/tavrion-bot-api/start.sh or deploy to Railway.');
+      } else {
+        setEngineInfo(`Crawl: ${crawl} · RAG: ${rag}`);
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to create bot');
@@ -204,8 +245,91 @@ export function TavrionBot() {
     setTimeout(() => setCopied(null), 2000);
   }
 
+  const crawlProgress = loading
+    ? Math.min(94, Math.round(((crawlStep + 1) / CRAWL_STEPS.length) * 78 + Math.min(crawlElapsed * 1.5, 16)))
+    : 0;
+
   return (
     <div style={{ minHeight: '100vh', background: T.bg, color: T.text, fontFamily: FONT }}>
+      {loading && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 100,
+          background: 'rgba(6,6,8,0.92)', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+        }}>
+          <div style={{
+            width: '100%', maxWidth: 440, background: T.bgCard,
+            border: `1px solid ${T.border}`, borderRadius: 20, padding: 32,
+            boxShadow: `0 24px 80px ${T.glow}`,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Loader2 size={22} className="animate-spin" color={T.accent} />
+                <span style={{ fontWeight: 700, fontSize: 17 }}>Building your bot</span>
+              </div>
+              <span style={{
+                fontFamily: 'ui-monospace, monospace', fontSize: 14, color: T.accent,
+                background: 'rgba(34,197,94,0.12)', padding: '4px 10px', borderRadius: 8,
+              }}>
+                {formatElapsed(crawlElapsed)}
+              </span>
+            </div>
+
+            <div style={{
+              height: 6, borderRadius: 99, background: T.bgElevated, marginBottom: 24, overflow: 'hidden',
+            }}>
+              <div style={{
+                height: '100%', borderRadius: 99,
+                background: `linear-gradient(90deg, ${T.accent}, ${T.accent2})`,
+                width: `${crawlProgress}%`,
+                transition: 'width 0.6s ease',
+              }} />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {CRAWL_STEPS.map((step, i) => {
+                const done = i < crawlStep;
+                const active = i === crawlStep;
+                const StepIcon = step.icon;
+                return (
+                  <div key={step.label} style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    opacity: i > crawlStep ? 0.35 : 1,
+                    transition: 'opacity 0.3s',
+                  }}>
+                    <div style={{
+                      width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: done ? 'rgba(34,197,94,0.2)' : active ? 'rgba(59,130,246,0.2)' : T.bgElevated,
+                      border: `1px solid ${done ? T.accent : active ? T.accent2 : T.border}`,
+                    }}>
+                      {done ? (
+                        <Check size={16} color={T.accent} />
+                      ) : active ? (
+                        <Loader2 size={16} className="animate-spin" color={T.accent2} />
+                      ) : (
+                        <StepIcon size={16} color={T.textMuted} />
+                      )}
+                    </div>
+                    <span style={{
+                      fontSize: 14,
+                      color: active ? T.text : done ? T.textBody : T.textMuted,
+                      fontWeight: active ? 600 : 400,
+                    }}>
+                      {step.label}
+                      {active && '…'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <p style={{ color: T.textMuted, fontSize: 12, marginTop: 20, textAlign: 'center', lineHeight: 1.5 }}>
+              Crawling and indexing can take 30s–2min depending on site size.
+            </p>
+          </div>
+        </div>
+      )}
       <nav style={{
         position: 'sticky', top: 0, zIndex: 50, backdropFilter: 'blur(12px)',
         background: 'rgba(6,6,8,0.85)', borderBottom: `1px solid ${T.border}`,
@@ -322,6 +446,9 @@ export function TavrionBot() {
                 <p style={{ color: T.textMuted, fontSize: 13, marginTop: 4 }}>
                   {bot.pages_crawled} pages · {bot.chunks_count} chunks · {bot.source_url}
                 </p>
+                {engineInfo && (
+                  <p style={{ color: T.textBody, fontSize: 12, marginTop: 6, maxWidth: 520 }}>{engineInfo}</p>
+                )}
               </div>
               <button onClick={recrawl} disabled={loading} style={{
                 padding: '8px 14px', borderRadius: 8, border: `1px solid ${T.border}`,

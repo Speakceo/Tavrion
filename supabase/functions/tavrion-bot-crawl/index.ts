@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { runFallbackCrawl } from "../_shared/crawlFallback.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -36,13 +37,18 @@ Deno.serve(async (req: Request) => {
     );
 
     const botApiUrl = await getSecret(supabase, "TAVRION_BOT_API_URL");
-    if (!botApiUrl) {
-      throw new Error(
-        "Tavrion Bot API not configured. Deploy services/tavrion-bot-api (Crawl4AI + LangGraph) and set TAVRION_BOT_API_URL in app_secrets.",
-      );
+    if (botApiUrl) {
+      return await proxyToBotApi(botApiUrl, "/crawl", body);
     }
 
-    return await proxyToBotApi(botApiUrl, "/crawl", body);
+    const openaiKey = await getSecret(supabase, "OPENAI_API_KEY");
+    if (!openaiKey) throw new Error("OPENAI_API_KEY not configured");
+
+    const result = await runFallbackCrawl(supabase, openaiKey, body);
+    return new Response(JSON.stringify(result), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return new Response(JSON.stringify({ error: message }), {
