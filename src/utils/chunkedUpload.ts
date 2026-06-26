@@ -42,7 +42,7 @@ function formatUploadError(error: unknown): string {
   }
 
   if (isFileSizeError(msg)) {
-    return 'File exceeds the storage size limit. If your file is under 2GB, check bucket settings or contact support.';
+    return `Upload blocked: Supabase allows max 50 MB per file on the current plan (your file may be larger). Books uploads extract PDFs from the ZIP individually — each PDF must be under 50 MB. Upgrade Supabase to Pro for larger single-file uploads.`;
   }
   if (/mime|invalid file type|not allowed/i.test(msg)) {
     return `Upload rejected by storage: ${msg}`;

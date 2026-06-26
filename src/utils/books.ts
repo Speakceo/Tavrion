@@ -1,4 +1,4 @@
-import JSZip from 'jszip';
+import { BlobReader, BlobWriter, ZipReader } from '@zip.js/zip.js';
 
 export interface BookCollection {
   id: string;
@@ -22,6 +22,13 @@ export interface BookDocument {
   file_size: number;
   sort_order: number;
   created_at: string;
+}
+
+export interface ZipPdfPreview {
+  path: string;
+  name: string;
+  uncompressedSize: number;
+  tooLarge: boolean;
 }
 
 export function isBooksFeatureEnabled(features?: Record<string, boolean> | null) {
@@ -51,22 +58,73 @@ export function formatBookSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export async function extractPdfsFromZip(file: File) {
-  const zip = await JSZip.loadAsync(file);
-  const pdfs: { name: string; blob: Blob }[] = [];
+/** Supabase free plan global per-object limit (confirmed via project storage config). */
+export const SUPABASE_PER_FILE_LIMIT_BYTES = 50 * 1024 * 1024;
+const SAFE_PDF_LIMIT_BYTES = 48 * 1024 * 1024;
 
-  for (const [path, entry] of Object.entries(zip.files)) {
-    if (entry.dir) continue;
-    if (path.includes('__MACOSX') || path.split('/').some((p) => p.startsWith('.'))) continue;
-    if (!path.toLowerCase().endsWith('.pdf')) continue;
+function isPdfZipPath(path: string) {
+  if (!path.toLowerCase().endsWith('.pdf')) return false;
+  if (path.includes('__MACOSX')) return false;
+  if (path.split('/').some((p) => p.startsWith('.'))) return false;
+  return true;
+}
 
-    const blob = await entry.async('blob');
-    const filename = path.split('/').pop() || path;
-    pdfs.push({ name: filename, blob });
+async function openZipReader(file: File) {
+  return new ZipReader(new BlobReader(file));
+}
+
+export async function scanZipForPdfs(file: File): Promise<ZipPdfPreview[]> {
+  const reader = await openZipReader(file);
+  try {
+    const entries = await reader.getEntries();
+    return entries
+      .filter((entry) => !entry.directory && isPdfZipPath(entry.filename))
+      .map((entry) => ({
+        path: entry.filename,
+        name: entry.filename.split('/').pop() || entry.filename,
+        uncompressedSize: entry.uncompressedSize,
+        tooLarge: entry.uncompressedSize > SAFE_PDF_LIMIT_BYTES,
+      }))
+      .sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true }));
+  } finally {
+    await reader.close();
   }
+}
 
-  pdfs.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-  return pdfs;
+export async function forEachPdfInZip(
+  file: File,
+  onPdf: (pdf: { name: string; blob: Blob }, index: number, total: number) => Promise<void>,
+  onStage?: (message: string) => void,
+) {
+  const reader = await openZipReader(file);
+  try {
+    const entries = await reader.getEntries();
+    const pdfEntries = entries
+      .filter((entry) => !entry.directory && isPdfZipPath(entry.filename))
+      .sort((a, b) => a.filename.localeCompare(b.filename, undefined, { numeric: true }));
+
+    if (pdfEntries.length === 0) {
+      throw new Error('No PDF files found in this ZIP. Add .pdf files and try again.');
+    }
+
+    const oversized = pdfEntries.find((entry) => entry.uncompressedSize > SAFE_PDF_LIMIT_BYTES);
+    if (oversized) {
+      const name = oversized.filename.split('/').pop() || oversized.filename;
+      throw new Error(
+        `"${name}" is ${formatBookSize(oversized.uncompressedSize)}. Each PDF must be under 50 MB on the current Supabase plan.`,
+      );
+    }
+
+    for (let i = 0; i < pdfEntries.length; i += 1) {
+      const entry = pdfEntries[i];
+      const name = entry.filename.split('/').pop() || entry.filename;
+      onStage?.(`Extracting ${i + 1} of ${pdfEntries.length}: ${name}`);
+      const blob = await entry.getData(new BlobWriter('application/pdf'));
+      await onPdf({ name, blob }, i, pdfEntries.length);
+    }
+  } finally {
+    await reader.close();
+  }
 }
 
 export function sanitizeStorageName(name: string) {
