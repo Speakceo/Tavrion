@@ -2,6 +2,7 @@ import { Component, ErrorInfo, ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { PagePasswordGate } from './components/PagePasswordGate';
 import { BooksFeatureRoute } from './components/BooksFeatureRoute';
 import { LandingPage } from './pages/LandingPage';
 import { Login } from './pages/Login';
@@ -157,14 +158,18 @@ function App() {
           <Route
             path="/dna-studio"
             element={
-              <DnaStudio />
+              <PagePasswordGate title="DNA Studio" description="DNA Studio is restricted. Enter the access password to open the brand analysis tools.">
+                <DnaStudio />
+              </PagePasswordGate>
             }
           />
 
           <Route
             path="/tavrion-bot"
             element={
-              <TavrionBot />
+              <PagePasswordGate title="Tavrion Bot" description="Tavrion Bot is restricted. Enter the access password to manage chatbots and embeds.">
+                <TavrionBot />
+              </PagePasswordGate>
             }
           />
 
