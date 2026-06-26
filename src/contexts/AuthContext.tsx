@@ -3,7 +3,13 @@ import { supabase } from '../lib/supabase';
 import { UserProfile, Organization } from '../types';
 import { isMasterSuperAdmin } from '../utils/platformAccess';
 
-async function assertActiveOrganization(organizationId: string) {
+function isPlatformOwnerAccount(profile?: { is_platform_owner?: boolean; unique_id?: string | null } | null) {
+  return Boolean(profile?.is_platform_owner || isMasterSuperAdmin(profile?.unique_id));
+}
+
+async function assertActiveOrganization(organizationId: string, skipForPlatformOwner = false) {
+  if (skipForPlatformOwner) return { error: null };
+
   const { data: org } = await supabase
     .from('organizations')
     .select('is_active')
@@ -44,13 +50,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchProfile = async (userId: string, orgId?: string) => {
     try {
+      const ownerAccount = isMasterSuperAdmin(userId);
+
       let query = supabase
         .from('user_profiles')
         .select('*')
-        .eq('unique_id', userId)
-        .eq('is_active', true);
+        .eq('unique_id', userId);
 
-      if (orgId) {
+      if (!ownerAccount) {
+        query = query.eq('is_active', true);
+      }
+
+      if (orgId && !ownerAccount) {
         query = query.eq('organization_id', orgId);
       }
 
@@ -58,6 +69,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) throw error;
       setProfile(data);
+
+      if (data && isPlatformOwnerAccount(data)) {
+        if (data.organization_id) {
+          const { data: orgData } = await supabase
+            .from('organizations')
+            .select('*')
+            .eq('id', data.organization_id)
+            .maybeSingle();
+          setOrganization(orgData);
+        } else {
+          setOrganization(null);
+        }
+        return;
+      }
 
       if (data?.organization_id) {
         const inactive = await assertActiveOrganization(data.organization_id);
@@ -95,7 +120,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (userId: string, password: string, organizationId?: string) => {
     try {
-      if (organizationId) {
+      const ownerLogin = !organizationId && isMasterSuperAdmin(userId);
+
+      if (organizationId && !ownerLogin) {
         const inactive = await assertActiveOrganization(organizationId);
         if (inactive.error) return { error: inactive.error, profile: null };
       }
@@ -103,8 +130,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       let query = supabase
         .from('user_profiles')
         .select('*')
-        .eq('unique_id', userId)
-        .eq('is_active', true);
+        .eq('unique_id', userId);
+
+      if (ownerLogin) {
+        query = query.eq('is_platform_owner', true);
+      } else {
+        query = query.eq('is_active', true);
+      }
 
       if (organizationId) {
         query = query.eq('organization_id', organizationId);
@@ -115,6 +147,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await query.maybeSingle();
 
       if (error || !data) {
+        return { error: { message: 'Invalid organisation, User ID, or password' }, profile: null };
+      }
+
+      if (!ownerLogin && !data.is_active) {
         return { error: { message: 'Invalid organisation, User ID, or password' }, profile: null };
       }
 
@@ -136,7 +172,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       else localStorage.removeItem('org_id');
       setProfile(data);
 
+      if (isPlatformOwnerAccount(data)) {
+        if (data.organization_id) {
+          const { data: orgData } = await supabase
+            .from('organizations')
+            .select('*')
+            .eq('id', data.organization_id)
+            .maybeSingle();
+          setOrganization(orgData);
+        } else {
+          setOrganization(null);
+        }
+        return { error: null, profile: data };
+      }
+
       if (data.organization_id) {
+        const inactive = await assertActiveOrganization(data.organization_id);
+        if (inactive.error) {
+          localStorage.removeItem('user_id');
+          localStorage.removeItem('org_id');
+          setProfile(null);
+          setOrganization(null);
+          return { error: inactive.error, profile: null };
+        }
+
         const { data: orgData } = await supabase
           .from('organizations')
           .select('*')

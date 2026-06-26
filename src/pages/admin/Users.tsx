@@ -4,7 +4,7 @@ import { Layout } from '../../components/Layout';
 import { useAuth } from '../../contexts/AuthContext';
 import { UserPlus, Search, Check, X, CreditCard as Edit, UserX, Trash2, Building2, KeyRound } from 'lucide-react';
 import { UserProfile } from '../../types';
-import { ORG_ASSIGNABLE_ROLES, sanitizeUserRole } from '../../utils/platformAccess';
+import { ORG_ASSIGNABLE_ROLES, sanitizeUserRole, isMasterSuperAdmin } from '../../utils/platformAccess';
 
 export function AdminUsers() {
   const { profile, organization } = useAuth();
@@ -61,7 +61,8 @@ export function AdminUsers() {
     user.unique_id?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const toggleUserStatus = async (userId: string, currentStatus: boolean) => {
+  const toggleUserStatus = async (userId: string, currentStatus: boolean, user?: UserProfile) => {
+    if (user?.is_platform_owner || isMasterSuperAdmin(user?.unique_id)) return;
     await supabase.from('user_profiles').update({ is_active: !currentStatus }).eq('id', userId);
     fetchUsers();
   };
@@ -74,7 +75,8 @@ export function AdminUsers() {
     fetchUsers();
   };
 
-  const handleDeleteUser = async (userId: string, userName: string) => {
+  const handleDeleteUser = async (userId: string, userName: string, user?: UserProfile) => {
+    if (user?.is_platform_owner || isMasterSuperAdmin(user?.unique_id)) return;
     if (!confirm(`Delete "${userName}" permanently? This cannot be undone.`)) return;
     const { error } = await supabase.from('user_profiles').delete().eq('id', userId);
     if (error) { alert('Failed to delete user. Please try again.'); return; }
@@ -278,16 +280,20 @@ export function AdminUsers() {
                             onMouseEnter={e => (e.currentTarget.style.background = '#f0f6ff')}
                             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                           ><KeyRound size={13} /></button>
-                          <button onClick={() => toggleUserStatus(user.id, user.is_active)} title={user.is_active ? 'Deactivate' : 'Activate'}
-                            style={{ padding: 6, color: '#a06000', borderRadius: 6, background: 'none', border: 'none', cursor: 'pointer' }}
-                            onMouseEnter={e => (e.currentTarget.style.background = '#fffbf0')}
-                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                          ><UserX size={13} /></button>
-                          <button onClick={() => handleDeleteUser(user.id, user.full_name)} title="Delete user"
+                          {!user.is_platform_owner && !isMasterSuperAdmin(user.unique_id) && (
+                            <button onClick={() => toggleUserStatus(user.id, user.is_active, user)} title={user.is_active ? 'Deactivate' : 'Activate'}
+                              style={{ padding: 6, color: '#a06000', borderRadius: 6, background: 'none', border: 'none', cursor: 'pointer' }}
+                              onMouseEnter={e => (e.currentTarget.style.background = '#fffbf0')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                            ><UserX size={13} /></button>
+                          )}
+                          {!user.is_platform_owner && !isMasterSuperAdmin(user.unique_id) && (
+                            <button onClick={() => handleDeleteUser(user.id, user.full_name, user)} title="Delete user"
                             style={{ padding: 6, color: '#c0392b', borderRadius: 6, background: 'none', border: 'none', cursor: 'pointer' }}
                             onMouseEnter={e => (e.currentTarget.style.background = '#fff5f5')}
                             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                           ><Trash2 size={13} /></button>
+                          )}
                         </div>
                       </td>
                     </tr>

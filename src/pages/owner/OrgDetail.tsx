@@ -7,7 +7,7 @@ import {
   UserPlus, Search, Trash2, UserX, Check, X, CreditCard as Edit, KeyRound,
 } from 'lucide-react';
 import { Organization, UserProfile } from '../../types';
-import { ORG_ASSIGNABLE_ROLES, sanitizeUserRole } from '../../utils/platformAccess';
+import { ORG_ASSIGNABLE_ROLES, sanitizeUserRole, isMasterSuperAdmin } from '../../utils/platformAccess';
 
 const DEFAULT_FEATURES = {
   ai_tutor: false,
@@ -147,13 +147,15 @@ export function OrgDetail() {
     setTimeout(() => { setShowAddUser(false); setAddUserSuccess(''); }, 1500);
   };
 
-  const handleDeleteUser = async (userId: string, userName: string) => {
+  const handleDeleteUser = async (userId: string, userName: string, user?: UserProfile) => {
+    if (user?.is_platform_owner || isMasterSuperAdmin(user?.unique_id)) return;
     if (!confirm(`Delete "${userName}" permanently?`)) return;
     await supabase.from('user_profiles').delete().eq('id', userId);
     if (orgId) fetchOrgUsers(orgId);
   };
 
-  const toggleUserStatus = async (userId: string, current: boolean) => {
+  const toggleUserStatus = async (userId: string, current: boolean, user?: UserProfile) => {
+    if (user?.is_platform_owner || isMasterSuperAdmin(user?.unique_id)) return;
     await supabase.from('user_profiles').update({ is_active: !current }).eq('id', userId);
     if (orgId) fetchOrgUsers(orgId);
   };
@@ -394,16 +396,20 @@ export function OrgDetail() {
                               onMouseEnter={e => (e.currentTarget.style.background = '#f0f6ff')}
                               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                             ><KeyRound size={13} /></button>
-                            <button onClick={() => toggleUserStatus(user.id, user.is_active)}
-                              style={{ padding: 6, color: '#a06000', borderRadius: 6, background: 'none', border: 'none', cursor: 'pointer' }}
-                              onMouseEnter={e => (e.currentTarget.style.background = '#fffbf0')}
-                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                            ><UserX size={13} /></button>
-                            <button onClick={() => handleDeleteUser(user.id, user.full_name)}
+                            {!user.is_platform_owner && !isMasterSuperAdmin(user.unique_id) && (
+                              <button onClick={() => toggleUserStatus(user.id, user.is_active, user)}
+                                style={{ padding: 6, color: '#a06000', borderRadius: 6, background: 'none', border: 'none', cursor: 'pointer' }}
+                                onMouseEnter={e => (e.currentTarget.style.background = '#fffbf0')}
+                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                              ><UserX size={13} /></button>
+                            )}
+                            {!user.is_platform_owner && !isMasterSuperAdmin(user.unique_id) && (
+                              <button onClick={() => handleDeleteUser(user.id, user.full_name, user)}
                               style={{ padding: 6, color: '#c0392b', borderRadius: 6, background: 'none', border: 'none', cursor: 'pointer' }}
                               onMouseEnter={e => (e.currentTarget.style.background = '#fff5f5')}
                               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                             ><Trash2 size={13} /></button>
+                            )}
                           </div>
                         </td>
                       </tr>
