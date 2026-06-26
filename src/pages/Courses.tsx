@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { Layout } from '../components/Layout';
 import { tryCompleteUploadedCourse } from '../utils/courseCompletion';
 import { useLearnerCourses } from '../hooks/useLearnerCourses';
 import { isInProgressStatus, isPendingStatus, type UploadedCourseAssignment } from '../utils/learnerCourses';
 import { ScormPlayer } from '../components/ScormPlayer';
 import { BookOpen, Clock, Award, FileText, Download, Eye } from 'lucide-react';
-import { Course, UserCourseEnrollment } from '../types';
 
 export function Courses() {
   const { profile } = useAuth();
