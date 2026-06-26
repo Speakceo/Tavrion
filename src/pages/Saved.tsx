@@ -31,6 +31,16 @@ export function Saved() {
     }
   };
 
+  const getItemLink = (item: { item_type: string; item_id: string }) => {
+    switch (item.item_type) {
+      case 'post': return '/social';
+      case 'poll': return '/polls';
+      case 'event': return '/events';
+      case 'shot': return '/shots';
+      default: return null;
+    }
+  };
+
   const getIcon = (type: string) => {
     switch (type) {
       case 'post': return <FileText className="w-5 h-5" />;
@@ -62,12 +72,11 @@ export function Saved() {
           </div>
         ) : (
           <div className="space-y-4">
-            {savedItems.map((item) => (
-              <div key={item.id} className="lt-card p-6">
+            {savedItems.map((item) => {
+              const href = getItemLink(item);
+              const inner = (
                 <div className="flex items-center gap-3">
-                  <div className="text-blue-600">
-                    {getIcon(item.item_type)}
-                  </div>
+                  <div className="text-blue-600">{getIcon(item.item_type)}</div>
                   <div>
                     <p className="font-medium text-gray-900 capitalize">{item.item_type}</p>
                     <p className="text-sm text-gray-500">
@@ -75,8 +84,13 @@ export function Saved() {
                     </p>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+              return href ? (
+                <a key={item.id} href={href} className="lt-card p-6 block hover:bg-gray-50 transition-colors">{inner}</a>
+              ) : (
+                <div key={item.id} className="lt-card p-6">{inner}</div>
+              );
+            })}
           </div>
         )}
       </div>

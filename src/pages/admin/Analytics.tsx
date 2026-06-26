@@ -83,12 +83,12 @@ export function Analytics() {
       const { data: recentQuizAttempts } = await supabase
         .from('quiz_attempts')
         .select('id')
-        .gte('created_at', sevenDaysAgo.toISOString());
+        .gte('completed_at', sevenDaysAgo.toISOString());
 
       const { data: recentMockCalls } = await supabase
-        .from('ai_chat_history')
+        .from('mock_call_sessions')
         .select('id')
-        .gte('created_at', sevenDaysAgo.toISOString());
+        .gte('completed_at', sevenDaysAgo.toISOString());
 
       setRecentActivity({
         enrollments: recentEnrollments?.length || 0,

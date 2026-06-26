@@ -6,6 +6,14 @@ import { Layout } from '../components/Layout';
 import { ArrowLeft, CheckCircle } from 'lucide-react';
 import { Lesson } from '../types';
 import { ScormPlayer } from '../components/ScormPlayer';
+import { tryCompleteCourse } from '../utils/courseCompletion';
+
+type QuizQuestion = {
+  id: string;
+  question_text: string;
+  options: string[];
+  correct_answer: string;
+};
 
 export function LessonView() {
   const { lessonId } = useParams<{ lessonId: string }>();
@@ -14,6 +22,12 @@ export function LessonView() {
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [loading, setLoading] = useState(true);
   const [startTime] = useState(Date.now());
+  const [quizStarted, setQuizStarted] = useState(false);
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
+  const [quizMeta, setQuizMeta] = useState<{ id: string; pass_threshold: number } | null>(null);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [quizResult, setQuizResult] = useState<{ score: number; passed: boolean } | null>(null);
+  const [quizLoading, setQuizLoading] = useState(false);
 
   // Setup SCORM API for simple HTML lessons
   useEffect(() => {
@@ -100,8 +114,8 @@ export function LessonView() {
     }
   };
 
-  const markComplete = async () => {
-    if (!lessonId || !profile) return;
+  const markComplete = async (options?: { skipNavigate?: boolean }) => {
+    if (!lessonId || !profile || !lesson) return;
 
     const timeSpent = Math.floor((Date.now() - startTime) / 1000);
 
@@ -122,7 +136,91 @@ export function LessonView() {
       event_data: { lesson_id: lessonId, time_spent: timeSpent }
     });
 
-    navigate(-1);
+    const courseId = (lesson as any).module?.course?.id;
+    const courseTitle = (lesson as any).module?.course?.title;
+    if (courseId && courseTitle) {
+      await tryCompleteCourse(profile.id, courseId, courseTitle);
+    }
+
+    if (!options?.skipNavigate) navigate(-1);
+  };
+
+  const loadQuiz = async () => {
+    if (!lessonId) return;
+    setQuizLoading(true);
+    try {
+      const { data: quiz } = await supabase
+        .from('quizzes')
+        .select('id, pass_threshold, questions(*)')
+        .eq('lesson_id', lessonId)
+        .maybeSingle();
+
+      if (quiz?.questions?.length) {
+        setQuizMeta({ id: quiz.id, pass_threshold: quiz.pass_threshold || 70 });
+        setQuizQuestions(quiz.questions.map((q: any) => ({
+          id: q.id,
+          question_text: q.question_text,
+          options: Array.isArray(q.options) ? q.options : [],
+          correct_answer: q.correct_answer || '',
+        })));
+        setQuizStarted(true);
+        return;
+      }
+
+      const contentQs = (lesson?.content as any)?.questions;
+      if (Array.isArray(contentQs) && contentQs.length) {
+        setQuizMeta({ id: 'inline', pass_threshold: 70 });
+        setQuizQuestions(contentQs.map((q: any, i: number) => ({
+          id: `inline-${i}`,
+          question_text: q.question || q.question_text,
+          options: q.options || [],
+          correct_answer: q.correct_answer || q.answer || '',
+        })));
+        setQuizStarted(true);
+        return;
+      }
+
+      alert('No quiz questions found for this lesson yet.');
+    } finally {
+      setQuizLoading(false);
+    }
+  };
+
+  const submitQuiz = async () => {
+    if (!profile || !quizQuestions.length) return;
+    const total = quizQuestions.length;
+    let correct = 0;
+    const answerMap: Record<string, string> = {};
+
+    quizQuestions.forEach((q) => {
+      const selected = answers[q.id] || '';
+      answerMap[q.id] = selected;
+      if (selected && selected === q.correct_answer) correct += 1;
+    });
+
+    const score = Math.round((correct / total) * 100);
+    const threshold = quizMeta?.pass_threshold || 70;
+    const passed = score >= threshold;
+    setQuizResult({ score, passed });
+
+    if (quizMeta?.id && quizMeta.id !== 'inline') {
+      const { count } = await supabase
+        .from('quiz_attempts')
+        .select('id', { count: 'exact', head: true })
+        .eq('quiz_id', quizMeta.id)
+        .eq('user_id', profile.id);
+
+      await supabase.from('quiz_attempts').insert({
+        quiz_id: quizMeta.id,
+        user_id: profile.id,
+        score,
+        answers: answerMap,
+        passed,
+        attempt_number: (count || 0) + 1,
+      });
+    }
+
+    if (passed) await markComplete({ skipNavigate: true });
   };
 
   if (loading) {
@@ -240,18 +338,76 @@ export function LessonView() {
             )}
 
             {lesson.type === 'quiz' && (
-              <div className="text-center py-12">
-                <p className="text-gray-600 mb-6">This lesson contains a quiz</p>
-                <button className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">
-                  Start Quiz
-                </button>
+              <div className="py-6">
+                {!quizStarted ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-600 mb-6">Test your knowledge from this module</p>
+                    <button
+                      onClick={loadQuiz}
+                      disabled={quizLoading}
+                      className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {quizLoading ? 'Loading…' : 'Start Quiz'}
+                    </button>
+                  </div>
+                ) : quizResult ? (
+                  <div className="text-center py-8">
+                    <p className={`text-2xl font-bold mb-2 ${quizResult.passed ? 'text-green-600' : 'text-amber-600'}`}>
+                      {quizResult.score}% — {quizResult.passed ? 'Passed!' : 'Not passed'}
+                    </p>
+                    <p className="text-gray-600 mb-4">
+                      {quizResult.passed ? 'Lesson marked complete. You can return to the course.' : 'Review the material and try again.'}
+                    </p>
+                    {quizResult.passed ? (
+                      <button onClick={() => navigate(-1)} className="px-4 py-2 bg-green-600 text-white rounded-lg">
+                        Back to Course
+                      </button>
+                    ) : (
+                      <button onClick={() => { setQuizResult(null); setAnswers({}); }} className="px-4 py-2 border border-gray-300 rounded-lg">
+                        Retry Quiz
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-6 max-w-2xl mx-auto">
+                    {quizQuestions.map((q, i) => (
+                      <div key={q.id} className="border border-gray-200 rounded-lg p-5">
+                        <p className="font-semibold text-gray-900 mb-3">{i + 1}. {q.question_text}</p>
+                        <div className="space-y-2">
+                          {q.options.map((opt) => (
+                            <label key={opt} className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50 cursor-pointer">
+                              <input
+                                type="radio"
+                                name={q.id}
+                                value={opt}
+                                checked={answers[q.id] === opt}
+                                onChange={() => setAnswers((a) => ({ ...a, [q.id]: opt }))}
+                              />
+                              <span className="text-gray-700">{opt}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    <button
+                      onClick={submitQuiz}
+                      disabled={Object.keys(answers).length < quizQuestions.length}
+                      className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      Submit Quiz
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
             {lesson.type === 'mock_call' && (
               <div className="text-center py-12">
                 <p className="text-gray-600 mb-6">Practice your skills with an AI-powered mock call</p>
-                <button className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">
+                <button
+                  onClick={() => navigate('/mock-calls')}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700"
+                >
                   Start Mock Call
                 </button>
               </div>
@@ -259,13 +415,15 @@ export function LessonView() {
           </div>
 
           <div className="p-8 border-t border-gray-200 flex justify-end">
-            <button
-              onClick={markComplete}
-              className="flex items-center space-x-2 px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700"
-            >
-              <CheckCircle className="w-5 h-5" />
-              <span>Mark as Complete</span>
-            </button>
+            {lesson.type !== 'quiz' && (
+              <button
+                onClick={() => markComplete()}
+                className="flex items-center space-x-2 px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700"
+              >
+                <CheckCircle className="w-5 h-5" />
+                <span>Mark as Complete</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

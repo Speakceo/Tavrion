@@ -175,7 +175,7 @@ export function AIGenerate() {
   };
 
   const handleGeneratePresentation = async () => {
-    if (!generatedContent) {
+    if (!generatedContent || !profile) {
       alert('Please generate a course first');
       return;
     }
@@ -187,21 +187,45 @@ export function AIGenerate() {
       generatedContent.modules.forEach((module: any) => {
         presentationContent += `\n## ${module.title}\n${module.description}\n`;
         module.lessons.forEach((lesson: any) => {
-          presentationContent += `\n### ${lesson.title}\n${lesson.content}\n`;
+          const body = typeof lesson.content === 'string' ? lesson.content : lesson.content?.text || lesson.content?.html || '';
+          presentationContent += `\n### ${lesson.title}\n${body}\n`;
         });
       });
 
-      const { data, error } = await supabase.from('presentations').insert({
-        user_id: (await supabase.auth.getUser()).data.user?.id,
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-presentation`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          content: presentationContent,
+          n_slides: Math.min(generatedContent.modules.length + 2, 12),
+          tone: 'professional',
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Presentation generation failed');
+
+      const { error } = await supabase.from('presentations').insert({
+        user_id: profile.id,
         title: `${generatedContent.title} - Presentation`,
-        content: presentationContent,
-        slides: generatedContent.modules.length + 1,
-        status: 'pending',
-      }).select().single();
+        status: 'completed',
+        view_url: result.html ? `data:text/html;base64,${btoa(result.html)}` : null,
+        params: { slides: result.slides, presentationId: result.presentationId },
+        completed_at: new Date().toISOString(),
+      });
 
       if (error) throw error;
 
-      alert('Presentation generation started! View it in the Presentations page.');
+      if (result.html) {
+        const win = window.open('', '_blank');
+        win?.document.write(result.html);
+        win?.document.close();
+      }
+
+      alert('Presentation generated successfully!');
     } catch (error: any) {
       console.error('Error generating presentation:', error);
       alert('Failed to generate presentation: ' + error.message);

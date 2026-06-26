@@ -373,7 +373,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             {channelsExpanded && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 1, marginTop: 2 }}>
                 {['general', 'announcements'].map(ch => (
-                  <Link key={ch} to={`/channels/${ch}`} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 7, fontSize: 13, color: '#666666', textDecoration: 'none', transition: 'all 0.12s' }}
+                  <Link key={ch} to="/social" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 7, fontSize: 13, color: '#666666', textDecoration: 'none', transition: 'all 0.12s' }}
                     onMouseEnter={e => { e.currentTarget.style.color = '#171717'; e.currentTarget.style.background = '#f5f5f5'; }}
                     onMouseLeave={e => { e.currentTarget.style.color = '#666666'; e.currentTarget.style.background = 'transparent'; }}
                   >

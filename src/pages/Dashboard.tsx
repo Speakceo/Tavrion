@@ -81,11 +81,15 @@ export function Dashboard() {
 
     if (enrollmentsData) {
       setEnrollments(enrollmentsData as any);
+      const { count: certCount } = await supabase
+        .from('certificates')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', profile!.id);
       setStats({
         enrolled: enrollmentsData.length,
         inProgress: enrollmentsData.filter(e => e.status === 'in_progress').length,
         completed: enrollmentsData.filter(e => e.status === 'completed').length,
-        certificates: enrollmentsData.filter(e => e.status === 'completed').length,
+        certificates: certCount || 0,
       });
     }
 
@@ -125,13 +129,13 @@ export function Dashboard() {
 
     const { data: quizzes } = await supabase
       .from('quiz_attempts')
-      .select('id, score, created_at, course:courses(title)')
+      .select('id, score, completed_at, quiz:quizzes(title)')
       .eq('user_id', profile!.id)
-      .order('created_at', { ascending: false })
+      .order('completed_at', { ascending: false })
       .limit(3);
 
     (quizzes || []).forEach((q: any) => {
-      feed.push({ id: q.id + '-q', text: `Quiz score: ${q.score}% on "${q.course?.title}"`, sub: 'Assessment', time: formatRelative(q.created_at), icon: 'quiz' });
+      feed.push({ id: q.id + '-q', text: `Quiz score: ${q.score}% on "${q.quiz?.title || 'Assessment'}"`, sub: 'Assessment', time: formatRelative(q.completed_at), icon: 'quiz' });
     });
 
     feed.sort((a, b) => a.time.localeCompare(b.time));
@@ -140,16 +144,15 @@ export function Dashboard() {
 
   const fetchAIStats = async () => {
     const { count: mockCount } = await supabase
-      .from('ai_chat_history')
+      .from('mock_call_sessions')
       .select('id', { count: 'exact', head: true })
-      .eq('user_id', profile!.id)
-      .eq('session_type', 'mock_call');
+      .eq('user_id', profile!.id);
 
     const { count: tutorCount } = await supabase
       .from('ai_chat_history')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', profile!.id)
-      .neq('session_type', 'mock_call');
+      .eq('role', 'user');
 
     const { data: scores } = await supabase
       .from('quiz_attempts')
@@ -188,9 +191,9 @@ export function Dashboard() {
   const fetchRecentQuizzes = async () => {
     const { data } = await supabase
       .from('quiz_attempts')
-      .select('id, score, created_at, course:courses(title)')
+      .select('id, score, completed_at, quiz:quizzes(title)')
       .eq('user_id', profile!.id)
-      .order('created_at', { ascending: false })
+      .order('completed_at', { ascending: false })
       .limit(5);
     if (data) setRecentQuizzes(data as any[]);
   };
@@ -394,7 +397,7 @@ export function Dashboard() {
                 <Star size={13} color={T.muted} />
                 <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>Top Performers</span>
               </div>
-              <Link to="/admin/analytics" style={{ fontSize: 11, color: T.muted, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 2 }}>Analytics <ChevronRight size={10} /></Link>
+              <Link to="/completed-learning" style={{ fontSize: 11, color: T.muted, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 2 }}>View learning <ChevronRight size={10} /></Link>
             </div>
             {topPerformers.length === 0 ? (
               <div style={{ padding: '32px 18px', textAlign: 'center' }}>
@@ -464,8 +467,8 @@ export function Dashboard() {
               {recentQuizzes.map((q: any, i) => (
                 <div key={q.id} style={{ flex: 1, padding: '16px 18px', borderRight: i < recentQuizzes.length - 1 ? `1px solid ${T.bgSection}` : 'none', textAlign: 'center' }}>
                   <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.04em', color: q.score >= 80 ? '#1a7f1a' : q.score >= 60 ? '#a06000' : T.text }}>{q.score}%</div>
-                  <p style={{ fontSize: 11, color: T.body, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.course?.title || 'Quiz'}</p>
-                  <p style={{ fontSize: 10, color: T.faint, marginTop: 2 }}>{formatRelative(q.created_at)}</p>
+                  <p style={{ fontSize: 11, color: T.body, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.quiz?.title || 'Quiz'}</p>
+                  <p style={{ fontSize: 10, color: T.faint, marginTop: 2 }}>{formatRelative(q.completed_at)}</p>
                 </div>
               ))}
             </div>
