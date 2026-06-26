@@ -454,7 +454,7 @@ function App() {
           />
 
           <Route
-            path="/owner/organizations/:orgId"
+            path="/owner/organizations/new"
             element={
               <ProtectedRoute ownerOnly>
                 <OrgDetail />
@@ -463,7 +463,7 @@ function App() {
           />
 
           <Route
-            path="/owner/organizations/new"
+            path="/owner/organizations/:orgId"
             element={
               <ProtectedRoute ownerOnly>
                 <OrgDetail />

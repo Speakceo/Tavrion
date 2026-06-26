@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { Layout } from '../../components/Layout';
 import {
@@ -26,9 +26,11 @@ const DEFAULT_FEATURES = {
 type Tab = 'settings' | 'users';
 
 export function OrgDetail() {
-  const { orgId } = useParams<{ orgId: string }>();
+  const { orgId: orgIdParam } = useParams<{ orgId: string }>();
+  const location = useLocation();
   const navigate = useNavigate();
-  const isNew = orgId === 'new';
+  const isNew = orgIdParam === 'new' || location.pathname.endsWith('/organizations/new');
+  const orgId = isNew ? undefined : orgIdParam;
 
   const [tab, setTab] = useState<Tab>('settings');
   const [org, setOrg] = useState<Partial<Organization>>({
@@ -58,17 +60,34 @@ export function OrgDetail() {
   const [pwSuccess, setPwSuccess] = useState('');
 
   useEffect(() => {
-    if (!isNew && orgId) fetchOrg(orgId);
-  }, [orgId]);
+    if (isNew) {
+      setLoading(false);
+      return;
+    }
+    if (orgId) fetchOrg(orgId);
+    else setLoading(false);
+  }, [orgId, isNew]);
 
   useEffect(() => {
     if (!isNew && orgId && tab === 'users') fetchOrgUsers(orgId);
-  }, [tab, orgId]);
+  }, [tab, orgId, isNew]);
 
   const fetchOrg = async (id: string) => {
-    const { data } = await supabase.from('organizations').select('*').eq('id', id).maybeSingle();
-    if (data) setOrg({ ...data, features: { ...DEFAULT_FEATURES, ...(data.features || {}) } });
-    setLoading(false);
+    setLoading(true);
+    setError('');
+    try {
+      const { data, error: fetchError } = await supabase.from('organizations').select('*').eq('id', id).maybeSingle();
+      if (fetchError) throw fetchError;
+      if (data) {
+        setOrg({ ...data, features: { ...DEFAULT_FEATURES, ...(data.features || {}) } });
+      } else {
+        setError('Organization not found');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to load organization');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fetchOrgUsers = async (id: string) => {
@@ -88,29 +107,42 @@ export function OrgDetail() {
     e.preventDefault();
     setError('');
     setSuccess('');
-    if (!org.name || !org.slug) { setError('Name and slug are required'); return; }
+    if (!org.name?.trim() || !org.slug?.trim()) {
+      setError('Name and slug are required');
+      return;
+    }
 
+    const slug = org.slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
     setSaving(true);
     try {
       if (isNew) {
         const { data, error: err } = await supabase.from('organizations').insert({
-          name: org.name, slug: org.slug, description: org.description,
-          features: org.features, settings: org.settings || {}, is_active: org.is_active,
+          name: org.name.trim(),
+          slug,
+          description: org.description?.trim() || '',
+          features: org.features,
+          settings: org.settings || {},
+          is_active: org.is_active ?? true,
         }).select().single();
         if (err) throw err;
         setSuccess('Organization created!');
         setTimeout(() => navigate(`/owner/organizations/${data.id}`), 1200);
       } else {
         const { error: err } = await supabase.from('organizations').update({
-          name: org.name, slug: org.slug, description: org.description,
-          features: org.features, settings: org.settings || {},
-          is_active: org.is_active, updated_at: new Date().toISOString(),
+          name: org.name.trim(),
+          slug,
+          description: org.description?.trim() || '',
+          features: org.features,
+          settings: org.settings || {},
+          is_active: org.is_active,
+          updated_at: new Date().toISOString(),
         }).eq('id', orgId);
         if (err) throw err;
         setSuccess('Changes saved!');
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to save');
+      const msg = err.message || 'Failed to save';
+      setError(msg.includes('duplicate') || err.code === '23505' ? 'Slug already exists — choose a different slug' : msg);
     } finally {
       setSaving(false);
     }
@@ -261,7 +293,7 @@ export function OrgDetail() {
                 <Building2 size={15} color="#4d4d4d" />
                 <h2 style={{ fontSize: 14, fontWeight: 700, color: '#171717' }}>Organization Details</h2>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+              <div className="org-detail-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
                 {[
                   { label: 'Organization Name *', key: 'name', placeholder: 'e.g., Amber Student' },
                   { label: 'Slug *', key: 'slug', placeholder: 'e.g., amberstudent' },
@@ -298,7 +330,7 @@ export function OrgDetail() {
             <div className="lt-card" style={{ padding: '24px', marginBottom: 20 }}>
               <h2 style={{ fontSize: 14, fontWeight: 700, color: '#171717', marginBottom: 6 }}>Feature Configuration</h2>
               <p style={{ fontSize: 13, color: '#666', marginBottom: 20 }}>Toggle features available to this organization</p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
+              <div className="org-feature-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
                 {Object.keys(DEFAULT_FEATURES).map((key, i, arr) => (
                   <div key={key} style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',

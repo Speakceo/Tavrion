@@ -150,22 +150,40 @@
     min-height: 100vh;
     min-height: 100dvh;
     display: flex;
+    flex-direction: column;
     overflow-x: hidden;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    background: #ffffff;
+  }
+  @media (min-width: 1024px) {
+    .login-page {
+      flex-direction: row;
+      overflow: hidden;
+    }
   }
   .login-form-panel {
     flex: 1;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: max(20px, env(safe-area-inset-top)) 20px max(72px, env(safe-area-inset-bottom));
+    align-items: stretch;
+    justify-content: flex-start;
+    width: 100%;
+    min-height: 100dvh;
+    padding:
+      max(16px, env(safe-area-inset-top))
+      max(16px, env(safe-area-inset-right))
+      max(24px, env(safe-area-inset-bottom))
+      max(16px, env(safe-area-inset-left));
     position: relative;
     background: #ffffff;
+    box-sizing: border-box;
   }
   @media (min-width: 1024px) {
     .login-form-panel {
+      align-items: center;
+      justify-content: center;
+      min-height: auto;
       padding: 48px 32px;
     }
   }
@@ -173,37 +191,58 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    align-self: flex-start;
     width: 100%;
-    max-width: 380px;
-    margin-bottom: 28px;
+    max-width: 400px;
+    margin: 0 auto 20px;
     text-decoration: none;
+    flex-shrink: 0;
   }
   @media (min-width: 1024px) {
     .login-mobile-logo { display: none; }
   }
   .login-mobile-proof {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
     width: 100%;
-    max-width: 380px;
-    margin-bottom: 24px;
+    max-width: 400px;
+    margin: 0 auto 20px;
+    flex-shrink: 0;
+  }
+  @media (max-width: 380px) {
+    .login-mobile-proof {
+      gap: 6px;
+    }
+    .login-mobile-proof p {
+      font-size: 9px !important;
+    }
+    .login-mobile-proof .login-proof-value {
+      font-size: 16px !important;
+    }
   }
   @media (min-width: 1024px) {
     .login-mobile-proof { display: none; }
   }
   .login-form-wrap {
     width: 100%;
-    max-width: 380px;
+    max-width: 400px;
+    margin: 0 auto;
+    flex: 1;
+  }
+  @media (min-width: 1024px) {
+    .login-form-wrap {
+      flex: 0;
+    }
   }
   .login-footer {
     width: 100%;
-    max-width: 380px;
-    margin-top: 28px;
+    max-width: 400px;
+    margin: 24px auto 0;
     text-align: center;
     font-size: 11px;
     color: #808080;
+    flex-shrink: 0;
+    padding-bottom: env(safe-area-inset-bottom);
   }
   @media (min-width: 1024px) {
     .login-footer {
@@ -220,6 +259,19 @@
   }
   @media (min-width: 640px) {
     .login-input { font-size: 15px; }
+  }
+
+  /* Owner org detail — mobile */
+  @media (max-width: 640px) {
+    .org-detail-grid-2,
+    .org-feature-grid {
+      grid-template-columns: 1fr !important;
+    }
+    .org-feature-grid > div {
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+      border-left: none !important;
+    }
   }
 
   /* Dashboard — mobile grids */

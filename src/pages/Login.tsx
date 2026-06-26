@@ -51,19 +51,27 @@ export function Login() {
 
   const fetchOrgs = useCallback(async () => {
     setOrgsLoading(true);
-    const { data } = await supabase
-      .from('organizations')
-      .select('id, name, slug')
-      .eq('is_active', true)
-      .order('name', { ascending: true });
+    try {
+      const { data, error } = await supabase
+        .from('organizations')
+        .select('id, name, slug')
+        .eq('is_active', true)
+        .order('name', { ascending: true });
 
-    const activeOrgs = data || [];
-    setOrgs(activeOrgs);
-    setOrgId((current) => {
-      if (!current || current === OWNER_SENTINEL) return current;
-      return activeOrgs.some((org) => org.id === current) ? current : '';
-    });
-    setOrgsLoading(false);
+      if (error) throw error;
+
+      const activeOrgs = data || [];
+      setOrgs(activeOrgs);
+      setOrgId((current) => {
+        if (!current || current === OWNER_SENTINEL) return current;
+        return activeOrgs.some((org) => org.id === current) ? current : '';
+      });
+    } catch (err) {
+      console.error('Failed to load organisations:', err);
+      setOrgs([]);
+    } finally {
+      setOrgsLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -172,16 +180,16 @@ export function Login() {
 
         <div className="login-mobile-proof">
           {SOCIAL_PROOF.map(item => (
-            <div key={item.label} style={{ background: T.bgSubtle, boxShadow: T.shadow, borderRadius: 10, padding: '12px 10px', textAlign: 'center' }}>
-              <p style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.04em', color: T.text, lineHeight: 1, marginBottom: 3 }}>{item.value}</p>
+            <div key={item.label} style={{ background: T.bgSubtle, boxShadow: T.shadow, borderRadius: 10, padding: '10px 6px', textAlign: 'center', minWidth: 0 }}>
+              <p className="login-proof-value" style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.04em', color: T.text, lineHeight: 1, marginBottom: 3 }}>{item.value}</p>
               <p style={{ fontSize: 10, color: T.textMuted, fontWeight: 500, lineHeight: 1.2 }}>{item.label}</p>
             </div>
           ))}
         </div>
 
         <div className="login-form-wrap">
-          <div style={{ marginBottom: 32 }}>
-            <h2 style={{ fontSize: 'clamp(24px, 2.5vw, 32px)', fontWeight: 700, letterSpacing: '-0.04em', color: T.text, marginBottom: 8 }}>
+          <div style={{ marginBottom: 24 }}>
+            <h2 style={{ fontSize: 'clamp(22px, 6vw, 32px)', fontWeight: 700, letterSpacing: '-0.04em', color: T.text, marginBottom: 8 }}>
               Welcome back
             </h2>
             <p style={{ fontSize: 14, color: T.textBody, lineHeight: 1.6 }}>
