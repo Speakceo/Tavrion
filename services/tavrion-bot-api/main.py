@@ -13,6 +13,7 @@ from supabase import create_client
 
 from crawler import chunk_pages, crawl_website, embed_chunks
 from graph import run_rag_chat
+from brand_dna import dna_to_bot_fields, fetch_brand_dna
 
 load_dotenv()
 
@@ -103,7 +104,12 @@ async def crawl(req: CrawlRequest):
     sb.table("tavrion_bot_pages").delete().eq("bot_id", bot_id).execute()
 
     try:
-        pages = await crawl_website(bot["source_url"], max_pages=20)
+        import asyncio
+        dna, pages = await asyncio.gather(
+            fetch_brand_dna(bot["source_url"]),
+            crawl_website(bot["source_url"], max_pages=75),
+        )
+        theme = dna_to_bot_fields(dna, bot.get("name", "Bot"))
         if not pages:
             sb.table("tavrion_bots").update({
                 "status": "error",
@@ -154,16 +160,21 @@ async def crawl(req: CrawlRequest):
             "status": "ready",
             "pages_crawled": page_count,
             "chunks_count": chunk_count,
+            "max_pages": 75,
+            "crawl_depth": 3,
             "last_crawled_at": datetime.now(timezone.utc).isoformat(),
             "crawl_error": None,
+            **theme,
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", bot_id).select("*").execute()
 
         return {
             "bot": updated.data[0] if updated.data else bot,
+            "brandDna": dna,
             "pages": [{"url": p.url, "title": p.title, "words": len(p.content.split())} for p in pages],
             "crawlEngine": "crawl4ai",
             "ragEngine": "langgraph",
+            "pipeline": {"maxPages": 75, "chunks": chunk_count, "brandDna": bool(dna)},
         }
     except HTTPException:
         raise
@@ -201,6 +212,10 @@ async def chat(req: ChatRequest):
                 "name": bot.get("bot_name") or bot["name"],
                 "welcomeMessage": bot.get("welcome_message"),
                 "primaryColor": bot.get("primary_color"),
+                "secondaryColor": bot.get("secondary_color"),
+                "accentColor": bot.get("accent_color"),
+                "logoUrl": bot.get("logo_url"),
+                "brandDna": bot.get("brand_dna"),
                 "status": bot["status"],
                 "sourceUrl": bot["source_url"],
             }

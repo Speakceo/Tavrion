@@ -19,7 +19,7 @@ class CrawledPage:
     content: str
 
 
-async def crawl_website(start_url: str, max_pages: int = 20) -> list[CrawledPage]:
+async def crawl_website(start_url: str, max_pages: int = 75) -> list[CrawledPage]:
     """Multi-page BFS crawl via Crawl4AI deep crawling."""
     if not start_url.startswith("http"):
         start_url = f"https://{start_url}"
@@ -29,7 +29,7 @@ async def crawl_website(start_url: str, max_pages: int = 20) -> list[CrawledPage
         cache_mode=CacheMode.BYPASS,
         word_count_threshold=10,
         deep_crawl_strategy=BFSDeepCrawlStrategy(
-            max_depth=2,
+            max_depth=3,
             include_external=False,
             max_pages=max_pages,
         ),
@@ -63,7 +63,7 @@ async def crawl_website(start_url: str, max_pages: int = 20) -> list[CrawledPage
                 else:
                     continue
 
-            pages.append(CrawledPage(url=url, title=title, content=markdown[:12000]))
+            pages.append(CrawledPage(url=url, title=title, content=markdown[:30000]))
 
     if not pages:
         pages = await _single_page_fallback(start_url)
@@ -86,10 +86,10 @@ async def _single_page_fallback(url: str) -> list[CrawledPage]:
         if len(markdown) < 20:
             return []
 
-        return [CrawledPage(url=url, title=title, content=markdown[:12000])]
+        return [CrawledPage(url=url, title=title, content=markdown[:30000])]
 
 
-def chunk_pages(pages: list[CrawledPage], chunk_size: int = 900, overlap: int = 120) -> list[dict]:
+def chunk_pages(pages: list[CrawledPage], chunk_size: int = 1200, overlap: int = 150) -> list[dict]:
     from langchain_text_splitters import RecursiveCharacterTextSplitter
 
     splitter = RecursiveCharacterTextSplitter(

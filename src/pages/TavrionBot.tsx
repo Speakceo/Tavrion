@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   Bot, Globe2, MessageSquare, Code2, Copy, Check, Loader2, Zap,
   ArrowRight, CheckCircle2, RefreshCw, Smartphone, Layers, Search,
-  ChevronRight, ExternalLink, Send, Sparkles,
+  ChevronRight, ExternalLink, Send, Sparkles, Palette, Database,
 } from 'lucide-react';
 
 type BotRecord = {
@@ -16,6 +16,12 @@ type BotRecord = {
   chunks_count: number;
   welcome_message: string;
   primary_color: string;
+  bot_name?: string;
+  secondary_color?: string;
+  accent_color?: string;
+  logo_url?: string | null;
+  brand_dna?: Record<string, unknown>;
+  max_pages?: number;
   whatsapp_enabled: boolean;
   whatsapp_phone_number_id?: string;
   whatsapp_verify_token?: string;
@@ -36,12 +42,12 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 const FEATURES = [
-  { icon: Globe2, title: 'Crawl4AI Engine', body: 'Full browser crawl via Crawl4AI — handles JS-heavy SPAs, extracts clean markdown for RAG. Up to 20 pages per site.' },
+  { icon: Globe2, title: 'Crawl4AI Engine', body: 'Full browser crawl via Crawl4AI — up to 75 pages with sitemap discovery and deep BFS.' },
   { icon: Layers, title: 'LangGraph RAG Agent', body: 'Stateful retrieve → generate pipeline built with LangGraph. Answers grounded in crawled content with conversation memory.' },
   { icon: Code2, title: 'One-Line Embed', body: 'Copy a single script tag and your chatbot goes live on any website in seconds.' },
   { icon: Smartphone, title: 'WhatsApp Ready', body: 'Connect Meta WhatsApp Business API. Same knowledge base powers web and WhatsApp conversations.' },
   { icon: Search, title: 'Deep Multi-Page Crawl', body: 'BFS deep crawling discovers linked pages on the same domain — not just the homepage.' },
-  { icon: Zap, title: 'Deploy in Minutes', body: 'Create, crawl, test, and embed — powered by Crawl4AI + LangGraph microservice.' },
+  { icon: Zap, title: 'Brand DNA Theming', body: 'Extracts site colors, logo, and tone from DNA Studio — widget auto-matches your brand.' },
 ];
 
 const STEPS = [
@@ -53,18 +59,32 @@ const STEPS = [
 const EXAMPLE_URLS = ['https://jointavrion.com', 'https://stripe.com/docs', 'https://docs.anthropic.com'];
 
 const CRAWL_STEPS = [
-  { label: 'Connecting to website', icon: Globe2 },
-  { label: 'Crawling pages (up to 20)', icon: Search },
+  { label: 'Extracting brand DNA & colors', icon: Palette },
+  { label: 'Discovering sitemap & page URLs', icon: Search },
+  { label: 'Crawling up to 75 pages', icon: Globe2 },
   { label: 'Extracting & cleaning content', icon: Layers },
   { label: 'Chunking for RAG pipeline', icon: Code2 },
   { label: 'Generating embeddings', icon: Sparkles },
-  { label: 'Storing knowledge base', icon: CheckCircle2 },
+  { label: 'Storing knowledge base', icon: Database },
 ];
 
 function formatElapsed(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function proxyImage(url: string) {
+  return `${SUPABASE_URL}/functions/v1/dna-studio-image-proxy?url=${encodeURIComponent(url)}`;
+}
+
+function botTheme(bot: BotRecord | null) {
+  if (!bot) return { primary: T.accent, secondary: T.accent2, accent: T.accent3 };
+  return {
+    primary: bot.primary_color || T.accent,
+    secondary: bot.secondary_color || '#1e293b',
+    accent: bot.accent_color || bot.primary_color || T.accent2,
+  };
 }
 
 function apiHeaders() {
@@ -325,7 +345,7 @@ export function TavrionBot() {
             </div>
 
             <p style={{ color: T.textMuted, fontSize: 12, marginTop: 20, textAlign: 'center', lineHeight: 1.5 }}>
-              Crawling and indexing can take 30s–2min depending on site size.
+              Deep pipeline: up to 75 pages, sitemap discovery, brand DNA theming. May take 1–4 minutes.
             </p>
           </div>
         </div>
@@ -424,35 +444,70 @@ export function TavrionBot() {
         </div>
       </section>
 
-      {bot && (
+      {bot && (() => {
+        const theme = botTheme(bot);
+        return (
         <section style={{ maxWidth: 1000, margin: '0 auto', padding: '0 24px 48px' }}>
           <div style={{
             background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 16, overflow: 'hidden',
+            boxShadow: `0 0 0 1px ${theme.primary}22, 0 20px 60px ${theme.primary}18`,
           }}>
+            <div style={{
+              height: 4,
+              background: `linear-gradient(90deg, ${theme.primary}, ${theme.accent}, ${theme.secondary})`,
+            }} />
             <div style={{
               padding: '20px 24px', borderBottom: `1px solid ${T.border}`,
               display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12,
             }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <CheckCircle2 size={18} color={bot.status === 'ready' ? T.accent : '#f59e0b'} />
-                  <span style={{ fontWeight: 700, fontSize: 18 }}>{bot.name}</span>
-                  <span style={{
-                    fontSize: 12, padding: '2px 8px', borderRadius: 6,
-                    background: bot.status === 'ready' ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)',
-                    color: bot.status === 'ready' ? T.accent : '#f59e0b',
-                  }}>{bot.status}</span>
-                </div>
-                <p style={{ color: T.textMuted, fontSize: 13, marginTop: 4 }}>
-                  {bot.pages_crawled} pages · {bot.chunks_count} chunks · {bot.source_url}
-                </p>
-                {engineInfo && (
-                  <p style={{ color: T.textBody, fontSize: 12, marginTop: 6, maxWidth: 520 }}>{engineInfo}</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                {bot.logo_url ? (
+                  <img
+                    src={proxyImage(bot.logo_url)}
+                    alt=""
+                    style={{
+                      width: 44, height: 44, borderRadius: 10, objectFit: 'contain',
+                      background: '#fff', padding: 4, border: `1px solid ${T.border}`,
+                    }}
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  />
+                ) : (
+                  <div style={{
+                    width: 44, height: 44, borderRadius: 10,
+                    background: `linear-gradient(135deg, ${theme.primary}, ${theme.accent})`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Bot size={22} color="#fff" />
+                  </div>
                 )}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontWeight: 700, fontSize: 18 }}>{bot.bot_name || bot.name}</span>
+                    <span style={{
+                      fontSize: 12, padding: '2px 8px', borderRadius: 6,
+                      background: bot.status === 'ready' ? `${theme.primary}22` : 'rgba(245,158,11,0.15)',
+                      color: bot.status === 'ready' ? theme.primary : '#f59e0b',
+                    }}>{bot.status}</span>
+                  </div>
+                  <p style={{ color: T.textMuted, fontSize: 13, marginTop: 4 }}>
+                    {bot.pages_crawled} pages · {bot.chunks_count} chunks · themed to site DNA
+                  </p>
+                  {engineInfo && (
+                    <p style={{ color: T.textBody, fontSize: 12, marginTop: 4, maxWidth: 520 }}>{engineInfo}</p>
+                  )}
+                  <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                    {[theme.primary, theme.secondary, theme.accent].map((c) => (
+                      <span key={c} title={c} style={{
+                        width: 18, height: 18, borderRadius: 4, background: c,
+                        border: '1px solid rgba(255,255,255,0.15)',
+                      }} />
+                    ))}
+                  </div>
+                </div>
               </div>
               <button onClick={recrawl} disabled={loading} style={{
-                padding: '8px 14px', borderRadius: 8, border: `1px solid ${T.border}`,
-                background: 'transparent', color: T.textBody, cursor: 'pointer', fontSize: 13,
+                padding: '8px 14px', borderRadius: 8, border: `1px solid ${theme.primary}44`,
+                background: `${theme.primary}11`, color: theme.primary, cursor: 'pointer', fontSize: 13,
                 display: 'flex', alignItems: 'center', gap: 6,
               }}>
                 <RefreshCw size={14} /> Recrawl
@@ -492,7 +547,7 @@ export function TavrionBot() {
                       <div key={i} style={{
                         alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
                         maxWidth: '80%', padding: '10px 14px', borderRadius: 12, fontSize: 14, lineHeight: 1.5,
-                        background: m.role === 'user' ? `linear-gradient(135deg, ${T.accent}, ${T.accent2})` : T.bgElevated,
+                        background: m.role === 'user' ? `linear-gradient(135deg, ${theme.primary}, ${theme.accent})` : T.bgElevated,
                         color: m.role === 'user' ? '#000' : T.text,
                         border: m.role === 'assistant' ? `1px solid ${T.border}` : 'none',
                       }}>{m.content}</div>
@@ -513,7 +568,7 @@ export function TavrionBot() {
                     />
                     <button type="submit" disabled={bot.status !== 'ready' || chatLoading} style={{
                       padding: '0 20px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                      background: T.accent, color: '#000', fontWeight: 600,
+                      background: `linear-gradient(135deg, ${theme.primary}, ${theme.accent})`, color: '#fff', fontWeight: 600,
                     }}>
                       <Send size={18} />
                     </button>
@@ -602,7 +657,8 @@ export function TavrionBot() {
             </div>
           </div>
         </section>
-      )}
+        );
+      })()}
 
       <section style={{ maxWidth: 1100, margin: '0 auto', padding: '48px 24px' }}>
         <h2 style={{ textAlign: 'center', fontSize: 28, fontWeight: 800, marginBottom: 40 }}>How it works</h2>

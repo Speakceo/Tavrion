@@ -14,8 +14,16 @@
   }
 
   var chatUrl = apiBase + '/functions/v1/tavrion-bot-chat';
+  var proxyUrl = apiBase + '/functions/v1/dna-studio-image-proxy?url=';
   var sessionId = 'sess_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-  var config = { primaryColor: '#6366f1', name: 'Assistant', welcomeMessage: 'Hi! How can I help you?' };
+  var config = {
+    primaryColor: '#6366f1',
+    secondaryColor: '#1e293b',
+    accentColor: '#3b82f6',
+    logoUrl: null,
+    name: 'Assistant',
+    welcomeMessage: 'Hi! How can I help you?',
+  };
   var isOpen = false;
 
   var host = document.createElement('div');
@@ -30,21 +38,23 @@
     '.tb-wrap { position: fixed; z-index: 2147483000; font-family: Inter, system-ui, -apple-system, sans-serif; }',
     '.tb-wrap.br { bottom: 24px; right: 24px; }',
     '.tb-wrap.bl { bottom: 24px; left: 24px; }',
-    '.tb-bubble { width: 56px; height: 56px; border-radius: 50%; border: none; cursor: pointer; color: #fff; font-size: 24px; box-shadow: 0 8px 32px rgba(0,0,0,.25); display: flex; align-items: center; justify-content: center; transition: transform .2s; }',
+    '.tb-bubble { width: 56px; height: 56px; border-radius: 50%; border: none; cursor: pointer; color: #fff; font-size: 22px; box-shadow: 0 8px 32px rgba(0,0,0,.28); display: flex; align-items: center; justify-content: center; transition: transform .2s; }',
     '.tb-bubble:hover { transform: scale(1.05); }',
-    '.tb-panel { display: none; width: 380px; max-width: calc(100vw - 32px); height: 520px; max-height: calc(100vh - 100px); background: #fff; border-radius: 16px; box-shadow: 0 16px 48px rgba(0,0,0,.2); flex-direction: column; overflow: hidden; margin-bottom: 12px; }',
+    '.tb-panel { display: none; width: 380px; max-width: calc(100vw - 32px); height: 520px; max-height: calc(100vh - 100px); background: #fff; border-radius: 16px; box-shadow: 0 16px 48px rgba(0,0,0,.22); flex-direction: column; overflow: hidden; margin-bottom: 12px; border: 1px solid rgba(0,0,0,.06); }',
     '.tb-panel.open { display: flex; }',
-    '.tb-header { padding: 16px 20px; color: #fff; display: flex; align-items: center; justify-content: space-between; }',
-    '.tb-header h3 { font-size: 15px; font-weight: 600; }',
-    '.tb-close { background: rgba(255,255,255,.2); border: none; color: #fff; width: 28px; height: 28px; border-radius: 8px; cursor: pointer; font-size: 16px; }',
+    '.tb-header { padding: 14px 16px; color: #fff; display: flex; align-items: center; justify-content: space-between; gap: 10px; }',
+    '.tb-header-left { display: flex; align-items: center; gap: 10px; min-width: 0; }',
+    '.tb-logo { width: 32px; height: 32px; border-radius: 8px; background: #fff; object-fit: contain; padding: 3px; flex-shrink: 0; }',
+    '.tb-header h3 { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }',
+    '.tb-close { background: rgba(255,255,255,.2); border: none; color: #fff; width: 28px; height: 28px; border-radius: 8px; cursor: pointer; font-size: 16px; flex-shrink: 0; }',
     '.tb-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; background: #fafafa; }',
     '.tb-msg { max-width: 85%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.5; }',
     '.tb-msg.bot { background: #fff; border: 1px solid #e5e5e5; align-self: flex-start; }',
-    '.tb-msg.user { background: var(--tb-color); color: #fff; align-self: flex-end; }',
+    '.tb-msg.user { background: var(--tb-gradient); color: #fff; align-self: flex-end; }',
     '.tb-input-row { display: flex; gap: 8px; padding: 12px; border-top: 1px solid #eee; background: #fff; }',
     '.tb-input { flex: 1; border: 1px solid #ddd; border-radius: 10px; padding: 10px 12px; font-size: 14px; outline: none; }',
-    '.tb-input:focus { border-color: var(--tb-color); }',
-    '.tb-send { border: none; background: var(--tb-color); color: #fff; border-radius: 10px; padding: 0 16px; cursor: pointer; font-weight: 600; font-size: 14px; }',
+    '.tb-input:focus { border-color: var(--tb-primary); }',
+    '.tb-send { border: none; background: var(--tb-gradient); color: #fff; border-radius: 10px; padding: 0 16px; cursor: pointer; font-weight: 600; font-size: 14px; }',
     '.tb-send:disabled { opacity: .5; cursor: not-allowed; }',
     '.tb-typing { font-size: 12px; color: #888; padding: 4px 0; }',
     '.tb-powered { text-align: center; font-size: 10px; color: #aaa; padding: 6px; }',
@@ -58,7 +68,7 @@
 
   var header = document.createElement('div');
   header.className = 'tb-header';
-  header.innerHTML = '<h3>Tavrion Bot</h3><button class="tb-close" aria-label="Close">×</button>';
+  header.innerHTML = '<div class="tb-header-left"><h3>Assistant</h3></div><button class="tb-close" aria-label="Close">×</button>';
 
   var messages = document.createElement('div');
   messages.className = 'tb-messages';
@@ -74,7 +84,7 @@
 
   var powered = document.createElement('div');
   powered.className = 'tb-powered';
-  powered.innerHTML = 'Powered by <a href="https://jointavrion.com" target="_blank" style="color:#888">Tavrion</a>';
+  powered.innerHTML = 'Powered by <a href="https://jointavrion.com" target="_blank" rel="noopener" style="color:#888">Tavrion</a>';
 
   var bubble = document.createElement('button');
   bubble.className = 'tb-bubble';
@@ -95,12 +105,25 @@
   var input = shadow.querySelector('.tb-input');
   var sendBtn = shadow.querySelector('.tb-send');
   var closeBtn = shadow.querySelector('.tb-close');
-  var titleEl = shadow.querySelector('.tb-header h3');
+  var headerLeft = shadow.querySelector('.tb-header-left');
 
   function applyTheme() {
-    shadow.host.style.setProperty('--tb-color', config.primaryColor);
-    bubble.style.background = config.primaryColor;
-    header.style.background = config.primaryColor;
+    var p = config.primaryColor;
+    var a = config.accentColor || p;
+    var gradient = 'linear-gradient(135deg, ' + p + ', ' + a + ')';
+    shadow.host.style.setProperty('--tb-primary', p);
+    shadow.host.style.setProperty('--tb-gradient', gradient);
+    bubble.style.background = gradient;
+    header.style.background = gradient;
+    titleUpdate();
+  }
+
+  function titleUpdate() {
+    var html = '<h3>' + config.name + '</h3>';
+    if (config.logoUrl) {
+      html = '<img class="tb-logo" src="' + proxyUrl + encodeURIComponent(config.logoUrl) + '" alt="" />' + html;
+    }
+    headerLeft.innerHTML = html;
   }
 
   function addMessage(text, role) {
@@ -173,10 +196,12 @@
       if (data.bot) {
         config = {
           primaryColor: data.bot.primaryColor || config.primaryColor,
+          secondaryColor: data.bot.secondaryColor || config.secondaryColor,
+          accentColor: data.bot.accentColor || config.accentColor,
+          logoUrl: data.bot.logoUrl || null,
           name: data.bot.name || config.name,
           welcomeMessage: data.bot.welcomeMessage || config.welcomeMessage,
         };
-        titleEl.textContent = config.name;
         applyTheme();
       }
     })
