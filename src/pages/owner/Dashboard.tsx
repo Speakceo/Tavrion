@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { Layout } from '../../components/Layout';
 import { useAuth } from '../../contexts/AuthContext';
-import { Building2, Users, BookOpen, Plus, ExternalLink, ToggleRight, BarChart3, Mail, Check, AlertTriangle } from 'lucide-react';
+import { Building2, Users, BookOpen, Plus, ExternalLink, ToggleRight, BarChart3, Mail, Check, AlertTriangle, Library } from 'lucide-react';
 import { Organization } from '../../types';
 
 interface OrgWithStats extends Organization {
@@ -137,6 +137,7 @@ export function OwnerDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4" style={{ marginBottom: 28 }}>
           {[
             { label: 'New Organization', href: '/owner/organizations/new', Icon: Plus },
+            { label: 'Books Library', href: '/owner/books', Icon: Library },
             { label: 'Manage Courses', href: '/admin/courses', Icon: BookOpen },
             { label: 'Manage Users', href: '/admin/users', Icon: Users },
             { label: 'Analytics', href: '/admin/analytics', Icon: BarChart3 },

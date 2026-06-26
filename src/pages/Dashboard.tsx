@@ -261,15 +261,15 @@ export function Dashboard() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* ── HERO ── */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-          <div>
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div className="min-w-0">
             <p style={{ fontSize: 11, fontWeight: 700, color: T.faint, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>{today}</p>
-            <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.04em', color: T.text, marginBottom: 4 }}>
+            <h1 style={{ fontSize: 'clamp(20px, 5vw, 24px)', fontWeight: 800, letterSpacing: '-0.04em', color: T.text, marginBottom: 4 }}>
               {getGreeting()}, {profile?.full_name?.split(' ')[0]} 👋
             </h1>
             <p style={{ fontSize: 14, color: T.body }}>Here's what's happening with your learning today.</p>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div className="dash-hero-actions">
             <button onClick={() => navigate('/courses')} className="lt-btn-secondary" style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 6, borderRadius: 8, fontSize: 13 }}>
               <BookOpen size={13} /> My Courses
             </button>
@@ -280,7 +280,7 @@ export function Dashboard() {
         </div>
 
         {/* ── QUICK ACTIONS ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 10 }}>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
           {QUICK_ACTIONS.map(action => (
             <Link key={action.href} to={action.href} style={{ textDecoration: 'none' }}>
               <div className="lt-card" style={{ padding: '14px 14px 12px', cursor: 'pointer', transition: 'box-shadow 0.15s, transform 0.15s' }}
@@ -327,28 +327,28 @@ export function Dashboard() {
         )}
 
         {/* ── STATS ROW ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-3">
           {[
             { key: 'enrolled', label: 'Enrolled', icon: BookOpen, hint: 'Total courses' },
             { key: 'inProgress', label: 'In Progress', icon: Clock, hint: 'Active now' },
             { key: 'completed', label: 'Completed', icon: CheckCircle, hint: 'Finished' },
             { key: 'certificates', label: 'Certificates', icon: Award, hint: 'Earned' },
           ].map(s => (
-            <div key={s.key} className="lt-card" style={{ padding: '18px 20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <div style={{ width: 30, height: 30, background: T.bgSection, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: T.shadow }}>
+            <div key={s.key} className="lt-card" style={{ padding: '14px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <div style={{ width: 28, height: 28, background: T.bgSection, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: T.shadow }}>
                   <s.icon size={13} color={T.muted} />
                 </div>
-                <span style={{ fontSize: 10, color: T.faint }}>{s.hint}</span>
+                <span className="hidden sm:inline" style={{ fontSize: 10, color: T.faint }}>{s.hint}</span>
               </div>
-              <div className="lt-stat-num">{stats[s.key as keyof typeof stats]}</div>
+              <div className="lt-stat-num" style={{ fontSize: 'clamp(22px, 5vw, 28px)' }}>{stats[s.key as keyof typeof stats]}</div>
               <p style={{ fontSize: 12, color: T.muted, marginTop: 4, fontWeight: 500 }}>{s.label}</p>
             </div>
           ))}
         </div>
 
         {/* ── PROGRESS + AI STATS ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-3.5">
           {/* Learning progress */}
           <div className="lt-card" style={{ padding: '18px 20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -403,7 +403,7 @@ export function Dashboard() {
         </div>
 
         {/* ── ACTIVITY FEED + LEADERBOARD ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-3.5">
           {/* Activity feed */}
           <div className="lt-card" style={{ overflow: 'hidden' }}>
             <div style={{ padding: '14px 18px', borderBottom: `1px solid ${T.borderStrong}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -482,9 +482,9 @@ export function Dashboard() {
               </div>
               <Link to="/events" style={{ fontSize: 11, color: T.muted, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 2 }}>View all <ChevronRight size={10} /></Link>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)' }}>
-              {upcomingEvents.map((event, i) => (
-                <Link key={event.id} to="/events" style={{ textDecoration: 'none', padding: '14px 18px', borderRight: i < upcomingEvents.length - 1 ? `1px solid ${T.bgSection}` : 'none', transition: 'background 0.1s', display: 'block' }}
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-[#f5f5f5]">
+              {upcomingEvents.map((event) => (
+                <Link key={event.id} to="/events" style={{ textDecoration: 'none', padding: '14px 18px', transition: 'background 0.1s', display: 'block' }}
                   onMouseEnter={e => { e.currentTarget.style.background = T.bgSubtle; }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
                 >
@@ -509,9 +509,9 @@ export function Dashboard() {
                 <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>Recent Quiz Results</span>
               </div>
             </div>
-            <div style={{ display: 'flex' }}>
-              {recentQuizzes.map((q: any, i) => (
-                <div key={q.id} style={{ flex: 1, padding: '16px 18px', borderRight: i < recentQuizzes.length - 1 ? `1px solid ${T.bgSection}` : 'none', textAlign: 'center' }}>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-x divide-[#f5f5f5]">
+              {recentQuizzes.map((q: any) => (
+                <div key={q.id} style={{ padding: '16px 14px', textAlign: 'center' }}>
                   <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.04em', color: q.score >= 80 ? '#1a7f1a' : q.score >= 60 ? '#a06000' : T.text }}>{q.score}%</div>
                   <p style={{ fontSize: 11, color: T.body, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.quiz?.title || 'Quiz'}</p>
                   <p style={{ fontSize: 10, color: T.faint, marginTop: 2 }}>{formatRelative(q.completed_at)}</p>
@@ -543,7 +543,7 @@ export function Dashboard() {
             <div>
               {journeyCourses.slice(0, 6).map((item, i) => (
                 item.kind === 'builtin' ? (
-                  <Link key={item.key} to={item.href!} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 18px', textDecoration: 'none', borderBottom: i < Math.min(journeyCourses.length, 6) - 1 ? `1px solid ${T.bgSection}` : 'none', transition: 'background 0.1s' }}
+                  <Link key={item.key} to={item.href!} className="dash-journey-row" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 18px', textDecoration: 'none', borderBottom: i < Math.min(journeyCourses.length, 6) - 1 ? `1px solid ${T.bgSection}` : 'none', transition: 'background 0.1s' }}
                     onMouseEnter={e => { e.currentTarget.style.background = T.bgSubtle; }}
                     onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
                   >
@@ -556,7 +556,7 @@ export function Dashboard() {
                         <p style={{ fontSize: 11, color: T.muted, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.description}</p>
                       )}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div className="dash-journey-badges">
                       {item.isMandatory && <span className="lt-badge lt-badge-error">Mandatory</span>}
                       <span className={`lt-badge ${item.status === 'completed' ? 'lt-badge-success' : item.status === 'in_progress' ? 'lt-badge-blue' : ''}`}>
                         {statusLabel(item.status)}
@@ -565,7 +565,7 @@ export function Dashboard() {
                     </div>
                   </Link>
                 ) : (
-                  <Link key={item.key} to="/courses" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 18px', textDecoration: 'none', borderBottom: i < Math.min(journeyCourses.length, 6) - 1 ? `1px solid ${T.bgSection}` : 'none', transition: 'background 0.1s' }}
+                  <Link key={item.key} to="/courses" className="dash-journey-row" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 18px', textDecoration: 'none', borderBottom: i < Math.min(journeyCourses.length, 6) - 1 ? `1px solid ${T.bgSection}` : 'none', transition: 'background 0.1s' }}
                     onMouseEnter={e => { e.currentTarget.style.background = T.bgSubtle; }}
                     onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
                   >
@@ -576,7 +576,7 @@ export function Dashboard() {
                       <p style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</p>
                       <p style={{ fontSize: 11, color: T.faint, marginTop: 2 }}>{item.assignment.course.file_type?.toUpperCase() || 'FILE'} · {formatFileSize(item.assignment.course.file_size || 0)}</p>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div className="dash-journey-badges">
                       <span className={`lt-badge ${item.status === 'completed' ? 'lt-badge-success' : isPendingStatus(item.status, 'uploaded') ? '' : 'lt-badge-blue'}`}>
                         {statusLabel(item.status)}
                       </span>

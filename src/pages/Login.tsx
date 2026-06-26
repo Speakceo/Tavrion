@@ -90,12 +90,10 @@ export function Login() {
 
   return (
     <div
+      className="login-page"
       style={{
-        minHeight: '100vh',
         background: T.bg,
-        display: 'flex',
         fontFamily: '"Geist", "Inter", system-ui, -apple-system, sans-serif',
-        overflow: 'hidden',
         color: T.text,
       }}
     >
@@ -164,15 +162,24 @@ export function Login() {
       </div>
 
       {/* ── RIGHT FORM PANEL ── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 32px', position: 'relative', background: T.bg }}>
-        <div style={{ display: 'none', alignItems: 'center', gap: 10, alignSelf: 'flex-start', marginBottom: 48 }} className="lg:hidden flex">
+      <div className="login-form-panel">
+        <Link to="/" className="login-mobile-logo">
           <div style={{ width: 32, height: 32, background: T.text, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Globe2 size={14} color="white" />
           </div>
           <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.04em', color: T.text }}>Tavrion</span>
+        </Link>
+
+        <div className="login-mobile-proof">
+          {SOCIAL_PROOF.map(item => (
+            <div key={item.label} style={{ background: T.bgSubtle, boxShadow: T.shadow, borderRadius: 10, padding: '12px 10px', textAlign: 'center' }}>
+              <p style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.04em', color: T.text, lineHeight: 1, marginBottom: 3 }}>{item.value}</p>
+              <p style={{ fontSize: 10, color: T.textMuted, fontWeight: 500, lineHeight: 1.2 }}>{item.label}</p>
+            </div>
+          ))}
         </div>
 
-        <div style={{ width: '100%', maxWidth: 380 }}>
+        <div className="login-form-wrap">
           <div style={{ marginBottom: 32 }}>
             <h2 style={{ fontSize: 'clamp(24px, 2.5vw, 32px)', fontWeight: 700, letterSpacing: '-0.04em', color: T.text, marginBottom: 8 }}>
               Welcome back
@@ -205,6 +212,7 @@ export function Login() {
                   onBlur={() => setFocusedField(null)}
                   required
                   disabled={orgsLoading}
+                  className="login-input"
                   style={{
                     width: '100%',
                     padding: '12px 40px 12px 36px',
@@ -212,7 +220,6 @@ export function Login() {
                     boxShadow: focusedField === 'org' ? T.shadowFocus : T.shadow,
                     border: 'none',
                     borderRadius: 10,
-                    fontSize: 15,
                     color: orgId ? T.text : T.textFaint,
                     outline: 'none',
                     transition: 'box-shadow 0.15s',
@@ -246,10 +253,11 @@ export function Login() {
                   onBlur={() => setFocusedField(null)}
                   placeholder="Enter your User ID"
                   required
+                  className="login-input"
                   style={{
                     width: '100%', padding: '12px 44px 12px 14px', background: T.bgSubtle,
                     boxShadow: focusedField === 'id' ? T.shadowFocus : T.shadow,
-                    border: 'none', borderRadius: 10, fontSize: 15, color: T.text,
+                    border: 'none', borderRadius: 10, color: T.text,
                     outline: 'none', transition: 'box-shadow 0.15s', boxSizing: 'border-box' as const,
                   }}
                 />
@@ -278,10 +286,11 @@ export function Login() {
                   onBlur={() => setFocusedField(null)}
                   placeholder="Enter your password"
                   required
+                  className="login-input"
                   style={{
                     width: '100%', padding: '12px 44px 12px 14px', background: T.bgSubtle,
                     boxShadow: focusedField === 'pw' ? T.shadowFocus : T.shadow,
-                    border: 'none', borderRadius: 10, fontSize: 15, color: T.text,
+                    border: 'none', borderRadius: 10, color: T.text,
                     outline: 'none', transition: 'box-shadow 0.15s', boxSizing: 'border-box' as const,
                   }}
                 />
@@ -304,7 +313,7 @@ export function Login() {
               type="submit"
               disabled={isDisabled}
               style={{
-                width: '100%', padding: '13px 24px',
+                width: '100%', padding: '14px 24px', minHeight: 48,
                 background: isDisabled ? T.bgSection : T.text,
                 border: 'none', borderRadius: 10,
                 color: isDisabled ? T.textFaint : '#ffffff',
@@ -353,7 +362,7 @@ export function Login() {
           </div>
         </div>
 
-        <div style={{ position: 'absolute', bottom: 24, left: 0, right: 0, textAlign: 'center', fontSize: 11, color: T.textFaint }}>
+        <div className="login-footer">
           &copy; 2026 Tavrion &nbsp;&middot;&nbsp;
           <a href="#" style={{ color: 'inherit', textDecoration: 'none' }}>Privacy</a>
           &nbsp;&middot;&nbsp;

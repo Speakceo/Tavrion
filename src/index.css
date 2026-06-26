@@ -144,4 +144,120 @@
     color: #171717;
     line-height: 1;
   }
+
+  /* Login — mobile */
+  .login-page {
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .login-form-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: max(20px, env(safe-area-inset-top)) 20px max(72px, env(safe-area-inset-bottom));
+    position: relative;
+    background: #ffffff;
+  }
+  @media (min-width: 1024px) {
+    .login-form-panel {
+      padding: 48px 32px;
+    }
+  }
+  .login-mobile-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    align-self: flex-start;
+    width: 100%;
+    max-width: 380px;
+    margin-bottom: 28px;
+    text-decoration: none;
+  }
+  @media (min-width: 1024px) {
+    .login-mobile-logo { display: none; }
+  }
+  .login-mobile-proof {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    width: 100%;
+    max-width: 380px;
+    margin-bottom: 24px;
+  }
+  @media (min-width: 1024px) {
+    .login-mobile-proof { display: none; }
+  }
+  .login-form-wrap {
+    width: 100%;
+    max-width: 380px;
+  }
+  .login-footer {
+    width: 100%;
+    max-width: 380px;
+    margin-top: 28px;
+    text-align: center;
+    font-size: 11px;
+    color: #808080;
+  }
+  @media (min-width: 1024px) {
+    .login-footer {
+      position: absolute;
+      bottom: 24px;
+      left: 0;
+      right: 0;
+      max-width: none;
+      margin-top: 0;
+    }
+  }
+  .login-input {
+    font-size: 16px;
+  }
+  @media (min-width: 640px) {
+    .login-input { font-size: 15px; }
+  }
+
+  /* Dashboard — mobile grids */
+  .dash-hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+  }
+  @media (min-width: 640px) {
+    .dash-hero-actions { width: auto; flex-wrap: nowrap; }
+  }
+  .dash-hero-actions button {
+    flex: 1;
+    min-width: 0;
+    justify-content: center;
+  }
+  @media (min-width: 640px) {
+    .dash-hero-actions button { flex: none; }
+  }
+  .dash-journey-badges {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  @media (max-width: 639px) {
+    .dash-journey-row {
+      flex-wrap: wrap;
+      align-items: flex-start !important;
+      gap: 10px !important;
+    }
+    .dash-journey-badges {
+      width: 100%;
+      justify-content: flex-start;
+      padding-left: 46px;
+    }
+  }
 }

@@ -9,8 +9,9 @@ import {
   Video, Users as TeamIcon, FolderLock, Sparkles, BookOpen, Clock, CheckCircle,
   ChevronRight, MessageSquare, Phone, LogOut, Settings, Upload, Bell,
   ListChecks, Headphones, User, ChevronDown, Activity, Building2, Mail, Menu, X,
-  Award, Target, FileText,
+  Award, Target, FileText, Library,
 } from 'lucide-react';
+import { isBooksFeatureEnabled } from '../utils/books';
 
 function useWindowWidth() {
   const [width, setWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 1200);
@@ -31,6 +32,8 @@ const PAGE_TITLES: Record<string, { label: string; section: string }> = {
   '/shots': { label: 'Shots', section: 'Content' },
   '/best-calls': { label: 'Best Calls', section: 'Library' },
   '/certificates': { label: 'My Certificates', section: 'Learning' },
+  '/books': { label: 'Books', section: 'Library' },
+  '/owner/books': { label: 'Books Library', section: 'Owner Portal' },
   '/my-team': { label: 'My Team', section: 'People' },
   '/vault': { label: 'Vault', section: 'Library' },
   '/my-space': { label: 'Settings', section: 'Account' },
@@ -55,7 +58,7 @@ const PAGE_TITLES: Record<string, { label: string; section: string }> = {
 };
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const { profile, signOut } = useAuth();
+  const { profile, organization, signOut } = useAuth();
   const { stats: learnerStats } = useLearnerCourses(profile?.id);
   const location = useLocation();
   const navigate = useNavigate();
@@ -156,7 +159,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const currentPage = PAGE_TITLES[location.pathname] || { label: 'Tavrion', section: '' };
+  const currentPage = PAGE_TITLES[location.pathname]
+    || (location.pathname.startsWith('/books') ? PAGE_TITLES['/books'] : null)
+    || (location.pathname.startsWith('/owner/books') ? PAGE_TITLES['/owner/books'] : null)
+    || { label: 'Tavrion', section: '' };
+  const booksNavEnabled = profile?.is_platform_owner || isBooksFeatureEnabled(organization?.features);
 
   const userNavigation = [
     { name: 'Home', href: '/dashboard', icon: Home },
@@ -164,6 +171,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { name: 'Polls', href: '/polls', icon: BarChart3 },
     { name: 'Events', href: '/events', icon: Calendar },
     { name: 'Saved', href: '/saved', icon: Bookmark },
+    ...(booksNavEnabled ? [{ name: 'Books', href: '/books', icon: Library }] : []),
     { name: 'Shots', href: '/shots', icon: Video },
     { name: 'Best Calls', href: '/best-calls', icon: Headphones },
     { name: 'My Team', href: '/my-team', icon: TeamIcon },
@@ -197,6 +205,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const filteredAdminNav = adminNavigation.filter(item => item.roles.includes(profile?.role || ''));
   const isAdmin = ['super_admin', 'admin', 'trainer'].includes(profile?.role || '');
+  const mobileNavExtra = isMobile && currentPage.section ? 44 : 0;
+  const navOffset = 52 + mobileNavExtra;
 
   const navLinkClass = (href: string): React.CSSProperties => {
     const active = location.pathname === href || (href !== '/dashboard' && location.pathname.startsWith(href + '/'));
@@ -241,7 +251,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <div style={{ width: 28, height: 28, background: '#171717', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Globe2 size={13} color="white" />
               </div>
-              <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.04em', color: '#171717' }}>Tavrion</span>
+              <span className="hidden sm:inline" style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.04em', color: '#171717' }}>Tavrion</span>
             </Link>
 
             {/* Breadcrumb — desktop only */}
@@ -278,7 +288,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 )}
               </button>
               {showNotifications && (
-                <div style={{ position: 'absolute', top: 40, right: 0, width: 300, background: 'white', borderRadius: 10, boxShadow: 'rgba(0,0,0,0.12) 0px 0px 0px 1px, rgba(0,0,0,0.08) 0px 8px 24px', zIndex: 100, overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', top: 40, right: 0, width: isMobile ? 'min(300px, calc(100vw - 24px))' : 300, background: 'white', borderRadius: 10, boxShadow: 'rgba(0,0,0,0.12) 0px 0px 0px 1px, rgba(0,0,0,0.08) 0px 8px 24px', zIndex: 100, overflow: 'hidden' }}>
                   <div style={{ padding: '14px 16px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: '#171717' }}>Notifications</span>
                     {notifCount > 0 && <span style={{ fontSize: 11, color: '#808080' }}>{notifCount} new</span>}
@@ -316,8 +326,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <div style={{ width: 28, height: 28, background: '#171717', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: 11 }}>
                   {profile?.full_name?.charAt(0)?.toUpperCase() || 'T'}
                 </div>
-                <span style={{ fontSize: 12, fontWeight: 600, color: '#171717' }}>{profile?.full_name?.split(' ')[0]}</span>
-                <ChevronDown size={11} color="#808080" />
+                <span className="hidden sm:inline" style={{ fontSize: 12, fontWeight: 600, color: '#171717' }}>{profile?.full_name?.split(' ')[0]}</span>
+                <ChevronDown size={11} color="#808080" className="hidden sm:block" />
               </button>
               {showUserMenu && (
                 <div style={{ position: 'absolute', top: 42, right: 0, width: 220, background: 'white', borderRadius: 10, boxShadow: 'rgba(0,0,0,0.12) 0px 0px 0px 1px, rgba(0,0,0,0.08) 0px 8px 24px', zIndex: 100, overflow: 'hidden' }}>
@@ -353,6 +363,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </div>
+        {isMobile && currentPage.section && (
+          <div style={{ padding: '8px 16px 10px', borderTop: '1px solid #f5f5f5', background: '#fff' }}>
+            <p style={{ fontSize: 10, fontWeight: 700, color: '#aaa', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 2 }}>{currentPage.section}</p>
+            <p style={{ fontSize: 15, fontWeight: 700, color: '#171717', letterSpacing: '-0.02em' }}>{currentPage.label}</p>
+          </div>
+        )}
       </nav>
 
       <div style={{ display: 'flex' }}>
@@ -363,7 +379,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           minHeight: 'calc(100vh - 52px)', overflowY: 'auto', flexShrink: 0, padding: '10px 8px',
           // Mobile: fixed overlay slide-in
           ...(isMobile ? {
-            position: 'fixed', top: 52, left: 0, bottom: 0, zIndex: 46,
+            position: 'fixed', top: navOffset, left: 0, bottom: 0, zIndex: 46,
             transform: mobileSidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
             transition: 'transform 0.28s cubic-bezier(0.4,0,0.2,1)',
           } : {}),
@@ -456,6 +472,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                 {[
                   { name: 'Platform Overview', href: '/owner', icon: Building2 },
+                  { name: 'Books Library', href: '/owner/books', icon: Library },
                   { name: 'Manage Courses', href: '/admin/courses', icon: BookOpen },
                   { name: 'Manage Users', href: '/admin/users', icon: UsersIcon },
                   { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
@@ -487,7 +504,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </aside>
 
         {/* ── MAIN ── */}
-        <main style={{ flex: 1, padding: isMobile ? 16 : 24, overflowY: 'auto', minHeight: 'calc(100vh - 52px)', maxWidth: isMobile ? '100vw' : 'calc(100vw - 220px)' }}>
+        <main style={{ flex: 1, padding: isMobile ? '14px 14px 20px' : 24, overflowY: 'auto', minHeight: `calc(100dvh - ${navOffset}px)`, maxWidth: isMobile ? '100%' : 'calc(100vw - 220px)' }}>
           {children}
         </main>
       </div>

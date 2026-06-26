@@ -2,6 +2,7 @@ import { Component, ErrorInfo, ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { BooksFeatureRoute } from './components/BooksFeatureRoute';
 import { LandingPage } from './pages/LandingPage';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
@@ -41,6 +42,8 @@ import { PolicyVersions } from './pages/admin/PolicyVersions';
 import { Certificates } from './pages/Certificates';
 import { OwnerDashboard } from './pages/owner/Dashboard';
 import { OrgDetail } from './pages/owner/OrgDetail';
+import { OwnerBooks } from './pages/owner/Books';
+import { Books } from './pages/Books';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -395,6 +398,48 @@ function App() {
             element={
               <ProtectedRoute>
                 <Certificates />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/books"
+            element={
+              <ProtectedRoute>
+                <BooksFeatureRoute>
+                  <Books />
+                </BooksFeatureRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/books/:collectionId"
+            element={
+              <ProtectedRoute>
+                <BooksFeatureRoute>
+                  <Books />
+                </BooksFeatureRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/books/:collectionId/read/:documentId"
+            element={
+              <ProtectedRoute>
+                <BooksFeatureRoute>
+                  <Books />
+                </BooksFeatureRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/owner/books"
+            element={
+              <ProtectedRoute ownerOnly>
+                <OwnerBooks />
               </ProtectedRoute>
             }
           />

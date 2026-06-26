@@ -20,6 +20,7 @@ const DEFAULT_FEATURES = {
   email_nudges: false,
   scorm_upload: false,
   certificates: false,
+  books: false,
 };
 
 type Tab = 'settings' | 'users';
