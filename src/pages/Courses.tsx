@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { Layout } from '../components/Layout';
+import { tryCompleteUploadedCourse } from '../utils/courseCompletion';
 import { ScormPlayer } from '../components/ScormPlayer';
 import { BookOpen, Clock, Award, FileText, Download, Eye } from 'lucide-react';
 import { Course, UserCourseEnrollment } from '../types';
@@ -143,15 +143,18 @@ export function Courses() {
     }
   };
 
-  const handleCourseComplete = async (assignmentId: string) => {
+  const handleCourseComplete = async (assignmentId: string, courseId: string, courseTitle: string) => {
+    if (!profile) return;
     await supabase
       .from('uploaded_course_assignments')
       .update({
         status: 'completed',
-        completed_at: new Date().toISOString()
+        completed_at: new Date().toISOString(),
+        progress_percentage: 100,
       })
       .eq('id', assignmentId);
 
+    await tryCompleteUploadedCourse(profile.id, courseId, courseTitle);
     fetchCourses();
   };
 
@@ -321,7 +324,7 @@ export function Courses() {
               }}
               onComplete={() => {
                 console.log('✅ [Courses] SCORM course completed');
-                handleCourseComplete(viewingCourse.id);
+                handleCourseComplete(viewingCourse.id, viewingCourse.course.id, viewingCourse.course.title);
               }}
             />
           </>

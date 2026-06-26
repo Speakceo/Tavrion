@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Layout } from '../components/Layout';
 import { Award, Download, Printer, Search, Calendar, CheckCircle, BookOpen } from 'lucide-react';
+import { CertificateLayout, type CertificateTemplateId } from '../utils/certificateTemplates';
 
 interface CertificateRecord {
   id: string;
@@ -11,6 +12,7 @@ interface CertificateRecord {
   issued_at: string;
   expiry_date: string | null;
   certificate_number: string | null;
+  certificate_template?: CertificateTemplateId | null;
   course_title: string | null;
   user_name: string | null;
   course?: { title: string; description: string };
@@ -29,79 +31,17 @@ function CertificatePrint({ cert, userName }: { cert: CertificateRecord; userNam
   const issuedDate = new Date(cert.issued_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
   const expiryDate = cert.expiry_date ? new Date(cert.expiry_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : null;
   const certNum = cert.certificate_number || `CERT-${cert.id.substring(0, 8).toUpperCase()}`;
+  const template = (cert.certificate_template || 'classic') as CertificateTemplateId;
 
   return (
-    <div style={{
-      width: 800, minHeight: 560, background: '#fff',
-      border: '8px solid #1a1a1a',
-      outline: '2px solid #c9a84c',
-      outlineOffset: -16,
-      padding: '48px 56px',
-      position: 'relative',
-      fontFamily: '"Georgia", "Times New Roman", serif',
-      boxSizing: 'border-box',
-    }}>
-      {/* Corner ornaments */}
-      {[{top:4,left:4},{top:4,right:4},{bottom:4,left:4},{bottom:4,right:4}].map((pos,i) => (
-        <div key={i} style={{ position: 'absolute', ...pos, width: 32, height: 32, border: '2px solid #c9a84c', borderRadius: 2 }} />
-      ))}
-
-      <div style={{ textAlign: 'center' }}>
-        {/* Logo/Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 8 }}>
-          <div style={{ width: 32, height: 32, background: '#1a1a1a', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-          </div>
-          <span style={{ fontSize: 18, fontWeight: 700, fontFamily: '"Inter", sans-serif', letterSpacing: '-0.03em', color: '#1a1a1a' }}>Tavrion</span>
-        </div>
-
-        <div style={{ fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#666', marginBottom: 24, fontFamily: '"Inter", sans-serif' }}>
-          Enterprise Learning Platform
-        </div>
-
-        <div style={{ fontSize: 13, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 10, fontFamily: '"Inter", sans-serif', fontWeight: 700 }}>
-          Certificate of Completion
-        </div>
-
-        <div style={{ fontSize: 13, color: '#666', marginBottom: 8, fontFamily: '"Inter", sans-serif' }}>This certifies that</div>
-
-        <div style={{ fontSize: 36, fontWeight: 700, color: '#1a1a1a', letterSpacing: '-0.02em', marginBottom: 8, lineHeight: 1.2 }}>{userName}</div>
-
-        <div style={{ width: 160, height: 2, background: 'linear-gradient(to right, transparent, #c9a84c, transparent)', margin: '0 auto 16px' }} />
-
-        <div style={{ fontSize: 13, color: '#666', marginBottom: 8, fontFamily: '"Inter", sans-serif' }}>has successfully completed</div>
-
-        <div style={{ fontSize: 22, fontWeight: 700, color: '#1a1a1a', marginBottom: 6, lineHeight: 1.3 }}>{courseTitle}</div>
-
-        <div style={{ fontSize: 13, color: '#4d4d4d', marginBottom: 32, fontFamily: '"Inter", sans-serif' }}>with distinction</div>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 8 }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ borderTop: '1px solid #1a1a1a', width: 160, paddingTop: 6, marginTop: 32 }}>
-              <div style={{ fontSize: 12, color: '#1a1a1a', fontWeight: 600, fontFamily: '"Inter", sans-serif' }}>Date of Issue</div>
-              <div style={{ fontSize: 11, color: '#666', fontFamily: '"Inter", sans-serif' }}>{issuedDate}</div>
-            </div>
-          </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" strokeWidth="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>
-            </div>
-          </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ borderTop: '1px solid #1a1a1a', width: 160, paddingTop: 6, marginTop: 32 }}>
-              <div style={{ fontSize: 12, color: '#1a1a1a', fontWeight: 600, fontFamily: '"Inter", sans-serif' }}>Certificate No.</div>
-              <div style={{ fontSize: 11, color: '#666', fontFamily: '"Inter", sans-serif' }}>{certNum}</div>
-            </div>
-          </div>
-        </div>
-
-        {expiryDate && (
-          <div style={{ marginTop: 16, fontSize: 11, color: '#999', fontFamily: '"Inter", sans-serif' }}>
-            Valid until: {expiryDate}
-          </div>
-        )}
-      </div>
-    </div>
+    <CertificateLayout
+      template={template}
+      userName={userName}
+      courseTitle={courseTitle}
+      issuedDate={issuedDate}
+      certNum={certNum}
+      expiryDate={expiryDate}
+    />
   );
 }
 

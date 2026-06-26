@@ -11,6 +11,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { UserCourseEnrollment, Course } from '../types';
+import { tryCompleteUploadedCourse } from '../utils/courseCompletion';
 
 const T = {
   text: '#171717', body: '#4d4d4d', muted: '#666666', faint: '#808080',
@@ -580,6 +581,7 @@ export function Dashboard() {
                 .update({ status: 'completed', completed_at: new Date().toISOString(), progress_percentage: 100 })
                 .eq('user_id', profile.id)
                 .eq('course_id', previewCourse.id);
+              await tryCompleteUploadedCourse(profile.id, previewCourse.id, previewCourse.title);
               fetchCourses();
             }
             setPreviewCourse(null);

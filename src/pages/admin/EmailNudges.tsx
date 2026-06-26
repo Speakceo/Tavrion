@@ -1,21 +1,27 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Layout } from '../../components/Layout';
-import { Mail, Send, Users, BookOpen, Check } from 'lucide-react';
+import { Mail, Send, Users, BookOpen, Check, Filter } from 'lucide-react';
 
-interface Course {
+type CourseKind = 'builtin' | 'uploaded';
+
+type CourseOption = {
   id: string;
   title: string;
-  status: string;
-}
+  kind: CourseKind;
+  status?: string;
+};
 
-interface UserProfile {
+type LearnerRow = {
   id: string;
   full_name: string;
   email: string;
   unique_id: string;
   department?: string;
-}
+  status: string;
+};
+
+type CompletionFilter = 'all' | 'pending' | 'in_progress' | 'completed';
 
 const TEMPLATES = {
   reminder: {
@@ -29,7 +35,7 @@ const TEMPLATES = {
   <p style="color: #4d4d4d; line-height: 1.7; margin-bottom: 24px;">
     Take a few minutes today to make progress on your learning journey.
   </p>
-  <a href="https://app.jointavrion.com/courses" style="display: inline-block; background: #171717; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
+  <a href="https://jointavrion.com/courses" style="display: inline-block; background: #171717; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
     Start Learning
   </a>
   <p style="margin-top: 32px; font-size: 12px; color: #808080;">Tavrion Learning Platform · jointavrion.com</p>
@@ -46,7 +52,7 @@ const TEMPLATES = {
   <p style="color: #4d4d4d; line-height: 1.7; margin-bottom: 24px;">
     Log back in and finish what you started — your certificate is waiting.
   </p>
-  <a href="https://app.jointavrion.com/courses" style="display: inline-block; background: #171717; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
+  <a href="https://jointavrion.com/courses" style="display: inline-block; background: #171717; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
     Finish Course
   </a>
   <p style="margin-top: 32px; font-size: 12px; color: #808080;">Tavrion Learning Platform · jointavrion.com</p>
@@ -54,28 +60,118 @@ const TEMPLATES = {
   },
 };
 
+function isPending(status: string) {
+  return ['assigned', 'not_started', 'viewed', 'downloaded'].includes(status);
+}
+
+function isInProgress(status: string) {
+  return status === 'in_progress';
+}
+
+function isCompleted(status: string) {
+  return status === 'completed';
+}
+
+function statusLabel(status: string) {
+  if (isCompleted(status)) return 'Completed';
+  if (isInProgress(status)) return 'In progress';
+  if (isPending(status)) return 'Pending';
+  return status.replace('_', ' ');
+}
+
 export function EmailNudges() {
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [users, setUsers] = useState<UserProfile[]>([]);
-  const [selectedCourse, setSelectedCourse] = useState('');
+  const [courses, setCourses] = useState<CourseOption[]>([]);
+  const [learners, setLearners] = useState<LearnerRow[]>([]);
+  const [selectedCourseKey, setSelectedCourseKey] = useState('');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [completionFilter, setCompletionFilter] = useState<CompletionFilter>('pending');
   const [template, setTemplate] = useState<keyof typeof TEMPLATES>('reminder');
   const [sending, setSending] = useState(false);
+  const [loadingLearners, setLoadingLearners] = useState(false);
   const [result, setResult] = useState<{ sent: number; failed: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const selectedCourse = useMemo(() => {
+    if (!selectedCourseKey) return null;
+    const [kind, id] = selectedCourseKey.split(':') as [CourseKind, string];
+    return courses.find((c) => c.kind === kind && c.id === id) || null;
+  }, [selectedCourseKey, courses]);
+
   useEffect(() => {
     Promise.all([
-      supabase.from('courses').select('id, title, status').eq('status', 'published').order('title'),
-      supabase.from('user_profiles').select('id, full_name, email, unique_id, department').eq('is_active', true).order('full_name'),
-    ]).then(([{ data: c }, { data: u }]) => {
-      if (c) setCourses(c);
-      if (u) setUsers(u);
+      supabase.from('courses').select('id, title, status').order('title'),
+      supabase.from('uploaded_courses').select('id, title').order('title'),
+    ]).then(([{ data: builtin }, { data: uploaded }]) => {
+      const list: CourseOption[] = [
+        ...(builtin || []).map((c) => ({ id: c.id, title: c.title, kind: 'builtin' as const, status: c.status })),
+        ...(uploaded || []).map((c) => ({ id: c.id, title: c.title, kind: 'uploaded' as const })),
+      ];
+      setCourses(list);
       setLoading(false);
     });
   }, []);
 
-  const usersWithEmail = users.filter(u => u.email && u.email.includes('@'));
+  useEffect(() => {
+    if (!selectedCourse) {
+      setLearners([]);
+      setSelectedUsers([]);
+      return;
+    }
+
+    setLoadingLearners(true);
+    setSelectedUsers([]);
+
+    (async () => {
+      if (selectedCourse.kind === 'builtin') {
+        const { data } = await supabase
+          .from('user_course_enrollments')
+          .select('status, user:user_profiles(id, full_name, email, unique_id, department)')
+          .eq('course_id', selectedCourse.id);
+
+        const rows: LearnerRow[] = (data || [])
+          .filter((row) => row.user && (row.user as LearnerRow).email?.includes('@'))
+          .map((row) => ({
+            ...(row.user as LearnerRow),
+            status: row.status || 'assigned',
+          }));
+        setLearners(rows);
+      } else {
+        const { data } = await supabase
+          .from('uploaded_course_assignments')
+          .select('status, user:user_profiles(id, full_name, email, unique_id, department)')
+          .eq('course_id', selectedCourse.id);
+
+        const rows: LearnerRow[] = (data || [])
+          .filter((row) => row.user && (row.user as LearnerRow).email?.includes('@'))
+          .map((row) => ({
+            ...(row.user as LearnerRow),
+            status: row.status || 'assigned',
+          }));
+        setLearners(rows);
+      }
+      setLoadingLearners(false);
+    })();
+  }, [selectedCourse]);
+
+  const filteredLearners = useMemo(() => {
+    return learners.filter((u) => {
+      if (completionFilter === 'pending') return isPending(u.status);
+      if (completionFilter === 'in_progress') return isInProgress(u.status);
+      if (completionFilter === 'completed') return isCompleted(u.status);
+      return true;
+    });
+  }, [learners, completionFilter]);
+
+  useEffect(() => {
+    setSelectedUsers(filteredLearners.map((u) => u.id));
+  }, [filteredLearners, completionFilter, selectedCourseKey]);
+
+  const counts = useMemo(() => ({
+    pending: learners.filter((u) => isPending(u.status)).length,
+    in_progress: learners.filter((u) => isInProgress(u.status)).length,
+    completed: learners.filter((u) => isCompleted(u.status)).length,
+    all: learners.length,
+  }), [learners]);
 
   const handleSend = async () => {
     if (!selectedCourse || selectedUsers.length === 0) return;
@@ -83,12 +179,10 @@ export function EmailNudges() {
     setSending(true);
     setResult(null);
 
-    const course = courses.find(c => c.id === selectedCourse);
     const tpl = TEMPLATES[template];
-
-    const recipients = users
-      .filter(u => selectedUsers.includes(u.id))
-      .map(u => ({ email: u.email, name: u.full_name, courseTitle: course?.title || '' }));
+    const recipients = learners
+      .filter((u) => selectedUsers.includes(u.id))
+      .map((u) => ({ email: u.email, name: u.full_name, courseTitle: selectedCourse.title }));
 
     try {
       const { data, error } = await supabase.functions.invoke('send-email-nudge', {
@@ -96,17 +190,17 @@ export function EmailNudges() {
           recipients,
           subject: tpl.subject,
           htmlBody: tpl.body,
-          courseId: selectedCourse,
+          courseId: selectedCourse.id,
           emailType: template,
         },
       });
 
       if (error) throw error;
 
-      const sent = data.results?.filter((r: any) => r.status === 'sent').length || 0;
-      const failed = data.results?.filter((r: any) => r.status === 'failed').length || 0;
+      const sent = data.results?.filter((r: { status: string }) => r.status === 'sent').length || 0;
+      const failed = data.results?.filter((r: { status: string }) => r.status === 'failed').length || 0;
       setResult({ sent, failed });
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error sending nudges:', err);
       setResult({ sent: 0, failed: selectedUsers.length });
     } finally {
@@ -126,11 +220,11 @@ export function EmailNudges() {
 
   return (
     <Layout>
-      <div style={{ maxWidth: 760, margin: '0 auto' }}>
+      <div style={{ maxWidth: 900, margin: '0 auto' }}>
         <div style={{ marginBottom: 28 }}>
           <p style={{ fontSize: 11, fontWeight: 700, color: '#808080', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Admin</p>
           <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: '#171717', marginBottom: 4 }}>Email Nudges</h1>
-          <p style={{ fontSize: 14, color: '#4d4d4d' }}>Send course reminders and completion nudges to learners</p>
+          <p style={{ fontSize: 14, color: '#4d4d4d' }}>Select a course, filter by completion status, and nudge pending learners</p>
         </div>
 
         {result && (
@@ -143,28 +237,71 @@ export function EmailNudges() {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Config panel */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* Course selector */}
             <div className="lt-card" style={{ padding: '20px 24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
                 <BookOpen size={14} color="#4d4d4d" />
                 <h2 style={{ fontSize: 14, fontWeight: 700, color: '#171717' }}>Select Course</h2>
               </div>
               <select
-                value={selectedCourse}
-                onChange={e => setSelectedCourse(e.target.value)}
+                value={selectedCourseKey}
+                onChange={(e) => setSelectedCourseKey(e.target.value)}
                 className="lt-input"
                 style={{ width: '100%', padding: '9px 12px', boxSizing: 'border-box' }}
               >
                 <option value="">-- Choose a course --</option>
-                {courses.map(c => (
-                  <option key={c.id} value={c.id}>{c.title}</option>
-                ))}
+                {courses.some((c) => c.kind === 'builtin') && (
+                  <optgroup label="Built-in courses">
+                    {courses.filter((c) => c.kind === 'builtin').map((c) => (
+                      <option key={`builtin:${c.id}`} value={`builtin:${c.id}`}>
+                        {c.title}{c.status !== 'published' ? ` (${c.status})` : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {courses.some((c) => c.kind === 'uploaded') && (
+                  <optgroup label="Uploaded / SCORM courses">
+                    {courses.filter((c) => c.kind === 'uploaded').map((c) => (
+                      <option key={`uploaded:${c.id}`} value={`uploaded:${c.id}`}>{c.title}</option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
+              {courses.length === 0 && (
+                <p style={{ fontSize: 12, color: '#808080', marginTop: 8 }}>No courses found. Upload a course or publish a built-in course first.</p>
+              )}
             </div>
 
-            {/* Template selector */}
+            {selectedCourse && (
+              <div className="lt-card" style={{ padding: '20px 24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                  <Filter size={14} color="#4d4d4d" />
+                  <h2 style={{ fontSize: 14, fontWeight: 700, color: '#171717' }}>Completion Filter</h2>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {([
+                    ['pending', `Pending (${counts.pending})`],
+                    ['in_progress', `In progress (${counts.in_progress})`],
+                    ['completed', `Completed (${counts.completed})`],
+                    ['all', `All assigned (${counts.all})`],
+                  ] as [CompletionFilter, string][]).map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setCompletionFilter(key)}
+                      style={{
+                        padding: '7px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                        background: completionFilter === key ? '#171717' : '#f5f5f5',
+                        color: completionFilter === key ? '#fff' : '#4d4d4d',
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="lt-card" style={{ padding: '20px 24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
                 <Mail size={14} color="#4d4d4d" />
@@ -172,7 +309,7 @@ export function EmailNudges() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {(Object.entries(TEMPLATES) as [keyof typeof TEMPLATES, { label: string; subject: string }][]).map(([key, tpl]) => (
-                  <label key={key} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', borderRadius: 8, cursor: 'pointer', boxShadow: template === key ? 'rgba(0,0,0,0.12) 0px 0px 0px 1.5px' : 'rgba(0,0,0,0.06) 0px 0px 0px 1px', background: template === key ? '#fafafa' : '#fff', transition: 'all 0.1s' }}>
+                  <label key={key} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', borderRadius: 8, cursor: 'pointer', boxShadow: template === key ? 'rgba(0,0,0,0.12) 0px 0px 0px 1.5px' : 'rgba(0,0,0,0.06) 0px 0px 0px 1px', background: template === key ? '#fafafa' : '#fff' }}>
                     <input type="radio" name="template" value={key} checked={template === key} onChange={() => setTemplate(key)} style={{ marginTop: 2 }} />
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: '#171717' }}>{tpl.label}</div>
@@ -194,35 +331,53 @@ export function EmailNudges() {
             </button>
           </div>
 
-          {/* User selector */}
           <div className="lt-card" style={{ overflow: 'hidden' }}>
             <div style={{ padding: '16px 20px', borderBottom: '1px solid #ebebeb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Users size={14} color="#4d4d4d" />
-                <h2 style={{ fontSize: 14, fontWeight: 700, color: '#171717' }}>Recipients ({selectedUsers.length} selected)</h2>
+                <h2 style={{ fontSize: 14, fontWeight: 700, color: '#171717' }}>
+                  Recipients ({selectedUsers.length} selected)
+                </h2>
               </div>
-              <button
-                onClick={() => setSelectedUsers(selectedUsers.length === usersWithEmail.length ? [] : usersWithEmail.map(u => u.id))}
-                style={{ fontSize: 12, color: '#666', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}
-              >
-                {selectedUsers.length === usersWithEmail.length ? 'Deselect all' : 'Select all'}
-              </button>
-            </div>
-            <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-              {usersWithEmail.map((user, i) => (
-                <label key={user.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 20px', cursor: 'pointer', borderBottom: i < usersWithEmail.length - 1 ? '1px solid #f5f5f5' : 'none', transition: 'background 0.1s' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#fafafa')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              {filteredLearners.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedUsers(selectedUsers.length === filteredLearners.length ? [] : filteredLearners.map((u) => u.id))}
+                  style={{ fontSize: 12, color: '#666', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}
                 >
-                  <input type="checkbox" checked={selectedUsers.includes(user.id)}
-                    onChange={e => setSelectedUsers(e.target.checked ? [...selectedUsers, user.id] : selectedUsers.filter(id => id !== user.id))} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#171717' }}>{user.full_name}</div>
-                    <div style={{ fontSize: 11, color: '#808080', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</div>
-                  </div>
-                  {user.department && <span className="lt-badge" style={{ fontSize: 10, flexShrink: 0 }}>{user.department}</span>}
-                </label>
-              ))}
+                  {selectedUsers.length === filteredLearners.length ? 'Deselect all' : 'Select all'}
+                </button>
+              )}
+            </div>
+            <div style={{ maxHeight: 520, overflowY: 'auto' }}>
+              {!selectedCourse ? (
+                <div style={{ padding: 40, textAlign: 'center', color: '#808080', fontSize: 13 }}>Select a course to see assigned learners</div>
+              ) : loadingLearners ? (
+                <div style={{ padding: 40, textAlign: 'center', color: '#808080', fontSize: 13 }}>Loading learners...</div>
+              ) : filteredLearners.length === 0 ? (
+                <div style={{ padding: 40, textAlign: 'center', color: '#808080', fontSize: 13 }}>
+                  {learners.length === 0
+                    ? 'No learners assigned to this course yet. Assign users from Uploaded Courses or Manage Courses.'
+                    : 'No learners match this filter.'}
+                </div>
+              ) : (
+                filteredLearners.map((user, i) => (
+                  <label key={user.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 20px', cursor: 'pointer', borderBottom: i < filteredLearners.length - 1 ? '1px solid #f5f5f5' : 'none' }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedUsers.includes(user.id)}
+                      onChange={(e) => setSelectedUsers(e.target.checked ? [...selectedUsers, user.id] : selectedUsers.filter((id) => id !== user.id))}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#171717' }}>{user.full_name}</div>
+                      <div style={{ fontSize: 11, color: '#808080', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</div>
+                    </div>
+                    <span className={`lt-badge ${isCompleted(user.status) ? 'lt-badge-success' : isPending(user.status) ? 'lt-badge-warn' : 'lt-badge-blue'}`} style={{ fontSize: 10, flexShrink: 0 }}>
+                      {statusLabel(user.status)}
+                    </span>
+                  </label>
+                ))
+              )}
             </div>
           </div>
         </div>

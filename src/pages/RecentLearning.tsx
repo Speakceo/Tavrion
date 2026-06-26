@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 import { Clock, BookOpen, ArrowRight, Eye, Download, FileText } from 'lucide-react';
 import { ScormPlayer } from '../components/ScormPlayer';
 import { UserCourseEnrollment, Course } from '../types';
+import { tryCompleteUploadedCourse } from '../utils/courseCompletion';
 
 export function RecentLearning() {
   const { profile } = useAuth();
@@ -269,6 +270,7 @@ export function RecentLearning() {
                 .eq('user_id', profile.id)
                 .eq('course_id', previewCourse.id);
 
+              await tryCompleteUploadedCourse(profile.id, previewCourse.id, previewCourse.title);
               fetchRecentLearning();
             }
             setPreviewCourse(null);

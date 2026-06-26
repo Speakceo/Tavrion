@@ -18,6 +18,7 @@ export function AdminCourses() {
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [assignLoading, setAssignLoading] = useState(false);
   const [assignSuccess, setAssignSuccess] = useState('');
+  const [certificateTemplate, setCertificateTemplate] = useState<'classic' | 'modern' | 'executive'>('classic');
 
   useEffect(() => {
     fetchCourses();
@@ -82,7 +83,8 @@ export function AdminCourses() {
       const enrollments = selectedUsers.map(userId => ({
         user_id: userId,
         course_id: selectedCourse.id,
-        status: 'assigned'
+        status: 'assigned',
+        certificate_template: certificateTemplate,
       }));
 
       const { error } = await supabase
@@ -249,6 +251,17 @@ export function AdminCourses() {
                     {assignSuccess}
                   </div>
                 )}
+                <p style={{ fontSize: 12, fontWeight: 600, color: '#666666', marginBottom: 6 }}>Certificate layout</p>
+                <select
+                  value={certificateTemplate}
+                  onChange={(e) => setCertificateTemplate(e.target.value as 'classic' | 'modern' | 'executive')}
+                  className="lt-input"
+                  style={{ width: '100%', padding: '8px 12px', marginBottom: 16, boxSizing: 'border-box' }}
+                >
+                  <option value="classic">Classic Gold</option>
+                  <option value="modern">Modern Blue</option>
+                  <option value="executive">Executive Dark</option>
+                </select>
                 <p style={{ fontSize: 12, fontWeight: 600, color: '#666666', marginBottom: 10 }}>Select Users ({selectedUsers.length} selected)</p>
                 <div style={{ maxHeight: 320, overflowY: 'auto', boxShadow: 'rgba(0,0,0,0.06) 0px 0px 0px 1px', borderRadius: 8, overflow: 'hidden' }}>
                   {allUsers.map((user, i) => (

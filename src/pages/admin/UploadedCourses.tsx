@@ -38,6 +38,7 @@ export function UploadedCourses() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [certificateTemplate, setCertificateTemplate] = useState<'classic' | 'modern' | 'executive'>('classic');
   const [selectedCourse, setSelectedCourse] = useState<UploadedCourse | null>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
@@ -448,6 +449,7 @@ export function UploadedCourses() {
         user_id: userId,
         assigned_by: profile?.id,
         status: 'assigned',
+        certificate_template: certificateTemplate,
       }));
 
       const { error } = await supabase
@@ -1152,6 +1154,19 @@ export function UploadedCourses() {
               >
                 ✕
               </button>
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Certificate layout</label>
+              <select
+                value={certificateTemplate}
+                onChange={(e) => setCertificateTemplate(e.target.value as 'classic' | 'modern' | 'executive')}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="classic">Classic Gold</option>
+                <option value="modern">Modern Blue</option>
+                <option value="executive">Executive Dark</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">Auto-issued when the learner completes this course</p>
             </div>
             <div className="space-y-2 mb-4">
               {users.map((user) => (
