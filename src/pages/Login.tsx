@@ -282,7 +282,7 @@ export function Login() {
               </div>
               <p style={{ fontSize: 11, color: T.textFaint, marginTop: 6 }}>
                 {orgId === OWNER_SENTINEL
-                  ? 'Master login: use User ID MasterAdmin (or TavrionOwner)'
+                  ? 'Master login: User ID arpitadmin · password arpitadmin'
                   : 'Default password is your User ID unless changed'}
               </p>
             </div>

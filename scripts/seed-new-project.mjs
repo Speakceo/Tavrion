@@ -138,15 +138,15 @@ async function main() {
   console.log('Owner TavrionOwner:', ownerId);
 
   const masterId = await upsertUser({
-    unique_id: 'MasterAdmin',
+    unique_id: 'arpitadmin',
     role: 'super_admin',
-    full_name: 'Master Admin',
-    email: 'master@jointavrion.com',
-    password: 'Tavrion@2026',
+    full_name: 'Arpit Admin',
+    email: 'arpitadmin@jointavrion.com',
+    password: 'arpitadmin',
     organization_id: orgId,
     is_platform_owner: true,
   });
-  console.log('Master MasterAdmin:', masterId);
+  console.log('Master arpitadmin:', masterId);
 
   const adminId = await upsertUser({
     unique_id: 'Admin001',
