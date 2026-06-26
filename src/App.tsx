@@ -13,6 +13,7 @@ import { MockCalls } from './pages/MockCalls';
 import { MockCallsNew } from './pages/MockCallsNew';
 import { LiveCalls } from './pages/LiveCalls';
 import { DnaStudio } from './pages/DnaStudio';
+import { TavrionBot } from './pages/TavrionBot';
 import { Social } from './pages/Social';
 import { Polls } from './pages/Polls';
 import { Events } from './pages/Events';
@@ -154,6 +155,13 @@ function App() {
             path="/dna-studio"
             element={
               <DnaStudio />
+            }
+          />
+
+          <Route
+            path="/tavrion-bot"
+            element={
+              <TavrionBot />
             }
           />
 

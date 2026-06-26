@@ -1,0 +1,11 @@
+services:
+  tavrion-bot-api:
+    build: ./services/tavrion-bot-api
+    ports:
+      - "8000:8000"
+    environment:
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    restart: unless-stopped
+    shm_size: "1gb"
