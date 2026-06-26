@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Clock, BookOpen, ArrowRight, Eye, Download, FileText } from 'lucide-react';
 import { ScormPlayer } from '../components/ScormPlayer';
+import { CourseCompletionCelebration } from '../components/CourseCompletionCelebration';
 import { tryCompleteUploadedCourse } from '../utils/courseCompletion';
 import { useLearnerCourses } from '../hooks/useLearnerCourses';
 import { isInProgressStatus, isPendingStatus, statusLabel } from '../utils/learnerCourses';
@@ -13,6 +14,7 @@ export function RecentLearning() {
   const { profile } = useAuth();
   const { builtin, uploaded, loading, refresh } = useLearnerCourses(profile?.id);
   const [previewCourse, setPreviewCourse] = useState<any>(null);
+  const [completedCourseTitle, setCompletedCourseTitle] = useState<string | null>(null);
 
   const pendingBuiltin = useMemo(
     () => builtin.filter((course) => isPendingStatus(course.enrollment.status, 'builtin')),
@@ -243,11 +245,23 @@ export function RecentLearning() {
                 .eq('user_id', profile.id)
                 .eq('course_id', previewCourse.id);
 
-              await tryCompleteUploadedCourse(profile.id, previewCourse.id, previewCourse.title);
+              const result = await tryCompleteUploadedCourse(profile.id, previewCourse.id, previewCourse.title);
               refresh();
+              setPreviewCourse(null);
+              if (result.completed) {
+                setCompletedCourseTitle(result.courseTitle);
+              }
+            } else {
+              setPreviewCourse(null);
             }
-            setPreviewCourse(null);
           }}
+        />
+      )}
+
+      {completedCourseTitle && (
+        <CourseCompletionCelebration
+          courseTitle={completedCourseTitle}
+          onClose={() => setCompletedCourseTitle(null)}
         />
       )}
     </Layout>

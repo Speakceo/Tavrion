@@ -10,6 +10,7 @@ import {
   CheckCircle, Target, Zap, Star, Play, BarChart3, ChevronRight,
 } from 'lucide-react';
 import { tryCompleteUploadedCourse } from '../utils/courseCompletion';
+import { CourseCompletionCelebration } from '../components/CourseCompletionCelebration';
 import { useLearnerCourses } from '../hooks/useLearnerCourses';
 import { isPendingStatus, statusLabel } from '../utils/learnerCourses';
 
@@ -48,6 +49,7 @@ export function Dashboard() {
   const [stats, setStats] = useState({ enrolled: 0, inProgress: 0, completed: 0, certificates: 0, pending: 0 });
   const [loading, setLoading] = useState(true);
   const [previewCourse, setPreviewCourse] = useState<any>(null);
+  const [completedCourseTitle, setCompletedCourseTitle] = useState<string | null>(null);
   const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
   const [activityFeed, setActivityFeed] = useState<{ id: string; text: string; sub: string; time: string; icon: string }[]>([]);
   const [aiStats, setAiStats] = useState({ mockCalls: 0, tutorSessions: 0, avgScore: 0 });
@@ -609,11 +611,23 @@ export function Dashboard() {
                 .update({ status: 'completed', completed_at: new Date().toISOString(), progress_percentage: 100 })
                 .eq('user_id', profile.id)
                 .eq('course_id', previewCourse.id);
-              await tryCompleteUploadedCourse(profile.id, previewCourse.id, previewCourse.title);
+              const result = await tryCompleteUploadedCourse(profile.id, previewCourse.id, previewCourse.title);
               fetchCourses();
+              setPreviewCourse(null);
+              if (result.completed) {
+                setCompletedCourseTitle(result.courseTitle);
+              }
+            } else {
+              setPreviewCourse(null);
             }
-            setPreviewCourse(null);
           }}
+        />
+      )}
+
+      {completedCourseTitle && (
+        <CourseCompletionCelebration
+          courseTitle={completedCourseTitle}
+          onClose={() => setCompletedCourseTitle(null)}
         />
       )}
     </Layout>

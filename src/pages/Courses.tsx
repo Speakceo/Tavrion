@@ -7,6 +7,7 @@ import { tryCompleteUploadedCourse } from '../utils/courseCompletion';
 import { useLearnerCourses } from '../hooks/useLearnerCourses';
 import { isInProgressStatus, isPendingStatus, type UploadedCourseAssignment } from '../utils/learnerCourses';
 import { ScormPlayer } from '../components/ScormPlayer';
+import { CourseCompletionCelebration } from '../components/CourseCompletionCelebration';
 import { BookOpen, Clock, Award, FileText, Download, Eye } from 'lucide-react';
 
 export function Courses() {
@@ -16,6 +17,7 @@ export function Courses() {
   const uploadedCourses = uploaded;
   const [filter, setFilter] = useState<'all' | 'assigned' | 'in_progress' | 'completed'>('all');
   const [viewingCourse, setViewingCourse] = useState<any>(null);
+  const [completedCourseTitle, setCompletedCourseTitle] = useState<string | null>(null);
 
   const filteredCourses = courses.filter((course) => {
     if (filter === 'all') return true;
@@ -95,8 +97,12 @@ export function Courses() {
       })
       .eq('id', assignmentId);
 
-    await tryCompleteUploadedCourse(profile.id, courseId, courseTitle);
+    const result = await tryCompleteUploadedCourse(profile.id, courseId, courseTitle);
     refresh();
+    setViewingCourse(null);
+    if (result.completed) {
+      setCompletedCourseTitle(result.courseTitle);
+    }
   };
 
   const formatFileSize = (bytes: number) => {
@@ -265,7 +271,7 @@ export function Courses() {
               }}
               onComplete={() => {
                 console.log('✅ [Courses] SCORM course completed');
-                handleCourseComplete(viewingCourse.id, viewingCourse.course.id, viewingCourse.course.title);
+                void handleCourseComplete(viewingCourse.id, viewingCourse.course.id, viewingCourse.course.title);
               }}
             />
           </>
@@ -297,6 +303,13 @@ export function Courses() {
           </div>
         )}
       </div>
+
+      {completedCourseTitle && (
+        <CourseCompletionCelebration
+          courseTitle={completedCourseTitle}
+          onClose={() => setCompletedCourseTitle(null)}
+        />
+      )}
     </Layout>
   );
 }

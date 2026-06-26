@@ -64,14 +64,18 @@ async function issueCertificate(params: {
 }
 
 /** After a lesson is completed, check if the whole course is done and issue certificate. */
-export async function tryCompleteCourse(userId: string, courseId: string, courseTitle: string) {
+export async function tryCompleteCourse(
+  userId: string,
+  courseId: string,
+  courseTitle: string,
+): Promise<{ completed: boolean; courseTitle: string }> {
   const { data: modules } = await supabase
     .from('modules')
     .select('id, lessons(id)')
     .eq('course_id', courseId);
 
   const lessonIds = (modules || []).flatMap((m: { lessons?: { id: string }[] }) => (m.lessons || []).map((l) => l.id));
-  if (lessonIds.length === 0) return;
+  if (lessonIds.length === 0) return { completed: false, courseTitle };
 
   const { data: progress } = await supabase
     .from('lesson_progress')
@@ -81,17 +85,21 @@ export async function tryCompleteCourse(userId: string, courseId: string, course
 
   const completedIds = new Set((progress || []).filter((p) => p.status === 'completed').map((p) => p.lesson_id));
   const allDone = lessonIds.every((id) => completedIds.has(id));
-  if (!allDone) return;
+  if (!allDone) return { completed: false, courseTitle };
 
   const [{ data: enrollment }, { data: user }] = await Promise.all([
     supabase
       .from('user_course_enrollments')
-      .select('certificate_template')
+      .select('certificate_template, status')
       .eq('user_id', userId)
       .eq('course_id', courseId)
       .maybeSingle(),
     supabase.from('user_profiles').select('full_name').eq('id', userId).maybeSingle(),
   ]);
+
+  if (enrollment?.status === 'completed') {
+    return { completed: false, courseTitle };
+  }
 
   await supabase
     .from('user_course_enrollments')
@@ -106,10 +114,27 @@ export async function tryCompleteCourse(userId: string, courseId: string, course
     userName: user?.full_name || 'Learner',
     certificateTemplate: (enrollment?.certificate_template as CertificateTemplateId) || 'classic',
   });
+
+  return { completed: true, courseTitle };
 }
 
 /** Issue certificate when an uploaded/SCORM course is marked complete. */
-export async function tryCompleteUploadedCourse(userId: string, uploadedCourseId: string, courseTitle: string) {
+export async function tryCompleteUploadedCourse(
+  userId: string,
+  uploadedCourseId: string,
+  courseTitle: string,
+): Promise<{ completed: boolean; courseTitle: string }> {
+  const { data: existingCert } = await supabase
+    .from('certificates')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('uploaded_course_id', uploadedCourseId)
+    .maybeSingle();
+
+  if (existingCert) {
+    return { completed: false, courseTitle };
+  }
+
   const [{ data: assignment }, { data: user }] = await Promise.all([
     supabase
       .from('uploaded_course_assignments')
@@ -128,5 +153,5 @@ export async function tryCompleteUploadedCourse(userId: string, uploadedCourseId
     certificateTemplate: (assignment?.certificate_template as CertificateTemplateId) || 'classic',
   });
 
-  return result;
+  return { completed: result.ok, courseTitle };
 }

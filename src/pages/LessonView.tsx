@@ -6,6 +6,7 @@ import { Layout } from '../components/Layout';
 import { ArrowLeft, CheckCircle } from 'lucide-react';
 import { Lesson } from '../types';
 import { ScormPlayer } from '../components/ScormPlayer';
+import { CourseCompletionCelebration } from '../components/CourseCompletionCelebration';
 import { tryCompleteCourse } from '../utils/courseCompletion';
 
 type QuizQuestion = {
@@ -28,6 +29,7 @@ export function LessonView() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [quizResult, setQuizResult] = useState<{ score: number; passed: boolean } | null>(null);
   const [quizLoading, setQuizLoading] = useState(false);
+  const [completedCourseTitle, setCompletedCourseTitle] = useState<string | null>(null);
 
   // Setup SCORM API for simple HTML lessons
   useEffect(() => {
@@ -139,10 +141,19 @@ export function LessonView() {
     const courseId = (lesson as any).module?.course?.id;
     const courseTitle = (lesson as any).module?.course?.title;
     if (courseId && courseTitle) {
-      await tryCompleteCourse(profile.id, courseId, courseTitle);
+      const result = await tryCompleteCourse(profile.id, courseId, courseTitle);
+      if (result.completed) {
+        setCompletedCourseTitle(result.courseTitle);
+        return;
+      }
     }
 
     if (!options?.skipNavigate) navigate(-1);
+  };
+
+  const handleCelebrationClose = () => {
+    setCompletedCourseTitle(null);
+    navigate(-1);
   };
 
   const loadQuiz = async () => {
@@ -359,7 +370,7 @@ export function LessonView() {
                       {quizResult.passed ? 'Lesson marked complete. You can return to the course.' : 'Review the material and try again.'}
                     </p>
                     {quizResult.passed ? (
-                      <button onClick={() => navigate(-1)} className="px-4 py-2 bg-green-600 text-white rounded-lg">
+                      <button onClick={() => (completedCourseTitle ? handleCelebrationClose() : navigate(-1))} className="px-4 py-2 bg-green-600 text-white rounded-lg">
                         Back to Course
                       </button>
                     ) : (
@@ -427,6 +438,13 @@ export function LessonView() {
           </div>
         </div>
       </div>
+
+      {completedCourseTitle && (
+        <CourseCompletionCelebration
+          courseTitle={completedCourseTitle}
+          onClose={handleCelebrationClose}
+        />
+      )}
     </Layout>
   );
 }
