@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { Layout } from '../../components/Layout';
 import { Sparkles, Loader, CheckCircle, Users, FileText } from 'lucide-react';
 import { openaiService } from '../../services/openai';
+import { applyOrgUserScope, filterByDepartment, uniqueSortedStrings } from '../../utils/orgUsers';
 
 export function AIGenerate() {
   const { profile } = useAuth();
@@ -23,20 +24,24 @@ export function AIGenerate() {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
+  const [departmentFilter, setDepartmentFilter] = useState('');
   const [generatingPresentation, setGeneratingPresentation] = useState(false);
 
   useEffect(() => {
-    loadUsers();
-  }, []);
+    if (profile) loadUsers();
+  }, [profile]);
 
   const loadUsers = async () => {
     try {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('id, email, full_name, role')
-        .in('role', ['employee', 'trainer', 'partner'])
-        .eq('is_active', true)
-        .order('full_name');
+      const { data, error } = await applyOrgUserScope(
+        supabase
+          .from('user_profiles')
+          .select('id, email, full_name, role, department')
+          .in('role', ['employee', 'trainer', 'partner'])
+          .eq('is_active', true)
+          .order('full_name'),
+        profile,
+      );
 
       if (error) throw error;
       setUsers(data || []);
@@ -44,6 +49,9 @@ export function AIGenerate() {
       console.error('Error loading users:', error);
     }
   };
+
+  const departments = uniqueSortedStrings(users.map((u) => u.department));
+  const filteredAssignUsers = filterByDepartment(users, departmentFilter);
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -407,7 +415,11 @@ export function AIGenerate() {
                     </div>
                     <div className="flex space-x-4">
                       <button
-                        onClick={() => setShowAssignModal(true)}
+                        onClick={() => {
+                          setDepartmentFilter('');
+                          setSelectedUsers(new Set());
+                          setShowAssignModal(true);
+                        }}
                         className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700"
                       >
                         <Users className="w-5 h-5" />
@@ -448,8 +460,21 @@ export function AIGenerate() {
                 ✕
               </button>
             </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
+              <select
+                value={departmentFilter}
+                onChange={(e) => setDepartmentFilter(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="">All departments</option>
+                {departments.map((dept) => (
+                  <option key={dept} value={dept}>{dept}</option>
+                ))}
+              </select>
+            </div>
             <div className="space-y-2 mb-4">
-              {users.map((user) => (
+              {filteredAssignUsers.map((user) => (
                 <label key={user.id} className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded cursor-pointer">
                   <input
                     type="checkbox"
@@ -467,7 +492,9 @@ export function AIGenerate() {
                   />
                   <div>
                     <div className="font-medium">{user.full_name || user.email}</div>
-                    <div className="text-sm text-gray-500">{user.role}</div>
+                    <div className="text-sm text-gray-500">
+                      {user.role}{user.department ? ` · ${user.department}` : ''}
+                    </div>
                   </div>
                 </label>
               ))}

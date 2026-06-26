@@ -6,6 +6,7 @@ import {
   Plus, Trash2, RefreshCw, Users, CheckCircle, Clock,
   AlertTriangle, Target, Filter, Play, ChevronDown, ChevronUp, X
 } from 'lucide-react';
+import { applyOrgUserScope } from '../../utils/orgUsers';
 
 type RecurrenceInterval = 'none' | 'monthly' | 'quarterly' | 'semi_annual' | 'annual';
 type UserRole = 'super_admin' | 'admin' | 'trainer' | 'employee' | 'partner';
@@ -102,14 +103,18 @@ export function CourseAssignmentRules() {
   const [courseForm, setCourseForm] = useState<{ id: string; recurrence: RecurrenceInterval; passingScore: number; requiresQuizPass: boolean; isMandatory: boolean } | null>(null);
   const [savingCourse, setSavingCourse] = useState(false);
 
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => { if (profile) loadAll(); }, [profile]);
 
   async function loadAll() {
     setLoading(true);
+    const usersQuery = applyOrgUserScope(
+      supabase.from('user_profiles').select('id, full_name, department, country, designation, role, joining_date').eq('is_active', true).order('full_name'),
+      profile,
+    );
     const [rulesRes, coursesRes, usersRes] = await Promise.all([
       supabase.from('course_assignment_rules').select('*, course:courses(title)').order('created_at', { ascending: false }),
       supabase.from('courses').select('id, title, is_mandatory, recurrence_interval, passing_score, requires_quiz_pass').eq('status', 'published').order('title'),
-      supabase.from('user_profiles').select('id, full_name, department, country, designation, role, joining_date').eq('is_active', true).order('full_name'),
+      usersQuery,
     ]);
     setRules(rulesRes.data || []);
     setCourses(coursesRes.data || []);

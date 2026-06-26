@@ -5,6 +5,7 @@ import { Layout } from '../../components/Layout';
 import { Plus, Search, CreditCard as Edit, Trash2, Sparkles, Users, FileCheck, ToggleLeft, ToggleRight } from 'lucide-react';
 import { Course, UserProfile } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
+import { applyOrgUserScope, filterByDepartment, uniqueSortedStrings } from '../../utils/orgUsers';
 
 export function AdminCourses() {
   const { profile } = useAuth();
@@ -18,12 +19,13 @@ export function AdminCourses() {
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [assignLoading, setAssignLoading] = useState(false);
   const [assignSuccess, setAssignSuccess] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('');
   const [certificateTemplate, setCertificateTemplate] = useState<'classic' | 'modern' | 'executive'>('classic');
 
   useEffect(() => {
     fetchCourses();
-    fetchUsers();
-  }, []);
+    if (profile) fetchUsers();
+  }, [profile]);
 
   const fetchCourses = async () => {
     const { data } = await supabase
@@ -36,14 +38,16 @@ export function AdminCourses() {
   };
 
   const fetchUsers = async () => {
-    const { data } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('is_active', true)
-      .order('full_name', { ascending: true });
+    const { data } = await applyOrgUserScope(
+      supabase.from('user_profiles').select('*').eq('is_active', true).order('full_name', { ascending: true }),
+      profile,
+    );
 
     if (data) setAllUsers(data);
   };
+
+  const departments = uniqueSortedStrings(allUsers.map((u) => u.department));
+  const filteredUsers = filterByDepartment(allUsers, departmentFilter);
 
   const deleteCourse = async (courseId: string) => {
     if (!confirm('Are you sure you want to delete this course? This will also delete all modules, lessons, and enrollments.')) return;
@@ -72,6 +76,7 @@ export function AdminCourses() {
     setSelectedCourse(course);
     setShowAssignModal(true);
     setSelectedUsers([]);
+    setDepartmentFilter('');
     setAssignSuccess('');
   };
 
@@ -262,14 +267,26 @@ export function AdminCourses() {
                   <option value="modern">Modern Blue</option>
                   <option value="executive">Executive Dark</option>
                 </select>
+                <p style={{ fontSize: 12, fontWeight: 600, color: '#666666', marginBottom: 6 }}>Department</p>
+                <select
+                  value={departmentFilter}
+                  onChange={(e) => setDepartmentFilter(e.target.value)}
+                  className="lt-input"
+                  style={{ width: '100%', padding: '8px 12px', marginBottom: 16, boxSizing: 'border-box' }}
+                >
+                  <option value="">All departments</option>
+                  {departments.map((dept) => (
+                    <option key={dept} value={dept}>{dept}</option>
+                  ))}
+                </select>
                 <p style={{ fontSize: 12, fontWeight: 600, color: '#666666', marginBottom: 10 }}>Select Users ({selectedUsers.length} selected)</p>
                 <div style={{ maxHeight: 320, overflowY: 'auto', boxShadow: 'rgba(0,0,0,0.06) 0px 0px 0px 1px', borderRadius: 8, overflow: 'hidden' }}>
-                  {allUsers.map((user, i) => (
+                  {filteredUsers.map((user, i) => (
                     <label
                       key={user.id}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', cursor: 'pointer',
-                        borderBottom: i < allUsers.length - 1 ? '1px solid #f5f5f5' : 'none',
+                        borderBottom: i < filteredUsers.length - 1 ? '1px solid #f5f5f5' : 'none',
                         transition: 'background 0.1s',
                       }}
                       onMouseEnter={e => (e.currentTarget.style.background = '#fafafa')}
@@ -282,7 +299,9 @@ export function AdminCourses() {
                         }} />
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 600, color: '#171717' }}>{user.full_name}</div>
-                        <div style={{ fontSize: 11, color: '#808080' }}>{user.unique_id} · {user.role}</div>
+                        <div style={{ fontSize: 11, color: '#808080' }}>
+                          {user.unique_id} · {user.role}{user.department ? ` · ${user.department}` : ''}
+                        </div>
                       </div>
                     </label>
                   ))}
@@ -290,9 +309,15 @@ export function AdminCourses() {
               </div>
 
               <div style={{ padding: '16px 24px', borderTop: '1px solid #ebebeb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <button onClick={() => selectedUsers.length === allUsers.length ? setSelectedUsers([]) : setSelectedUsers(allUsers.map(u => u.id))}
+                <button onClick={() => {
+                  const visibleIds = filteredUsers.map((u) => u.id);
+                  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedUsers.includes(id));
+                  setSelectedUsers(allVisibleSelected
+                    ? selectedUsers.filter((id) => !visibleIds.includes(id))
+                    : [...new Set([...selectedUsers, ...visibleIds])]);
+                }}
                   style={{ fontSize: 12, color: '#666666', background: 'none', border: 'none', cursor: 'pointer' }}>
-                  {selectedUsers.length === allUsers.length ? 'Deselect All' : 'Select All'}
+                  {filteredUsers.length > 0 && filteredUsers.every((u) => selectedUsers.includes(u.id)) ? 'Deselect All' : 'Select All'}
                 </button>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={() => { setShowAssignModal(false); setSelectedUsers([]); setAssignSuccess(''); }}

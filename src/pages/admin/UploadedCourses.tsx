@@ -8,6 +8,7 @@ import { validateScormPackage, extractScormMetadata, type ScormValidationResult 
 import { createScormPackage, type ScormCourseData } from '../../utils/scormCreator';
 import { convertScormForCompatibility, needsConversion, type ConversionResult } from '../../utils/scormConverter';
 import { uploadLargeFile } from '../../utils/chunkedUpload';
+import { applyOrgUserScope, filterByDepartment, uniqueSortedStrings } from '../../utils/orgUsers';
 
 interface UploadedCourse {
   id: string;
@@ -42,6 +43,7 @@ export function UploadedCourses() {
   const [selectedCourse, setSelectedCourse] = useState<UploadedCourse | null>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
+  const [departmentFilter, setDepartmentFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [previewCourse, setPreviewCourse] = useState<UploadedCourse | null>(null);
@@ -79,8 +81,8 @@ export function UploadedCourses() {
 
   useEffect(() => {
     loadCourses();
-    loadUsers();
-  }, []);
+    if (profile) loadUsers();
+  }, [profile]);
 
   const loadCourses = async () => {
     try {
@@ -109,12 +111,15 @@ export function UploadedCourses() {
 
   const loadUsers = async () => {
     try {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('id, email, full_name, role')
-        .in('role', ['employee', 'trainer', 'partner'])
-        .eq('is_active', true)
-        .order('full_name');
+      const { data, error } = await applyOrgUserScope(
+        supabase
+          .from('user_profiles')
+          .select('id, email, full_name, role, department')
+          .in('role', ['employee', 'trainer', 'partner'])
+          .eq('is_active', true)
+          .order('full_name'),
+        profile,
+      );
 
       if (error) throw error;
       setUsers(data || []);
@@ -122,6 +127,9 @@ export function UploadedCourses() {
       console.error('Error loading users:', error);
     }
   };
+
+  const departments = uniqueSortedStrings(users.map((u) => u.department));
+  const filteredAssignUsers = filterByDepartment(users, departmentFilter);
 
   const handleFileChange = async (file: File | null) => {
     setUploadForm({ ...uploadForm, file });
@@ -673,6 +681,8 @@ export function UploadedCourses() {
                       <button
                         onClick={() => {
                           setSelectedCourse(course);
+                          setDepartmentFilter('');
+                          setSelectedUsers(new Set());
                           setShowAssignModal(true);
                         }}
                         className="lt-btn-primary flex-1"
@@ -1168,8 +1178,21 @@ export function UploadedCourses() {
               </select>
               <p className="text-xs text-gray-500 mt-1">Auto-issued when the learner completes this course</p>
             </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
+              <select
+                value={departmentFilter}
+                onChange={(e) => setDepartmentFilter(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="">All departments</option>
+                {departments.map((dept) => (
+                  <option key={dept} value={dept}>{dept}</option>
+                ))}
+              </select>
+            </div>
             <div className="space-y-2 mb-4">
-              {users.map((user) => (
+              {filteredAssignUsers.map((user) => (
                 <label
                   key={user.id}
                   className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded cursor-pointer"
@@ -1190,7 +1213,9 @@ export function UploadedCourses() {
                   />
                   <div>
                     <div className="font-medium">{user.full_name || user.email}</div>
-                    <div className="text-sm text-gray-500">{user.role}</div>
+                    <div className="text-sm text-gray-500">
+                      {user.role}{user.department ? ` · ${user.department}` : ''}
+                    </div>
                   </div>
                 </label>
               ))}

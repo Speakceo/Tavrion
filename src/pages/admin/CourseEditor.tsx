@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { Course, Module, Lesson } from '../../types';
 import { BookOpen, Plus, Trash2, Save, ArrowLeft, GripVertical, Sparkles, Users } from 'lucide-react';
 import { OpenAIService } from '../../services/openai';
+import { applyOrgUserScope, filterByDepartment, uniqueSortedStrings } from '../../utils/orgUsers';
 
 interface ModuleFormData extends Omit<Module, 'id' | 'course_id' | 'created_at' | 'updated_at'> {
   id?: string;
@@ -17,12 +19,14 @@ interface LessonFormData extends Omit<Lesson, 'id' | 'module_id' | 'created_at' 
 export default function CourseEditor() {
   const { courseId } = useParams();
   const navigate = useNavigate();
+  const { profile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [aiEnhancing, setAiEnhancing] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
+  const [departmentFilter, setDepartmentFilter] = useState('');
 
   const [courseData, setCourseData] = useState<Partial<Course>>({
     title: '',
@@ -41,8 +45,8 @@ export default function CourseEditor() {
     if (courseId) {
       loadCourse();
     }
-    loadUsers();
-  }, [courseId]);
+    if (profile) loadUsers();
+  }, [courseId, profile]);
 
   const loadCourse = async () => {
     try {
@@ -90,12 +94,15 @@ export default function CourseEditor() {
 
   const loadUsers = async () => {
     try {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('id, email, full_name, role')
-        .in('role', ['employee', 'trainer', 'partner'])
-        .eq('is_active', true)
-        .order('full_name');
+      const { data, error } = await applyOrgUserScope(
+        supabase
+          .from('user_profiles')
+          .select('id, email, full_name, role, department')
+          .in('role', ['employee', 'trainer', 'partner'])
+          .eq('is_active', true)
+          .order('full_name'),
+        profile,
+      );
 
       if (error) throw error;
       setUsers(data || []);
@@ -103,6 +110,9 @@ export default function CourseEditor() {
       console.error('Error loading users:', error);
     }
   };
+
+  const departments = uniqueSortedStrings(users.map((u) => u.department));
+  const filteredAssignUsers = filterByDepartment(users, departmentFilter);
 
   const handleAIEnhance = async () => {
     if (!contentInput.trim()) {
@@ -358,7 +368,11 @@ export default function CourseEditor() {
             {courseId && (
               <>
                 <button
-                  onClick={() => setShowAssignModal(true)}
+                  onClick={() => {
+                    setDepartmentFilter('');
+                    setSelectedUsers(new Set());
+                    setShowAssignModal(true);
+                  }}
                   className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
                 >
                   <Users className="w-5 h-5" />
@@ -655,8 +669,21 @@ export default function CourseEditor() {
                 ✕
               </button>
             </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
+              <select
+                value={departmentFilter}
+                onChange={(e) => setDepartmentFilter(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="">All departments</option>
+                {departments.map((dept) => (
+                  <option key={dept} value={dept}>{dept}</option>
+                ))}
+              </select>
+            </div>
             <div className="space-y-2 mb-4">
-              {users.map((user) => (
+              {filteredAssignUsers.map((user) => (
                 <label key={user.id} className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded cursor-pointer">
                   <input
                     type="checkbox"
@@ -674,7 +701,9 @@ export default function CourseEditor() {
                   />
                   <div>
                     <div className="font-medium">{user.full_name || user.email}</div>
-                    <div className="text-sm text-gray-500">{user.role}</div>
+                    <div className="text-sm text-gray-500">
+                      {user.role}{user.department ? ` · ${user.department}` : ''}
+                    </div>
                   </div>
                 </label>
               ))}

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { applyOrgUserScope } from '../utils/orgUsers';
 import {
   Users, BookOpen, CheckCircle, Clock, AlertTriangle,
   ChevronDown, ChevronUp, Search, BarChart3, Award, Filter
@@ -77,7 +78,10 @@ export function MyTeam() {
 
   async function loadTeam() {
     setLoading(true);
-    let query = supabase.from('user_profiles').select('id, full_name, unique_id, department, designation, role, joining_date').eq('is_active', true);
+    let query = applyOrgUserScope(
+      supabase.from('user_profiles').select('id, full_name, unique_id, department, designation, role, joining_date').eq('is_active', true),
+      profile,
+    );
 
     if (!isAdmin) {
       // Non-admin: only see direct reports (manager_id = current user)
@@ -86,7 +90,6 @@ export function MyTeam() {
       // Trainers see their department
       if (profile.department) query = query.eq('department', profile.department);
     }
-    // Admins see everyone
 
     const { data: memberData } = await query.neq('id', profile!.id).order('full_name');
     const teamMembers = memberData || [];
