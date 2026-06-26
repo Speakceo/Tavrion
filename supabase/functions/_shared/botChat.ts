@@ -1,4 +1,10 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  buildLiveContext,
+  extractUrlsFromText,
+  needsLiveFetch,
+  rankUrlsForLiveFetch,
+} from "./liveFetch.ts";
 
 function cosineSimilarity(a: number[], b: number[]): number {
   let dot = 0, na = 0, nb = 0;
@@ -24,11 +30,19 @@ async function embedQuery(apiKey: string, text: string): Promise<number[]> {
 
 type ChunkRow = { id: string; content: string; embedding: number[]; metadata: { url?: string; title?: string } };
 
+export type SourceLink = { url: string; title: string; live?: boolean };
+
+export type ChatResult = {
+  reply: string;
+  sources: SourceLink[];
+  liveFetched: boolean;
+};
+
 async function retrieveChunks(
   supabase: ReturnType<typeof createClient>,
   botId: string,
   queryEmbedding: number[],
-  topK = 6,
+  topK = 8,
 ): Promise<ChunkRow[]> {
   const { data } = await supabase
     .from("tavrion_bot_chunks")
@@ -48,6 +62,15 @@ async function retrieveChunks(
     .slice(0, topK);
 }
 
+function dedupeSources(sources: SourceLink[]): SourceLink[] {
+  const seen = new Set<string>();
+  return sources.filter((s) => {
+    if (seen.has(s.url)) return false;
+    seen.add(s.url);
+    return true;
+  }).slice(0, 5);
+}
+
 export async function chatWithBot(
   supabase: ReturnType<typeof createClient>,
   openaiKey: string,
@@ -61,13 +84,35 @@ export async function chatWithBot(
   message: string,
   sessionId: string,
   channel: "web" | "whatsapp" = "web",
-): Promise<string> {
+): Promise<ChatResult> {
   const queryEmbedding = await embedQuery(openaiKey, message);
   const chunks = await retrieveChunks(supabase, bot.id, queryEmbedding);
 
-  const context = chunks.length > 0
+  const chunkSources: SourceLink[] = chunks
+    .filter((c) => c.metadata?.url)
+    .map((c) => ({ url: c.metadata!.url!, title: c.metadata?.title || c.metadata!.url! }));
+
+  let liveBlock = "";
+  let liveSources: SourceLink[] = [];
+  const liveFetched = needsLiveFetch(message);
+
+  if (liveFetched) {
+    const urls = rankUrlsForLiveFetch(message, chunkSources, bot.source_url);
+    const live = await buildLiveContext(urls);
+    liveBlock = live.text;
+    liveSources = live.sources.map((s) => ({ ...s, live: true }));
+  }
+
+  const storedContext = chunks.length > 0
     ? chunks.map((c, i) => `[${i + 1}] ${c.metadata?.title || "Page"} (${c.metadata?.url || ""}):\n${c.content}`).join("\n\n")
-    : "No relevant content found in the knowledge base.";
+    : "";
+
+  const contextParts = [
+    liveBlock ? `=== LIVE WEBSITE DATA (fetched just now — prefer for pricing/current info) ===\n${liveBlock}` : "",
+    storedContext ? `=== KNOWLEDGE BASE (from crawl) ===\n${storedContext}` : "",
+  ].filter(Boolean).join("\n\n");
+
+  const context = contextParts || "No relevant content found.";
 
   const { data: history } = await supabase
     .from("tavrion_bot_messages")
@@ -78,9 +123,11 @@ export async function chatWithBot(
     .limit(8);
 
   const systemPrompt = `You are ${bot.bot_name || bot.name}, an AI assistant for the website ${bot.source_url}.
-Answer questions ONLY using the provided website content. Be helpful, concise, and friendly.
-If the answer is not in the context, say you don't have that information on the website and suggest visiting ${bot.source_url}.
-Never make up facts. Cite page titles when helpful.
+Answer using the provided website content. Be helpful, concise, and friendly.
+${liveFetched ? "IMPORTANT: For pricing, plans, fees, or time-sensitive questions, prioritize LIVE WEBSITE DATA over the knowledge base — it was just fetched." : ""}
+When referencing pages, include the full URL on its own line so users can click through.
+If the answer is not in the context, say you don't have that information and suggest visiting ${bot.source_url}.
+Never invent prices or facts not in the context.
 
 WEBSITE CONTENT:
 ${context}`;
@@ -105,8 +152,8 @@ ${context}`;
     body: JSON.stringify({
       model: "gpt-4o-mini",
       messages,
-      temperature: 0.3,
-      max_tokens: 800,
+      temperature: 0.2,
+      max_tokens: 900,
     }),
   });
 
@@ -122,5 +169,12 @@ ${context}`;
     channel,
   });
 
-  return reply;
+  const replyUrls = extractUrlsFromText(reply).map((url) => ({
+    url,
+    title: new URL(url).hostname,
+  }));
+
+  const sources = dedupeSources([...liveSources, ...chunkSources, ...replyUrls]);
+
+  return { reply, sources, liveFetched };
 }

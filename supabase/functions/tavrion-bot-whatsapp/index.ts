@@ -98,13 +98,13 @@ Deno.serve(async (req: Request) => {
       const openaiKey = await getSecret(supabase, "OPENAI_API_KEY");
       const sessionId = `wa:${from}`;
 
-      const reply = await chatWithBot(supabase, openaiKey, bot, text, sessionId, "whatsapp");
+      const result = await chatWithBot(supabase, openaiKey, bot, text, sessionId, "whatsapp");
 
       await sendWhatsAppMessage(
         bot.whatsapp_phone_number_id,
         bot.whatsapp_access_token,
         from,
-        reply,
+        result.reply,
       );
 
       return new Response(JSON.stringify({ ok: true }), {

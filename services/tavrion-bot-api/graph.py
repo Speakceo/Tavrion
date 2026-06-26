@@ -52,6 +52,8 @@ def build_rag_graph(openai_key: str):
     llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.3, api_key=openai_key)
 
     def retrieve_node(state: BotState) -> dict:
+        if state.get("context"):
+            return {}
         query_vec = embeddings.embed_query(state["question"])
         top = retrieve_chunks(state["chunks"], query_vec)
         if top:
@@ -65,10 +67,17 @@ def build_rag_graph(openai_key: str):
         return {"context": context}
 
     def generate_node(state: BotState) -> dict:
+        live_note = ""
+        if "LIVE WEBSITE DATA" in state["context"]:
+            live_note = (
+                "IMPORTANT: For pricing, plans, fees, or time-sensitive questions, "
+                "prioritize LIVE WEBSITE DATA over the knowledge base — it was just fetched. "
+            )
         system = SystemMessage(content=f"""You are {state['bot_name']}, an AI assistant for {state['source_url']}.
-Answer questions ONLY using the website content below. Be helpful, concise, and friendly.
+Answer questions using the website content below. Be helpful, concise, and friendly.
+{live_note}When referencing pages, include the full URL on its own line so users can click through.
 If the answer is not in the context, say you don't have that information and suggest visiting {state['source_url']}.
-Never invent facts. Reference page titles when useful.
+Never invent prices or facts not in the context.
 
 WEBSITE CONTENT:
 {state['context']}""")
@@ -97,7 +106,28 @@ async def run_rag_chat(
     chunks: list[dict],
     question: str,
     history: list[dict] | None = None,
-) -> str:
+) -> dict:
+    from live_fetch import (
+        build_live_context,
+        extract_urls_from_text,
+        needs_live_fetch,
+        rank_urls_for_live_fetch,
+    )
+
+    chunk_sources = [
+        {"url": c.get("metadata", {}).get("url", ""), "title": c.get("metadata", {}).get("title", "")}
+        for c in chunks
+        if c.get("metadata", {}).get("url")
+    ]
+
+    live_fetched = needs_live_fetch(question)
+    live_block = ""
+    live_sources: list[dict] = []
+
+    if live_fetched:
+        urls = rank_urls_for_live_fetch(question, chunk_sources, bot["source_url"])
+        live_block, live_sources = await build_live_context(urls)
+
     graph = build_rag_graph(openai_key)
 
     messages: list[BaseMessage] = []
@@ -107,15 +137,48 @@ async def run_rag_chat(
         elif item.get("role") == "assistant":
             messages.append(AIMessage(content=item["content"]))
 
+    # Pre-retrieve top chunks for context assembly
+    embeddings = OpenAIEmbeddings(model="text-embedding-3-small", api_key=openai_key)
+    query_vec = embeddings.embed_query(question)
+    top = retrieve_chunks(chunks, query_vec, top_k=8)
+    stored_context = "\n\n".join(
+        f"[{i+1}] {c.get('metadata', {}).get('title', 'Page')} "
+        f"({c.get('metadata', {}).get('url', '')}):\n{c['content']}"
+        for i, c in enumerate(top)
+    ) if top else ""
+
+    context_parts = []
+    if live_block:
+        context_parts.append(
+            f"=== LIVE WEBSITE DATA (fetched just now — prefer for pricing/current info) ===\n{live_block}"
+        )
+    if stored_context:
+        context_parts.append(f"=== KNOWLEDGE BASE (from crawl) ===\n{stored_context}")
+    full_context = "\n\n".join(context_parts) if context_parts else "No relevant content found."
+
     result = graph.invoke({
         "messages": messages,
         "bot_id": bot["id"],
         "bot_name": bot.get("bot_name") or bot.get("name", "Assistant"),
         "source_url": bot["source_url"],
         "question": question,
-        "context": "",
+        "context": full_context,
         "chunks": chunks,
         "answer": "",
     })
 
-    return result["answer"]
+    reply = result["answer"]
+    reply_urls = [{"url": u, "title": __import__("urllib.parse").urlparse(u).netloc} for u in extract_urls_from_text(reply)]
+
+    seen: set[str] = set()
+    sources: list[dict] = []
+    for s in [*live_sources, *chunk_sources, *reply_urls]:
+        url = s.get("url", "")
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        sources.append({"url": url, "title": s.get("title") or url, "live": s.get("live", False)})
+        if len(sources) >= 5:
+            break
+
+    return {"reply": reply, "sources": sources, "liveFetched": live_fetched}

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { ChatMessageBubble, SourceLink } from '../components/ChatMessageBubble';
 import {
   Bot, Globe2, MessageSquare, Code2, Copy, Check, Loader2, Zap,
   ArrowRight, CheckCircle2, RefreshCw, Smartphone, Layers, Search,
@@ -28,7 +29,12 @@ type BotRecord = {
   crawl_error?: string;
 };
 
-type ChatMessage = { role: 'user' | 'assistant'; content: string };
+type ChatMessage = {
+  role: 'user' | 'assistant';
+  content: string;
+  sources?: SourceLink[];
+  liveFetched?: boolean;
+};
 
 const T = {
   bg: '#060608', bgElevated: '#0f0f14', bgCard: '#14141c',
@@ -148,6 +154,7 @@ export function TavrionBot() {
   src="${siteOrigin}/tavrion-bot.js"
   data-bot-key="${bot.embed_key}"
   data-api-url="${SUPABASE_URL}"
+  data-anon-key="${ANON_KEY}"
   data-position="bottom-right"
   async
 ></script>`
@@ -230,7 +237,12 @@ export function TavrionBot() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       if (data.sessionId) setSessionId(data.sessionId);
-      setMessages((m) => [...m, { role: 'assistant', content: data.reply }]);
+      setMessages((m) => [...m, {
+        role: 'assistant',
+        content: data.reply,
+        sources: data.sources,
+        liveFetched: data.liveFetched,
+      }]);
     } catch (e: unknown) {
       setMessages((m) => [...m, { role: 'assistant', content: `Error: ${e instanceof Error ? e.message : 'Unknown'}` }]);
     } finally {
@@ -544,15 +556,28 @@ export function TavrionBot() {
                 <div style={{ display: 'flex', flexDirection: 'column', height: 400 }}>
                   <div style={{ flex: 1, overflowY: 'auto', marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {messages.map((m, i) => (
-                      <div key={i} style={{
-                        alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-                        maxWidth: '80%', padding: '10px 14px', borderRadius: 12, fontSize: 14, lineHeight: 1.5,
-                        background: m.role === 'user' ? `linear-gradient(135deg, ${theme.primary}, ${theme.accent})` : T.bgElevated,
-                        color: m.role === 'user' ? '#000' : T.text,
-                        border: m.role === 'assistant' ? `1px solid ${T.border}` : 'none',
-                      }}>{m.content}</div>
+                      <ChatMessageBubble
+                        key={i}
+                        role={m.role}
+                        content={m.content}
+                        sources={m.sources}
+                        liveFetched={m.liveFetched}
+                        theme={theme}
+                        apiBase={SUPABASE_URL}
+                        anonKey={ANON_KEY}
+                        isDark
+                      />
                     ))}
-                    {chatLoading && <div style={{ color: T.textMuted, fontSize: 13 }}>Thinking...</div>}
+                    {chatLoading && (
+                      <div style={{ color: T.textMuted, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Loader2 size={14} className="animate-spin" />
+                        {(() => {
+                          const last = messages[messages.length - 1];
+                          const isPrice = last?.role === 'user' && /\b(price|pricing|cost|plan|fee|how much)\b/i.test(last.content);
+                          return isPrice ? 'Fetching live pricing data...' : 'Thinking...';
+                        })()}
+                      </div>
+                    )}
                     <div ref={chatEndRef} />
                   </div>
                   <form onSubmit={sendChat} style={{ display: 'flex', gap: 8 }}>

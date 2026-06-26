@@ -76,11 +76,13 @@ Deno.serve(async (req: Request) => {
 
     const openaiKey = (await getSecret(supabase, "OPENAI_API_KEY"))!;
     const sid = sessionId || crypto.randomUUID();
-    const reply = await chatWithBot(supabase, openaiKey, bot, message.trim(), sid, "web");
+    const result = await chatWithBot(supabase, openaiKey, bot, message.trim(), sid, "web");
 
     return new Response(JSON.stringify({
-      reply,
+      reply: result.reply,
       sessionId: sid,
+      sources: result.sources,
+      liveFetched: result.liveFetched,
       ragEngine: "fallback",
       bot: {
         id: bot.id,

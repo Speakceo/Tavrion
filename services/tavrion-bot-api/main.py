@@ -249,13 +249,14 @@ async def chat(req: ChatRequest):
         "channel": "web",
     }).execute()
 
-    reply = await run_rag_chat(
+    chat_result = await run_rag_chat(
         openai_key,
         bot,
         chunks,
         req.message,
         history_res.data,
     )
+    reply = chat_result["reply"]
 
     sb.table("tavrion_bot_messages").insert({
         "bot_id": bot["id"],
@@ -268,6 +269,8 @@ async def chat(req: ChatRequest):
     return {
         "reply": reply,
         "sessionId": session_id,
+        "sources": chat_result.get("sources", []),
+        "liveFetched": chat_result.get("liveFetched", False),
         "ragEngine": "langgraph",
         "bot": {
             "id": bot["id"],
