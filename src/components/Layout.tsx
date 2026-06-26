@@ -2,6 +2,8 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import { useLearnerCourses } from '../hooks/useLearnerCourses';
+import { subscribeLearnerCourses } from '../utils/learnerCourses';
 import {
   Globe as Globe2, Home, Users as UsersIcon, BarChart3, Share2, Calendar, Bookmark,
   Video, Users as TeamIcon, FolderLock, Sparkles, BookOpen, Clock, CheckCircle,
@@ -54,6 +56,7 @@ const PAGE_TITLES: Record<string, { label: string; section: string }> = {
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { profile, signOut } = useAuth();
+  const { stats: learnerStats } = useLearnerCourses(profile?.id);
   const location = useLocation();
   const navigate = useNavigate();
   const [channelsExpanded, setChannelsExpanded] = useState(false);
@@ -75,14 +78,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!profile) return;
     fetchNotifications();
+    const unsubscribe = subscribeLearnerCourses(profile.id, fetchNotifications);
+    return unsubscribe;
   }, [profile]);
 
-  // Close mobile sidebar on route change
   useEffect(() => {
     setMobileSidebarOpen(false);
   }, [location.pathname]);
 
-  // Lock body scroll when mobile sidebar open
   useEffect(() => {
     document.body.style.overflow = mobileSidebarOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
@@ -98,12 +101,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
         .order('event_date', { ascending: true })
         .limit(3);
 
-      const { data: enrollments } = await supabase
-        .from('user_course_enrollments')
-        .select('id, enrolled_at, course:courses(title)')
-        .eq('user_id', profile.id)
-        .order('enrolled_at', { ascending: false })
-        .limit(3);
+      const [{ data: enrollments }, { data: uploaded }] = await Promise.all([
+        supabase
+          .from('user_course_enrollments')
+          .select('id, enrolled_at, course:courses(title)')
+          .eq('user_id', profile.id)
+          .order('enrolled_at', { ascending: false })
+          .limit(3),
+        supabase
+          .from('uploaded_course_assignments')
+          .select('id, created_at, course:uploaded_courses(title)')
+          .eq('user_id', profile.id)
+          .order('created_at', { ascending: false })
+          .limit(3),
+      ]);
 
       const notifs: { id: string; text: string; time: string }[] = [];
 
@@ -115,6 +126,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
         if (en.course?.title) notifs.push({ id: en.id, text: `Course assigned: ${en.course.title}`, time: formatRelTime(en.enrolled_at) });
       });
 
+      (uploaded || []).forEach((row: any) => {
+        if (row.course?.title) notifs.push({ id: `up-${row.id}`, text: `Course assigned: ${row.course.title}`, time: formatRelTime(row.created_at) });
+      });
+
+      notifs.sort((a, b) => b.time.localeCompare(a.time));
       setRecentNotifs(notifs.slice(0, 5));
       setNotifCount(notifs.length);
     } catch {
@@ -277,9 +293,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       </div>
                     ))
                   )}
-                  <div style={{ padding: '10px 16px', borderTop: '1px solid #f0f0f0' }}>
-                    <Link to="/events" style={{ fontSize: 12, color: '#171717', fontWeight: 600, textDecoration: 'none' }} onClick={() => setShowNotifications(false)}>
-                      View all events →
+                  <div style={{ padding: '10px 16px', borderTop: '1px solid #f0f0f0', display: 'flex', gap: 12 }}>
+                    <Link to="/courses" style={{ fontSize: 12, color: '#171717', fontWeight: 600, textDecoration: 'none' }} onClick={() => setShowNotifications(false)}>
+                      My courses →
+                    </Link>
+                    <Link to="/events" style={{ fontSize: 12, color: '#808080', textDecoration: 'none' }} onClick={() => setShowNotifications(false)}>
+                      Events →
                     </Link>
                   </div>
                 </div>
@@ -359,7 +378,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 >
                   <item.icon size={14} />
                   <span>{item.name}</span>
-                  {active && <div style={{ marginLeft: 'auto', width: 5, height: 5, borderRadius: '50%', background: '#171717' }} />}
+                  {item.href === '/courses' && learnerStats.pending > 0 && (
+                    <span style={{ marginLeft: 'auto', minWidth: 18, height: 18, padding: '0 6px', borderRadius: 999, background: '#171717', color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {learnerStats.pending}
+                    </span>
+                  )}
+                  {active && item.href !== '/courses' && <div style={{ marginLeft: 'auto', width: 5, height: 5, borderRadius: '50%', background: '#171717' }} />}
+                  {active && item.href === '/courses' && learnerStats.pending === 0 && <div style={{ marginLeft: 'auto', width: 5, height: 5, borderRadius: '50%', background: '#171717' }} />}
                 </Link>
               );
             })}

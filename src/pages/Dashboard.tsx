@@ -8,10 +8,10 @@ import {
   BookOpen, Award, Clock, TrendingUp, ArrowRight, FileText, Download, Eye,
   Phone, MessageSquare, Sparkles, Calendar, Users, Activity,
   CheckCircle, Target, Zap, Star, Play, BarChart3, ChevronRight,
-  Upload,
 } from 'lucide-react';
-import { UserCourseEnrollment, Course } from '../types';
 import { tryCompleteUploadedCourse } from '../utils/courseCompletion';
+import { useLearnerCourses } from '../hooks/useLearnerCourses';
+import { isPendingStatus, statusLabel } from '../utils/learnerCourses';
 
 const T = {
   text: '#171717', body: '#4d4d4d', muted: '#666666', faint: '#808080',
@@ -44,9 +44,8 @@ function formatRelative(iso: string) {
 export function Dashboard() {
   const { profile } = useAuth();
   const navigate = useNavigate();
-  const [enrollments, setEnrollments] = useState<(UserCourseEnrollment & { course: Course })[]>([]);
-  const [uploadedCourses, setUploadedCourses] = useState<any[]>([]);
-  const [stats, setStats] = useState({ enrolled: 0, inProgress: 0, completed: 0, certificates: 0 });
+  const { builtin, uploaded, stats: learnerStats, loading: coursesLoading, refresh: refreshCourses } = useLearnerCourses(profile?.id);
+  const [stats, setStats] = useState({ enrolled: 0, inProgress: 0, completed: 0, certificates: 0, pending: 0 });
   const [loading, setLoading] = useState(true);
   const [previewCourse, setPreviewCourse] = useState<any>(null);
   const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
@@ -57,11 +56,21 @@ export function Dashboard() {
 
   useEffect(() => { if (profile) fetchAll(); }, [profile]);
 
+  useEffect(() => {
+    setStats((prev) => ({
+      ...prev,
+      enrolled: learnerStats.enrolled,
+      inProgress: learnerStats.inProgress,
+      completed: learnerStats.completed,
+      pending: learnerStats.pending,
+    }));
+  }, [learnerStats]);
+
   const fetchAll = async () => {
     if (!profile) return;
     try {
       await Promise.all([
-        fetchCourses(),
+        fetchCertCount(),
         fetchEvents(),
         fetchActivityFeed(),
         fetchAIStats(),
@@ -73,35 +82,15 @@ export function Dashboard() {
     }
   };
 
-  const fetchCourses = async () => {
-    const { data: enrollmentsData } = await supabase
-      .from('user_course_enrollments')
-      .select('*, course:courses(*)')
-      .eq('user_id', profile!.id)
-      .order('enrolled_at', { ascending: false });
-
-    if (enrollmentsData) {
-      setEnrollments(enrollmentsData as any);
-      const { count: certCount } = await supabase
-        .from('certificates')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', profile!.id);
-      setStats({
-        enrolled: enrollmentsData.length,
-        inProgress: enrollmentsData.filter(e => e.status === 'in_progress').length,
-        completed: enrollmentsData.filter(e => e.status === 'completed').length,
-        certificates: certCount || 0,
-      });
-    }
-
-    const { data: uploadedData } = await supabase
-      .from('uploaded_course_assignments')
-      .select('*, course:uploaded_courses(*)')
-      .eq('user_id', profile!.id)
-      .order('created_at', { ascending: false });
-
-    if (uploadedData) setUploadedCourses(uploadedData);
+  const fetchCertCount = async () => {
+    const { count: certCount } = await supabase
+      .from('certificates')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', profile!.id);
+    setStats((prev) => ({ ...prev, certificates: certCount || 0 }));
   };
+
+  const fetchCourses = refreshCourses;
 
   const fetchEvents = async () => {
     const { data } = await supabase
@@ -116,16 +105,30 @@ export function Dashboard() {
   const fetchActivityFeed = async () => {
     const feed: typeof activityFeed = [];
 
-    const { data: recent } = await supabase
-      .from('user_course_enrollments')
-      .select('id, enrolled_at, status, updated_at, course:courses(title)')
-      .eq('user_id', profile!.id)
-      .order('updated_at', { ascending: false })
-      .limit(5);
+    const [{ data: recent }, { data: uploadedRecent }] = await Promise.all([
+      supabase
+        .from('user_course_enrollments')
+        .select('id, enrolled_at, status, updated_at, course:courses(title)')
+        .eq('user_id', profile!.id)
+        .order('updated_at', { ascending: false })
+        .limit(5),
+      supabase
+        .from('uploaded_course_assignments')
+        .select('id, created_at, status, completed_at, viewed_at, course:uploaded_courses(title)')
+        .eq('user_id', profile!.id)
+        .order('created_at', { ascending: false })
+        .limit(5),
+    ]);
 
     (recent || []).forEach((e: any) => {
       const label = e.status === 'completed' ? 'Completed' : e.status === 'in_progress' ? 'Started' : 'Enrolled in';
       feed.push({ id: e.id, text: `${label} "${e.course?.title}"`, sub: 'Learning', time: formatRelative(e.updated_at || e.enrolled_at), icon: 'book' });
+    });
+
+    (uploadedRecent || []).forEach((a: any) => {
+      const label = a.status === 'completed' ? 'Completed' : a.status === 'assigned' ? 'Assigned' : 'Started';
+      const when = a.completed_at || a.viewed_at || a.created_at;
+      feed.push({ id: `up-${a.id}`, text: `${label} "${a.course?.title}"`, sub: 'Course material', time: formatRelative(when), icon: 'book' });
     });
 
     const { data: quizzes } = await supabase
@@ -199,25 +202,12 @@ export function Dashboard() {
     if (data) setRecentQuizzes(data as any[]);
   };
 
-  const handleDownloadFile = async (filePath: string, fileName: string) => {
-    if (!profile) return;
-    try {
-      const { data, error } = await supabase.storage.from('course-files').download(filePath);
-      if (error) throw error;
-      const url = window.URL.createObjectURL(data);
-      const a = document.createElement('a');
-      a.href = url; a.download = fileName;
-      document.body.appendChild(a); a.click();
-      window.URL.revokeObjectURL(url); document.body.removeChild(a);
-    } catch (error: any) { alert('Download failed: ' + error.message); }
-  };
-
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
-  if (loading) {
+  if (loading || coursesLoading) {
     return (
       <Layout>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 240, gap: 10 }}>
@@ -230,6 +220,32 @@ export function Dashboard() {
 
   const completionRate = stats.enrolled > 0 ? Math.round((stats.completed / stats.enrolled) * 100) : 0;
   const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+
+  const journeyCourses = [
+    ...builtin.map((course) => ({
+      key: `b-${course.id}`,
+      kind: 'builtin' as const,
+      title: course.title,
+      description: course.description,
+      status: course.enrollment.status,
+      href: `/courses/${course.id}`,
+      isMandatory: course.is_mandatory,
+      sortAt: course.enrollment.enrolled_at,
+    })),
+    ...uploaded.map((assignment) => ({
+      key: `u-${assignment.id}`,
+      kind: 'uploaded' as const,
+      title: assignment.course.title,
+      description: assignment.course.description,
+      status: assignment.status,
+      assignment,
+      sortAt: assignment.created_at,
+    })),
+  ].sort((a, b) => new Date(b.sortAt).getTime() - new Date(a.sortAt).getTime());
+
+  const pendingCourses = journeyCourses.filter((item) =>
+    isPendingStatus(item.status, item.kind === 'builtin' ? 'builtin' : 'uploaded')
+  );
 
   const QUICK_ACTIONS = [
     { label: 'Practice Mock Call', sub: 'AI-powered role play', icon: Phone, href: '/mock-calls', color: '#171717' },
@@ -280,6 +296,35 @@ export function Dashboard() {
             </Link>
           ))}
         </div>
+
+        {/* ── PENDING ASSIGNMENTS ── */}
+        {pendingCourses.length > 0 && (
+          <div className="lt-card" style={{ padding: '16px 18px', borderLeft: '3px solid #171717' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Clock size={14} color={T.muted} />
+                <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>Pending assignments</span>
+                <span className="lt-badge">{pendingCourses.length}</span>
+              </div>
+              <Link to="/courses" style={{ fontSize: 11, color: T.muted, textDecoration: 'none' }}>View all →</Link>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {pendingCourses.slice(0, 3).map((item) => (
+                <Link
+                  key={item.key}
+                  to={item.kind === 'builtin' ? item.href! : '/courses'}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderRadius: 8, background: T.bgSubtle, textDecoration: 'none' }}
+                >
+                  <div>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{item.title}</p>
+                    <p style={{ fontSize: 11, color: T.faint, marginTop: 2 }}>{item.kind === 'uploaded' ? 'Uploaded course' : 'Learning module'} · {statusLabel(item.status)}</p>
+                  </div>
+                  <ArrowRight size={12} color={T.faint} />
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ── STATS ROW ── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
@@ -476,95 +521,78 @@ export function Dashboard() {
           </div>
         )}
 
-        {/* ── MY COURSES ── */}
+        {/* ── MY COURSES (unified journey) ── */}
         <div className="lt-card" style={{ overflow: 'hidden' }}>
           <div style={{ padding: '14px 18px', borderBottom: `1px solid ${T.borderStrong}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <BookOpen size={13} color={T.muted} />
-              <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>My Courses</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>My Learning Journey</span>
               {stats.enrolled > 0 && <span className="lt-badge">{stats.enrolled}</span>}
+              {stats.pending > 0 && <span className="lt-badge lt-badge-blue">{stats.pending} pending</span>}
             </div>
             <Link to="/courses" style={{ fontSize: 11, color: T.muted, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 2 }}>All courses <ChevronRight size={10} /></Link>
           </div>
 
-          {enrollments.length === 0 ? (
+          {journeyCourses.length === 0 ? (
             <div style={{ padding: '40px 18px', textAlign: 'center' }}>
               <BookOpen size={28} color={T.borderStrong} style={{ margin: '0 auto 10px' }} />
               <p style={{ fontSize: 13, color: T.muted }}>No courses assigned yet</p>
-              <p style={{ fontSize: 11, color: T.faint, marginTop: 3 }}>Check back later for new assignments</p>
+              <p style={{ fontSize: 11, color: T.faint, marginTop: 3 }}>New assignments appear here automatically</p>
             </div>
           ) : (
             <div>
-              {enrollments.slice(0, 5).map((enrollment, i) => (
-                <Link key={enrollment.id} to={`/courses/${enrollment.course_id}`} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 18px', textDecoration: 'none', borderBottom: i < Math.min(enrollments.length, 5) - 1 ? `1px solid ${T.bgSection}` : 'none', transition: 'background 0.1s' }}
-                  onMouseEnter={e => { e.currentTarget.style.background = T.bgSubtle; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                >
-                  <div style={{ width: 32, height: 32, background: T.bgSection, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: T.shadow }}>
-                    <Play size={11} color={T.muted} />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{enrollment.course.title}</p>
-                    {enrollment.course.description && (
-                      <p style={{ fontSize: 11, color: T.muted, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{enrollment.course.description}</p>
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {enrollment.course.is_mandatory && <span className="lt-badge lt-badge-error">Mandatory</span>}
-                    <span className={`lt-badge ${enrollment.status === 'completed' ? 'lt-badge-success' : enrollment.status === 'in_progress' ? 'lt-badge-blue' : ''}`}>
-                      {enrollment.status.replace('_', ' ')}
-                    </span>
-                    <ArrowRight size={12} color={T.faint} />
-                  </div>
-                </Link>
+              {journeyCourses.slice(0, 6).map((item, i) => (
+                item.kind === 'builtin' ? (
+                  <Link key={item.key} to={item.href!} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 18px', textDecoration: 'none', borderBottom: i < Math.min(journeyCourses.length, 6) - 1 ? `1px solid ${T.bgSection}` : 'none', transition: 'background 0.1s' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = T.bgSubtle; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <div style={{ width: 32, height: 32, background: T.bgSection, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: T.shadow }}>
+                      <Play size={11} color={T.muted} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</p>
+                      {item.description && (
+                        <p style={{ fontSize: 11, color: T.muted, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.description}</p>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {item.isMandatory && <span className="lt-badge lt-badge-error">Mandatory</span>}
+                      <span className={`lt-badge ${item.status === 'completed' ? 'lt-badge-success' : item.status === 'in_progress' ? 'lt-badge-blue' : ''}`}>
+                        {statusLabel(item.status)}
+                      </span>
+                      <ArrowRight size={12} color={T.faint} />
+                    </div>
+                  </Link>
+                ) : (
+                  <Link key={item.key} to="/courses" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 18px', textDecoration: 'none', borderBottom: i < Math.min(journeyCourses.length, 6) - 1 ? `1px solid ${T.bgSection}` : 'none', transition: 'background 0.1s' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = T.bgSubtle; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <div style={{ width: 32, height: 32, background: T.bgSection, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: T.shadow }}>
+                      <FileText size={11} color={T.muted} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</p>
+                      <p style={{ fontSize: 11, color: T.faint, marginTop: 2 }}>{item.assignment.course.file_type?.toUpperCase() || 'FILE'} · {formatFileSize(item.assignment.course.file_size || 0)}</p>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span className={`lt-badge ${item.status === 'completed' ? 'lt-badge-success' : isPendingStatus(item.status, 'uploaded') ? '' : 'lt-badge-blue'}`}>
+                        {statusLabel(item.status)}
+                      </span>
+                      <ArrowRight size={12} color={T.faint} />
+                    </div>
+                  </Link>
+                )
               ))}
-              {enrollments.length > 5 && (
+              {journeyCourses.length > 6 && (
                 <div style={{ padding: '10px 18px', textAlign: 'center' }}>
-                  <Link to="/courses" style={{ fontSize: 12, color: T.muted, textDecoration: 'none' }}>+{enrollments.length - 5} more courses →</Link>
+                  <Link to="/courses" style={{ fontSize: 12, color: T.muted, textDecoration: 'none' }}>+{journeyCourses.length - 6} more courses →</Link>
                 </div>
               )}
             </div>
           )}
         </div>
-
-        {/* ── UPLOADED MATERIALS ── */}
-        {uploadedCourses.length > 0 && (
-          <div className="lt-card" style={{ overflow: 'hidden' }}>
-            <div style={{ padding: '14px 18px', borderBottom: `1px solid ${T.borderStrong}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Upload size={13} color={T.muted} />
-                <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>Course Materials</span>
-                <span className="lt-badge">{uploadedCourses.length}</span>
-              </div>
-            </div>
-            <div>
-              {uploadedCourses.slice(0, 4).map((assignment, i) => (
-                <div key={assignment.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 18px', borderBottom: i < Math.min(uploadedCourses.length, 4) - 1 ? `1px solid ${T.bgSection}` : 'none' }}>
-                  <div style={{ width: 32, height: 32, background: T.bgSection, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: T.shadow }}>
-                    <FileText size={12} color={T.muted} />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{assignment.course.title}</p>
-                    <p style={{ fontSize: 10, color: T.faint, marginTop: 2 }}>{assignment.course.file_type?.toUpperCase()} · {formatFileSize(assignment.course.file_size)}</p>
-                  </div>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <span className={`lt-badge ${assignment.status === 'completed' ? 'lt-badge-success' : assignment.status === 'downloaded' ? 'lt-badge-blue' : ''}`}>
-                      {assignment.status}
-                    </span>
-                    {assignment.course.file_type === 'zip' && (
-                      <button onClick={() => setPreviewCourse(assignment.course)} className="lt-btn-secondary" style={{ padding: '5px 10px', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
-                        <Eye size={10} /> Preview
-                      </button>
-                    )}
-                    <button onClick={() => handleDownloadFile(assignment.course.file_path, assignment.course.file_name)} className="lt-btn-primary" style={{ padding: '5px 10px', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
-                      <Download size={10} /> Download
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
       </div>
 

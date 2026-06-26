@@ -1,94 +1,34 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { tryCompleteUploadedCourse } from '../utils/courseCompletion';
+import { useLearnerCourses } from '../hooks/useLearnerCourses';
+import { isInProgressStatus, isPendingStatus, type UploadedCourseAssignment } from '../utils/learnerCourses';
 import { ScormPlayer } from '../components/ScormPlayer';
 import { BookOpen, Clock, Award, FileText, Download, Eye } from 'lucide-react';
 import { Course, UserCourseEnrollment } from '../types';
 
-interface UploadedCourseAssignment {
-  id: string;
-  course_id: string;
-  status: string;
-  viewed_at: string | null;
-  completed_at: string | null;
-  created_at: string;
-  course: {
-    id: string;
-    title: string;
-    description: string;
-    file_name: string;
-    file_path: string;
-    file_type: string;
-    file_size: number;
-    category: string;
-    created_at: string;
-  };
-}
-
 export function Courses() {
   const { profile } = useAuth();
-  const [courses, setCourses] = useState<(Course & { enrollment?: UserCourseEnrollment })[]>([]);
-  const [uploadedCourses, setUploadedCourses] = useState<UploadedCourseAssignment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { builtin, uploaded, stats, loading, refresh } = useLearnerCourses(profile?.id);
+  const courses = builtin;
+  const uploadedCourses = uploaded;
   const [filter, setFilter] = useState<'all' | 'assigned' | 'in_progress' | 'completed'>('all');
   const [viewingCourse, setViewingCourse] = useState<any>(null);
 
-  useEffect(() => {
-    fetchCourses();
-  }, [profile]);
-
-  const fetchCourses = async () => {
-    if (!profile) return;
-
-    try {
-      const { data: enrollmentsData } = await supabase
-        .from('user_course_enrollments')
-        .select(`
-          *,
-          course:courses(*)
-        `)
-        .eq('user_id', profile.id);
-
-      if (enrollmentsData) {
-        const coursesWithEnrollment = enrollmentsData.map((e: any) => ({
-          ...e.course,
-          enrollment: e
-        }));
-        setCourses(coursesWithEnrollment);
-      }
-
-      const { data: uploadedAssignments } = await supabase
-        .from('uploaded_course_assignments')
-        .select(`
-          *,
-          course:uploaded_courses(*)
-        `)
-        .eq('user_id', profile.id)
-        .order('created_at', { ascending: false });
-
-      if (uploadedAssignments) {
-        setUploadedCourses(uploadedAssignments as any);
-      }
-    } catch (error) {
-      console.error('Error fetching courses:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const filteredCourses = courses.filter(course => {
+  const filteredCourses = courses.filter((course) => {
     if (filter === 'all') return true;
-    return course.enrollment?.status === filter;
+    if (filter === 'assigned') return isPendingStatus(course.enrollment.status, 'builtin');
+    if (filter === 'in_progress') return isInProgressStatus(course.enrollment.status, 'builtin');
+    return course.enrollment.status === filter;
   });
 
-  const filteredUploadedCourses = uploadedCourses.filter(assignment => {
+  const filteredUploadedCourses = uploadedCourses.filter((assignment) => {
     if (filter === 'all') return true;
-    if (filter === 'assigned') return assignment.status === 'assigned';
-    if (filter === 'in_progress') return assignment.status === 'viewed' || assignment.status === 'downloaded';
-    if (filter === 'completed') return assignment.status === 'completed';
-    return false;
+    if (filter === 'assigned') return isPendingStatus(assignment.status, 'uploaded');
+    if (filter === 'in_progress') return isInProgressStatus(assignment.status, 'uploaded');
+    return assignment.status === filter;
   });
 
   const handleDownloadCourse = async (assignment: UploadedCourseAssignment) => {
@@ -132,14 +72,15 @@ export function Courses() {
     });
     setViewingCourse(assignment);
 
-    if (assignment.status === 'assigned') {
+    if (assignment.status === 'assigned' || assignment.status === 'not_started') {
       await supabase
         .from('uploaded_course_assignments')
         .update({
-          status: 'viewed',
+          status: 'in_progress',
           viewed_at: new Date().toISOString()
         })
         .eq('id', assignment.id);
+      refresh();
     }
   };
 
@@ -155,7 +96,7 @@ export function Courses() {
       .eq('id', assignmentId);
 
     await tryCompleteUploadedCourse(profile.id, courseId, courseTitle);
-    fetchCourses();
+    refresh();
   };
 
   const formatFileSize = (bytes: number) => {
@@ -184,7 +125,7 @@ export function Courses() {
         <div style={{ marginBottom: 24 }}>
           <p style={{ fontSize: 11, fontWeight: 700, color: '#808080', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Learning</p>
           <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: '#171717', marginBottom: 4 }}>My Courses</h1>
-          <p style={{ fontSize: 14, color: '#4d4d4d' }}>Explore and continue your learning journey</p>
+          <p style={{ fontSize: 14, color: '#4d4d4d' }}>Explore and continue your learning journey{stats.pending > 0 ? ` · ${stats.pending} pending` : ''}</p>
         </div>
 
         <div style={{ display: 'flex', gap: 6, marginBottom: 24 }}>
