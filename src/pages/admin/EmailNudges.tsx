@@ -184,15 +184,22 @@ export function EmailNudges() {
   const [template, setTemplate] = useState<keyof typeof TEMPLATES>('reminder');
   const [sending, setSending] = useState(false);
   const [loadingLearners, setLoadingLearners] = useState(false);
-  const [result, setResult] = useState<{ sent: number; failed: number } | null>(null);
+  const [result, setResult] = useState<{ sent: number; failed: number; errors?: string[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [resendConfigured, setResendConfigured] = useState<boolean | null>(null);
 
   const selectedCourse = useMemo(() => {
     if (!selectedCourseKey) return null;
     const [kind, id] = selectedCourseKey.split(':') as [CourseKind, string];
     return courses.find((c) => c.kind === kind && c.id === id) || null;
   }, [selectedCourseKey, courses]);
+
+  useEffect(() => {
+    supabase.functions.invoke('send-email-nudge', { method: 'GET' }).then(({ data }) => {
+      setResendConfigured(Boolean(data?.configured));
+    });
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -267,11 +274,18 @@ export function EmailNudges() {
     const recipients = learners
       .filter((u) => selectedUsers.includes(u.id))
       .map((u) => ({
+        userId: u.id,
         email: resolveRecipientEmail(u, orgEmailDomain),
         name: u.full_name,
         courseTitle: selectedCourse.title,
       }))
       .filter((recipient) => recipient.email.includes('@'));
+
+    if (recipients.length === 0) {
+      setResult({ sent: 0, failed: selectedUsers.length, errors: ['No valid email addresses for selected learners'] });
+      setSending(false);
+      return;
+    }
 
     try {
       const { data, error } = await supabase.functions.invoke('send-email-nudge', {
@@ -281,17 +295,28 @@ export function EmailNudges() {
           htmlBody: tpl.body,
           courseId: selectedCourse.id,
           emailType: template,
+          organizationId: organization?.id || profile?.organization_id || null,
         },
       });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
-      const sent = data.results?.filter((r: { status: string }) => r.status === 'sent').length || 0;
-      const failed = data.results?.filter((r: { status: string }) => r.status === 'failed').length || 0;
-      setResult({ sent, failed });
-    } catch (err) {
+      const results = data.results || [];
+      const sent = results.filter((r: { status: string }) => r.status === 'sent').length;
+      const failed = results.filter((r: { status: string }) => r.status === 'failed').length;
+      const errors = results
+        .filter((r: { status: string; error?: string }) => r.status === 'failed' && r.error)
+        .map((r: { email: string; error?: string }) => `${r.email}: ${r.error}`);
+      setResult({ sent, failed, errors });
+      if (sent > 0) setResendConfigured(true);
+    } catch (err: any) {
       console.error('Error sending nudges:', err);
-      setResult({ sent: 0, failed: selectedUsers.length });
+      setResult({
+        sent: 0,
+        failed: recipients.length,
+        errors: [err.message || 'Email send failed. Check Resend settings in Owner Portal.'],
+      });
     } finally {
       setSending(false);
     }
@@ -316,12 +341,27 @@ export function EmailNudges() {
           <p style={{ fontSize: 14, color: '#4d4d4d' }}>Select a course, filter by completion status, and nudge pending learners</p>
         </div>
 
+        {resendConfigured === false && (
+          <div style={{ background: '#fff8e6', boxShadow: '#e6a81750 0px 0px 0px 1px', borderRadius: 10, padding: '14px 18px', marginBottom: 20, fontSize: 13, color: '#8a6d00' }}>
+            Resend is not configured. Ask the platform owner to add the API key under Owner Portal → Email Settings.
+          </div>
+        )}
+
         {result && (
-          <div style={{ background: result.failed === 0 ? '#f0faf0' : '#fff5f5', boxShadow: `${result.failed === 0 ? '#1a7f1a' : '#ff5b4f'}50 0px 0px 0px 1px`, borderRadius: 10, padding: '14px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Check size={14} color={result.failed === 0 ? '#1a7f1a' : '#c0392b'} />
-            <span style={{ fontSize: 14, color: result.failed === 0 ? '#1a7f1a' : '#c0392b', fontWeight: 600 }}>
-              {result.sent} email{result.sent !== 1 ? 's' : ''} sent successfully{result.failed > 0 ? `, ${result.failed} failed` : ''}.
-            </span>
+          <div style={{ background: result.failed === 0 ? '#f0faf0' : '#fff5f5', boxShadow: `${result.failed === 0 ? '#1a7f1a' : '#ff5b4f'}50 0px 0px 0px 1px`, borderRadius: 10, padding: '14px 18px', marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Check size={14} color={result.failed === 0 ? '#1a7f1a' : '#c0392b'} />
+              <span style={{ fontSize: 14, color: result.failed === 0 ? '#1a7f1a' : '#c0392b', fontWeight: 600 }}>
+                {result.sent} email{result.sent !== 1 ? 's' : ''} sent successfully{result.failed > 0 ? `, ${result.failed} failed` : ''}.
+              </span>
+            </div>
+            {result.errors && result.errors.length > 0 && (
+              <ul style={{ margin: '10px 0 0 24px', padding: 0, fontSize: 12, color: '#c0392b' }}>
+                {result.errors.map((msg) => (
+                  <li key={msg}>{msg}</li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
 

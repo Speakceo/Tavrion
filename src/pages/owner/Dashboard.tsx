@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { Layout } from '../../components/Layout';
-import { Building2, Users, BookOpen, Plus, ExternalLink, ToggleRight, BarChart3 } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { Building2, Users, BookOpen, Plus, ExternalLink, ToggleRight, BarChart3, Mail, Check, AlertTriangle } from 'lucide-react';
 import { Organization } from '../../types';
 
 interface OrgWithStats extends Organization {
@@ -10,14 +11,72 @@ interface OrgWithStats extends Organization {
 }
 
 export function OwnerDashboard() {
+  const { profile } = useAuth();
   const [orgs, setOrgs] = useState<OrgWithStats[]>([]);
   const [totalUsers, setTotalUsers] = useState(0);
   const [totalCourses, setTotalCourses] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [resendConfigured, setResendConfigured] = useState<boolean | null>(null);
+  const [resendFromEmail, setResendFromEmail] = useState('Tavrion Learning <noreply@jointavrion.com>');
+  const [resendApiKey, setResendApiKey] = useState('');
+  const [resendSaving, setResendSaving] = useState(false);
+  const [resendMessage, setResendMessage] = useState('');
+  const [resendError, setResendError] = useState('');
 
   useEffect(() => {
     fetchData();
+    fetchResendStatus();
   }, []);
+
+  const fetchResendStatus = async () => {
+    const { data } = await supabase.functions.invoke('send-email-nudge', { method: 'GET' });
+    if (data) {
+      setResendConfigured(Boolean(data.configured));
+      if (data.fromEmail) setResendFromEmail(data.fromEmail);
+    }
+  };
+
+  const saveResendSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResendSaving(true);
+    setResendMessage('');
+    setResendError('');
+
+    try {
+      if (resendApiKey.trim()) {
+        const { data, error } = await supabase.functions.invoke('save-platform-secret', {
+          body: {
+            actorUniqueId: profile?.unique_id,
+            key: 'RESEND_API_KEY',
+            value: resendApiKey.trim(),
+          },
+        });
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+        if (data?.warning) setResendError(data.warning);
+      }
+
+      if (resendFromEmail.trim()) {
+        const { data, error } = await supabase.functions.invoke('save-platform-secret', {
+          body: {
+            actorUniqueId: profile?.unique_id,
+            key: 'RESEND_FROM_EMAIL',
+            value: resendFromEmail.trim(),
+          },
+        });
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+      }
+
+      setResendMessage('Email settings saved. Resend connection verified.');
+      setResendApiKey('');
+      await fetchResendStatus();
+    } catch (err: any) {
+      setResendError(err.message || 'Failed to save email settings');
+    } finally {
+      setResendSaving(false);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -106,6 +165,60 @@ export function OwnerDashboard() {
               <div style={{ fontSize: 12, color: '#666666', marginTop: 4 }}>{label}</div>
             </div>
           ))}
+        </div>
+
+        <div className="lt-card" style={{ padding: '20px 24px', marginBottom: 28 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+            <Mail size={14} color="#4d4d4d" />
+            <h2 style={{ fontSize: 14, fontWeight: 700, color: '#171717' }}>Email Settings (Resend)</h2>
+            {resendConfigured === true && (
+              <span className="lt-badge lt-badge-success" style={{ fontSize: 10 }}>Connected</span>
+            )}
+            {resendConfigured === false && (
+              <span className="lt-badge lt-badge-error" style={{ fontSize: 10 }}>Not configured</span>
+            )}
+          </div>
+          <p style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>
+            Email nudges use <a href="https://resend.com" target="_blank" rel="noreferrer" style={{ color: '#171717', fontWeight: 600 }}>Resend</a>.
+            Create an API key, verify <strong>jointavrion.com</strong>, then paste the key below.
+          </p>
+          <form onSubmit={saveResendSettings} style={{ display: 'grid', gap: 12, maxWidth: 560 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#666', marginBottom: 6, textTransform: 'uppercase' }}>Resend API key</label>
+              <input
+                type="password"
+                value={resendApiKey}
+                onChange={(e) => setResendApiKey(e.target.value)}
+                placeholder="re_..."
+                className="lt-input"
+                style={{ width: '100%', padding: '9px 12px', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#666', marginBottom: 6, textTransform: 'uppercase' }}>From address</label>
+              <input
+                type="text"
+                value={resendFromEmail}
+                onChange={(e) => setResendFromEmail(e.target.value)}
+                placeholder="Tavrion Learning <noreply@jointavrion.com>"
+                className="lt-input"
+                style={{ width: '100%', padding: '9px 12px', boxSizing: 'border-box' }}
+              />
+            </div>
+            {resendMessage && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#1a7f1a' }}>
+                <Check size={14} /> {resendMessage}
+              </div>
+            )}
+            {resendError && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#c0392b' }}>
+                <AlertTriangle size={14} /> {resendError}
+              </div>
+            )}
+            <button type="submit" disabled={resendSaving} className="lt-btn-primary" style={{ width: 'fit-content', padding: '9px 16px' }}>
+              {resendSaving ? 'Saving...' : 'Save & test connection'}
+            </button>
+          </form>
         </div>
 
         {/* Org list */}
