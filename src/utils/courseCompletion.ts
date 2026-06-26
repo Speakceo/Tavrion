@@ -8,7 +8,7 @@ async function issueCertificate(params: {
   courseTitle: string;
   userName: string;
   certificateTemplate?: CertificateTemplateId;
-}) {
+}): Promise<{ ok: boolean; error?: string }> {
   const certNumber = `CERT-${Date.now().toString(36).toUpperCase()}`;
   const row = {
     user_id: params.userId,
@@ -22,24 +22,45 @@ async function issueCertificate(params: {
   };
 
   if (params.uploadedCourseId) {
-    const { data: existing } = await supabase
+    const { data: existing, error: lookupError } = await supabase
       .from('certificates')
       .select('id')
       .eq('user_id', params.userId)
       .eq('uploaded_course_id', params.uploadedCourseId)
       .maybeSingle();
 
-    if (existing) {
-      await supabase.from('certificates').update(row).eq('id', existing.id);
-    } else {
-      await supabase.from('certificates').insert(row);
+    if (lookupError) {
+      console.error('Certificate lookup failed:', lookupError);
+      return { ok: false, error: lookupError.message };
     }
-    return;
+
+    if (existing) {
+      const { error } = await supabase.from('certificates').update(row).eq('id', existing.id);
+      if (error) {
+        console.error('Certificate update failed:', error);
+        return { ok: false, error: error.message };
+      }
+      return { ok: true };
+    }
+
+    const { error } = await supabase.from('certificates').insert(row);
+    if (error) {
+      console.error('Certificate insert failed:', error);
+      return { ok: false, error: error.message };
+    }
+    return { ok: true };
   }
 
   if (params.courseId) {
-    await supabase.from('certificates').upsert(row, { onConflict: 'user_id,course_id' });
+    const { error } = await supabase.from('certificates').upsert(row, { onConflict: 'user_id,course_id' });
+    if (error) {
+      console.error('Certificate upsert failed:', error);
+      return { ok: false, error: error.message };
+    }
+    return { ok: true };
   }
+
+  return { ok: false, error: 'No course id provided' };
 }
 
 /** After a lesson is completed, check if the whole course is done and issue certificate. */
@@ -99,11 +120,13 @@ export async function tryCompleteUploadedCourse(userId: string, uploadedCourseId
     supabase.from('user_profiles').select('full_name').eq('id', userId).maybeSingle(),
   ]);
 
-  await issueCertificate({
+  const result = await issueCertificate({
     userId,
     uploadedCourseId,
     courseTitle,
     userName: user?.full_name || 'Learner',
     certificateTemplate: (assignment?.certificate_template as CertificateTemplateId) || 'classic',
   });
+
+  return result;
 }
