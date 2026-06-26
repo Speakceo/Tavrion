@@ -29,6 +29,16 @@ type BrandInput = {
   summary?: string;
   logoUrl?: string | null;
   previewImage?: string | null;
+  visualStyle?: {
+    aesthetic?: string;
+    photography?: string;
+    illustration?: string;
+    shapes?: string;
+    lighting?: string;
+    textures?: string;
+    composition?: string;
+    brandMotifs?: string[];
+  };
 };
 
 type CampaignBrief = {
@@ -55,15 +65,22 @@ function buildDesignSystemFromDna(brand: BrandInput) {
   const tone = brand.tone?.primary || "professional";
   const toneDesc = brand.tone?.description || "Clear, confident brand voice";
 
+  const vs = brand.visualStyle || {};
+  const motifs = vs.brandMotifs?.length ? vs.brandMotifs : (brand.keywords || []);
+
   const imageStyleRules = [
     `Brand: ${brand.name}`,
-    `Primary color ${primary}, secondary ${secondary}, accent ${accent}`,
+    `Primary color ${primary} (60% dominance), secondary ${secondary} (25%), accent ${accent} (15%)`,
     `Visual tone: ${tone} — ${toneDesc}`,
-    `Industry aesthetic: ${brand.industry || "general"} / ${brand.category || "business"}`,
-    `Composition: clean, modern, on-brand photography or illustration`,
-    `Color grading must match brand palette — no off-brand hues`,
-    `No text, logos, or watermarks rendered inside the image`,
-    brand.logoUrl ? `Reference brand has logo at ${brand.logoUrl} — style should feel cohesive` : "",
+    `Aesthetic: ${vs.aesthetic || `${brand.industry} ${tone} brand`}`,
+    vs.photography ? `Photography: ${vs.photography}` : "",
+    vs.lighting ? `Lighting: ${vs.lighting}` : "",
+    vs.shapes ? `Shapes: ${vs.shapes}` : "",
+    vs.textures ? `Textures: ${vs.textures}` : "",
+    `Industry: ${brand.industry || "general"} / ${brand.category || "business"}`,
+    `Brand motifs: ${motifs.slice(0, 6).join(", ")}`,
+    `Color grading MUST match palette — no off-brand hues`,
+    `No text, logos, or watermarks in image`,
   ].filter(Boolean).join(". ");
 
   const copyVoiceRules = [
@@ -82,6 +99,7 @@ function buildDesignSystemFromDna(brand: BrandInput) {
     tagline: brand.tagline || "",
     industry: brand.industry || "",
     defaultAudience: brand.audience?.primary || "General audience",
+    visualStyle: vs,
   };
 }
 
@@ -142,7 +160,12 @@ CRITICAL RULE — TWO LAYERS:
 1. DESIGN (LOCKED FROM BRAND DNA): Colors, visual style, tone of voice, and image aesthetics are FIXED from the brand's extracted DNA. You MUST NOT invent new brand colors, change voice, or drift from the design system.
 2. MESSAGING (FROM USER BRIEF): Ad copy, captions, CTAs, campaign angles, and what the post is ABOUT come entirely from the user's campaign brief. The user defines purpose and message — you write copy that delivers it in the brand's locked voice.
 
-Each concept needs ONE unique "imageScene" — a concise 2-3 sentence purely VISUAL description for AI image generation (subjects, setting, mood, composition). No text/logos in scene. Must reflect user campaign purpose AND brand colors visually.
+Each concept needs ONE unique "imageScene" — a detailed VISUAL brief (3-4 sentences) for AI image generation.
+imageScene MUST:
+- Name the exact brand hex colors and WHERE they appear (e.g. "${designSystem.palette.primary} gradient background, ${designSystem.palette.secondary} UI panels")
+- Reference visualStyle.aesthetic, lighting, shapes, and brandMotifs from designSystem
+- Depict subjects/metaphors specific to the brand's industry and campaign purpose
+- NEVER describe generic stock offices or unrelated color schemes
 
 Return JSON:
 {
@@ -151,7 +174,7 @@ Return JSON:
     {
       "name": "Campaign angle name tied to user purpose",
       "description": "1 sentence — how this angle serves the user's stated purpose",
-      "imageScene": "Visual scene for hero image — 2-3 sentences, no text/logos, brand colors in environment",
+      "imageScene": "Detailed visual scene naming exact brand hex colors, visual motifs, industry-specific subjects, and campaign metaphor — 3-4 sentences",
       "assets": [
         {
           "platform": "instagram|linkedin|twitter|facebook",
@@ -185,6 +208,8 @@ Platform rules:\n${platformContext}`,
                 tagline: brand.tagline,
                 industry: brand.industry,
                 summary: brand.summary,
+                keywords: brand.keywords,
+                visualStyle: brand.visualStyle,
               },
             }),
           },

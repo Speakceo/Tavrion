@@ -15,6 +15,16 @@ type BrandProfile = {
   keywords: string[];
   tone: { primary: string; description: string; formality: number; energy: number; warmth: number };
   audience: { primary: string; secondary: string; ageRange: string; interests: string[]; painPoints: string[] };
+  visualStyle?: {
+    aesthetic?: string;
+    photography?: string;
+    illustration?: string;
+    shapes?: string;
+    lighting?: string;
+    textures?: string;
+    composition?: string;
+    brandMotifs?: string[];
+  };
 };
 
 type AnalysisResult = {
@@ -207,17 +217,34 @@ export function DnaStudio() {
     }
   };
 
-  const generateImages = async (concepts: CampaignConcept[]) => {
+  const generateImages = async (concepts: CampaignConcept[], designSystem?: Record<string, unknown>) => {
     if (!result) return;
     setImagesLoading(true);
 
+    const primary = result.colorPalette?.[0]?.hex || result.detectedColors?.[0];
     const brandPayload = {
       name: result.brand.name,
+      tagline: result.brand.tagline,
       industry: result.brand.industry,
       category: result.brand.category,
+      summary: result.summary,
+      keywords: result.brand.keywords,
       tone: result.brand.tone,
+      audience: result.brand.audience,
+      visualStyle: result.brand.visualStyle,
       colorPalette: result.colorPalette,
       detectedColors: result.detectedColors,
+      designSystem: {
+        ...designSystem,
+        primaryColor: primary,
+        imageStyleRules: `Brand ${result.brand.name}. Colors: ${result.colorPalette.map((c) => `${c.hex} (${c.usage})`).join(", ")}. Aesthetic: ${result.brand.visualStyle?.aesthetic || result.brand.tone.primary}. Motifs: ${(result.brand.visualStyle?.brandMotifs || result.brand.keywords).join(", ")}`,
+      },
+    };
+
+    const briefPayload = {
+      purpose: brief.purpose.trim(),
+      keyMessage: brief.keyMessage.trim() || undefined,
+      useCase: brief.useCase.trim() || undefined,
     };
 
     const requests = concepts.slice(0, 3).map((c, i) =>
@@ -229,6 +256,7 @@ export function DnaStudio() {
         },
         body: JSON.stringify({
           brand: brandPayload,
+          brief: briefPayload,
           conceptIndex: i,
           concept: {
             name: c.name,
@@ -303,7 +331,7 @@ export function DnaStudio() {
       }));
       setCampaigns(concepts);
       setActiveConcept(0);
-      generateImages(concepts);
+      generateImages(concepts, data.designSystem);
     } catch (err) {
       setCampaignError(err instanceof Error ? err.message : 'Failed to generate campaign');
     } finally {
@@ -494,6 +522,9 @@ export function DnaStudio() {
               <div style={{ fontSize: 12, color: T.textBody, lineHeight: 1.6 }}>
                 <div><strong style={{ color: T.text }}>Voice:</strong> {result.brand.tone.primary} — {result.brand.tone.description}</div>
                 <div style={{ marginTop: 6 }}><strong style={{ color: T.text }}>Industry:</strong> {result.brand.industry}</div>
+                {result.brand.visualStyle?.aesthetic && (
+                  <div style={{ marginTop: 6 }}><strong style={{ color: T.text }}>Visual style:</strong> {result.brand.visualStyle.aesthetic}</div>
+                )}
                 {result.logoUrl && (
                   <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
                     <strong style={{ color: T.text }}>Logo:</strong>

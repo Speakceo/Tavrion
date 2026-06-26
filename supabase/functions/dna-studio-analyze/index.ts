@@ -188,7 +188,17 @@ async function analyzeWithAI(payload: Record<string, unknown>) {
   "tone": { "primary": "professional|friendly|playful|luxurious|technical|inspirational", "description": "...", "formality": 0-100, "energy": 0-100, "warmth": 0-100 },
   "audience": { "primary": "...", "secondary": "...", "ageRange": "...", "interests": [], "painPoints": [] },
   "summary": "2-3 sentence brand positioning summary",
-  "colorRoles": [{ "hex": "#...", "usage": "primary|secondary|accent|background|text" }]
+  "colorRoles": [{ "hex": "#...", "usage": "primary|secondary|accent|background|text" }],
+  "visualStyle": {
+    "aesthetic": "overall visual identity e.g. minimal SaaS, bold fintech, warm edtech",
+    "photography": "photo style if applicable",
+    "illustration": "illustration style if applicable",
+    "shapes": "rounded corners / sharp geometric / organic curves",
+    "lighting": "soft natural / dramatic studio / flat digital",
+    "textures": "glass, gradient mesh, paper, matte, etc.",
+    "composition": "typical layout feel from the site",
+    "brandMotifs": ["recurring visual elements, symbols, metaphors for this brand"]
+  }
 }`,
         },
         { role: "user", content: JSON.stringify(payload) },
@@ -324,6 +334,10 @@ Deno.serve(async (req: Request) => {
         keywords: ai?.keywords || [],
         tone: ai?.tone || { primary: "professional", description: "Professional and clear", formality: 60, energy: 50, warmth: 50 },
         audience: ai?.audience || { primary: "General audience", secondary: "", ageRange: "25-45", interests: [], painPoints: [] },
+        visualStyle: ai?.visualStyle || {
+          aesthetic: `${ai?.industry || "business"} brand aesthetic`,
+          brandMotifs: ai?.keywords || [],
+        },
       },
       summary: ai?.summary || `Brand "${brandName}" — ${description || "No description available."}`,
       previewImage: previewImage || null,
