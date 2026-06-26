@@ -65,24 +65,32 @@ async function generateOneImage(apiKey: string, prompt: string): Promise<string>
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: "dall-e-3",
+      model: "gpt-image-1",
       prompt: prompt.slice(0, 4000),
       n: 1,
       size: "1024x1024",
-      quality: "standard",
-      response_format: "b64_json",
+      output_format: "png",
     }),
   });
 
   if (!response.ok) {
     const err = await response.text();
-    throw new Error(`DALL-E error: ${err.slice(0, 300)}`);
+    throw new Error(`Image API error: ${err.slice(0, 300)}`);
   }
 
   const data = await response.json();
   const b64 = data.data?.[0]?.b64_json;
-  if (!b64) throw new Error("No image data returned");
-  return `data:image/png;base64,${b64}`;
+  if (b64) return `data:image/png;base64,${b64}`;
+
+  const imageUrl = data.data?.[0]?.url;
+  if (!imageUrl) throw new Error("No image data returned");
+
+  const imgRes = await fetch(imageUrl);
+  if (!imgRes.ok) throw new Error("Failed to download generated image");
+  const bytes = new Uint8Array(await imgRes.arrayBuffer());
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return `data:image/png;base64,${btoa(binary)}`;
 }
 
 Deno.serve(async (req: Request) => {
