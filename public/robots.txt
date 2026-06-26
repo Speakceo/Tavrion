@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+Allow: /dna-studio
+Allow: /tavrion-bot
+
+Disallow: /dashboard
+Disallow: /admin/
+Disallow: /owner/
+Disallow: /lesson/
+Disallow: /courses/
+Disallow: /api/
+
+Sitemap: https://jointavrion.com/sitemap.xml

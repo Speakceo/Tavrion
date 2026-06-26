@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { SEO, usePageSeo } from '../lib/seo';
 import {
   Dna, Globe2, Sparkles, Palette, Type, Target, ArrowRight, CheckCircle2,
   Zap, Layers, Share2, Scan, ChevronRight, ExternalLink, Instagram, Linkedin,
@@ -169,6 +170,8 @@ function SocialPreview({ asset, brand, generatedImage, primaryColor = '#8b5cf6' 
 }
 
 export function DnaStudio() {
+  usePageSeo(SEO.dnaStudio);
+
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');

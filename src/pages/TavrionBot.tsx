@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, type Dispatch, type SetStateAction } from 'react';
 import { Link } from 'react-router-dom';
 import { ChatMessageBubble, SourceLink } from '../components/ChatMessageBubble';
+import { SEO, usePageSeo } from '../lib/seo';
 import {
   Bot, Globe2, MessageSquare, Code2, Copy, Check, Loader2, Zap,
   ArrowRight, CheckCircle2, RefreshCw, Smartphone, Layers, Search,
@@ -175,6 +176,8 @@ function applyCrawlResult(
 }
 
 export function TavrionBot() {
+  usePageSeo(SEO.tavrionBot);
+
   const [url, setUrl] = useState('');
   const [botName, setBotName] = useState('');
   const [loading, setLoading] = useState(false);

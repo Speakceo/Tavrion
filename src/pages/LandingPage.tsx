@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { SEO, usePageSeo } from '../lib/seo';
 import {
   Globe as Globe2, ArrowRight, CheckCircle, Users, BookOpen, TrendingUp, BarChart3,
   Brain, Phone, Shield, Video, Star, ChevronRight, Play, Award, MessageSquare,
@@ -145,6 +146,8 @@ export function LandingPage() {
   const isMobile = width < 768;
   const isTablet = width < 1024;
 
+  usePageSeo(SEO.home);
+
   useEffect(() => {
     const fn = () => setScrollY(window.scrollY);
     window.addEventListener('scroll', fn, { passive: true });
@@ -171,6 +174,13 @@ export function LandingPage() {
 
   return (
     <div style={{ background: T.bg, color: T.text, fontFamily: FONT, minHeight: '100vh', overflowX: 'hidden' }}>
+      <a href="#main-content" style={{
+        position: 'absolute', left: -9999, top: 'auto', width: 1, height: 1, overflow: 'hidden',
+      }} onFocus={(e) => {
+        e.currentTarget.style.cssText = 'position:fixed;top:12px;left:12px;z-index:100;padding:10px 16px;background:#171717;color:#fff;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;';
+      }} onBlur={(e) => {
+        e.currentTarget.style.cssText = 'position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;';
+      }}>Skip to content</a>
 
       {/* ── MOBILE NAV OVERLAY ── */}
       {mobileNavOpen && (
@@ -255,7 +265,7 @@ export function LandingPage() {
 
           {/* Desktop nav */}
           {!isMobile && (
-            <nav style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <nav aria-label="Main navigation" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               {NAV_ITEMS.map(item => (
                 <button
                   key={item.label}
@@ -303,6 +313,7 @@ export function LandingPage() {
         </div>
       </header>
 
+      <main id="main-content">
       {/* ── HERO ── */}
       <section style={{ paddingTop: isMobile ? 96 : 140, paddingBottom: isMobile ? 60 : 100, textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
         <div style={{
@@ -815,6 +826,8 @@ export function LandingPage() {
         </div>
       </section>
 
+      </main>
+
       {/* ── FOOTER ── */}
       <footer style={{ borderTop: `1px solid ${T.borderStrong}`, padding: isMobile ? '28px 20px' : '40px 24px' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
@@ -827,12 +840,10 @@ export function LandingPage() {
             </span>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? 16 : 24 }}>
-            {['Privacy', 'Terms', 'Security', 'Status', 'Contact'].map(item => (
-              <a key={item} href="#" style={{ fontSize: 12, color: T.textFaint, textDecoration: 'none', transition: 'color 0.15s' }}
-                onMouseEnter={e => (e.currentTarget.style.color = T.text)}
-                onMouseLeave={e => (e.currentTarget.style.color = T.textFaint)}
-              >{item}</a>
-            ))}
+            <Link to="/dna-studio" style={{ fontSize: 12, color: T.textFaint, textDecoration: 'none' }}>DNA Studio</Link>
+            <Link to="/tavrion-bot" style={{ fontSize: 12, color: T.textFaint, textDecoration: 'none' }}>Tavrion Bot</Link>
+            <Link to="/login" style={{ fontSize: 12, color: T.textFaint, textDecoration: 'none' }}>Sign in</Link>
+            <a href="mailto:hello@jointavrion.com" style={{ fontSize: 12, color: T.textFaint, textDecoration: 'none' }}>Contact</a>
           </div>
           <p style={{ fontSize: 11, color: T.textFaint }}>&copy; 2026 Tavrion, Inc.</p>
         </div>

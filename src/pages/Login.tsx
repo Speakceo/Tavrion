@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { SEO, usePageSeo } from '../lib/seo';
 import { Globe as Globe2, ArrowRight, Eye, EyeOff, Shield, Users, BarChart3, Zap, Building2, ChevronDown } from 'lucide-react';
 
 const T = {
@@ -31,6 +32,8 @@ const SOCIAL_PROOF = [
 interface OrgOption { id: string; name: string; slug: string; }
 
 export function Login() {
+  usePageSeo(SEO.login);
+
   const [orgs, setOrgs] = useState<OrgOption[]>([]);
   const [orgId, setOrgId] = useState('');
   const [userId, setUserId] = useState('');
