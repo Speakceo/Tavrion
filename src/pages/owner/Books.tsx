@@ -120,8 +120,10 @@ export function OwnerBooks() {
         body: { collectionId, zipPath },
       });
 
-      if (extractError) throw extractError;
       if (extractData?.error) throw new Error(extractData.error);
+      if (extractError) {
+        throw new Error(extractData?.error || extractError.message || 'PDF extraction failed on server');
+      }
 
       setShowUpload(false);
       setTitle('');

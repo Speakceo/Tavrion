@@ -5,6 +5,15 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 const TUS_THRESHOLD_BYTES = 6 * 1024 * 1024;
 
+/** Prefer direct storage hostname for resumable uploads (Supabase recommendation). */
+function getTusEndpoint() {
+  const match = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/);
+  if (match?.[1]) {
+    return `https://${match[1]}.storage.supabase.co/storage/v1/upload/resumable`;
+  }
+  return `${supabaseUrl}/storage/v1/upload/resumable`;
+}
+
 interface UploadOptions {
   bucket: string;
   path: string;
@@ -13,18 +22,38 @@ interface UploadOptions {
   contentType?: string;
 }
 
+function isFileSizeError(msg: string) {
+  return (
+    msg.includes('413') ||
+    /payload too large/i.test(msg) ||
+    /object exceeded the maximum allowed size/i.test(msg) ||
+    /file size.*limit/i.test(msg) ||
+    /entity too large/i.test(msg)
+  );
+}
+
 function formatUploadError(error: unknown): string {
-  const msg = (error as { message?: string })?.message || String(error);
-  if (msg.includes('413') || /too large|exceeded|maximum/i.test(msg)) {
-    return 'File exceeds the maximum allowed size (2GB). Try a smaller archive or split the library.';
+  const raw = error as { message?: string; originalResponse?: { getBody?: () => unknown } };
+  let msg = raw?.message || String(error);
+
+  // TUS sometimes nests the real response body in the message
+  if (msg.startsWith('tus: ')) {
+    msg = msg.slice(5);
+  }
+
+  if (isFileSizeError(msg)) {
+    return 'File exceeds the storage size limit. If your file is under 2GB, check bucket settings or contact support.';
   }
   if (/mime|invalid file type|not allowed/i.test(msg)) {
     return `Upload rejected by storage: ${msg}`;
   }
-  if (/timeout|network|failed to fetch/i.test(msg)) {
-    return 'Upload timed out or lost connection. Large files need a stable connection — please retry.';
+  if (/unauthorized|401|403|jwt|apikey|invalid key/i.test(msg)) {
+    return `Upload authentication failed. Please refresh the page and try again. (${msg})`;
   }
-  return msg;
+  if (/timeout|network|failed to fetch|retry/i.test(msg)) {
+    return `Upload interrupted: ${msg}. Keep this tab open and try again — resumable upload will continue where it left off.`;
+  }
+  return msg || 'Upload failed for an unknown reason';
 }
 
 function guessContentType(file: File, override?: string) {
@@ -45,10 +74,11 @@ async function uploadWithTus(
 ): Promise<{ success: boolean; data?: { path: string }; error?: { message: string } }> {
   return new Promise((resolve) => {
     const upload = new tus.Upload(file, {
-      endpoint: `${supabaseUrl}/storage/v1/upload/resumable`,
+      endpoint: getTusEndpoint(),
       retryDelays: [0, 1000, 3000, 5000, 10000, 20000],
       headers: {
         authorization: `Bearer ${supabaseAnonKey}`,
+        apikey: supabaseAnonKey,
         'x-upsert': 'false',
       },
       uploadDataDuringCreation: true,
@@ -95,7 +125,7 @@ export async function uploadLargeFile({
 }: UploadOptions): Promise<{ success: boolean; data?: any; error?: any }> {
   try {
     const sizeMb = (file.size / 1024 / 1024).toFixed(1);
-    console.log(`Uploading ${sizeMb} MB to ${bucket}/${path}`);
+    console.log(`Uploading ${sizeMb} MB to ${bucket}/${path} via ${file.size >= TUS_THRESHOLD_BYTES ? 'TUS' : 'standard'}`);
 
     if (file.size >= TUS_THRESHOLD_BYTES) {
       return uploadWithTus(bucket, path, file, onProgress, contentType);
