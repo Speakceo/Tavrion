@@ -234,6 +234,7 @@ export function DnaStudio() {
       visualStyle: result.brand.visualStyle,
       colorPalette: result.colorPalette,
       detectedColors: result.detectedColors,
+      logoUrl: result.logoUrl,
       designSystem: {
         ...designSystem,
         primaryColor: primary,
