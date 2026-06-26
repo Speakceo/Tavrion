@@ -177,40 +177,46 @@ async function embedTexts(apiKey: string, texts: string[]): Promise<number[][]> 
   return data.data.map((d: { embedding: number[] }) => d.embedding);
 }
 
-export async function runFallbackCrawl(
+export async function prepareCrawl(
   supabase: ReturnType<typeof createClient>,
-  openaiKey: string,
-  body: { url?: string; name?: string; botId?: string; welcomeMessage?: string; primaryColor?: string },
-) {
+  body: { url?: string; name?: string; botId?: string },
+): Promise<{ id: string; source_url: string; name: string }> {
   const { url, name, botId } = body;
-
-  let bot: { id: string; source_url: string; name: string };
 
   if (botId) {
     const { data, error } = await supabase.from("tavrion_bots").select("id, source_url, name").eq("id", botId).single();
     if (error || !data) throw new Error("Bot not found");
-    bot = data;
     await supabase.from("tavrion_bots").update({
       status: "crawling", crawl_error: null, max_pages: MAX_PAGES, crawl_depth: 3,
       updated_at: new Date().toISOString(),
     }).eq("id", botId);
-  } else {
-    if (!url?.trim()) throw new Error("url is required");
-    const parsed = ensureHttpUrl(url.trim());
-    const botName = name?.trim() || parsed.hostname.replace(/^www\./, "");
-
-    const { data, error } = await supabase.from("tavrion_bots").insert({
-      name: botName,
-      source_url: parsed.toString(),
-      bot_name: botName,
-      status: "crawling",
-      max_pages: MAX_PAGES,
-      crawl_depth: 3,
-    }).select("id, source_url, name").single();
-
-    if (error || !data) throw new Error(error?.message || "Failed to create bot");
-    bot = data;
+    return data;
   }
+
+  if (!url?.trim()) throw new Error("url is required");
+  const parsed = ensureHttpUrl(url.trim());
+  const botName = name?.trim() || parsed.hostname.replace(/^www\./, "");
+
+  const { data, error } = await supabase.from("tavrion_bots").insert({
+    name: botName,
+    source_url: parsed.toString(),
+    bot_name: botName,
+    status: "crawling",
+    max_pages: MAX_PAGES,
+    crawl_depth: 3,
+  }).select("id, source_url, name").single();
+
+  if (error || !data) throw new Error(error?.message || "Failed to create bot");
+  return data;
+}
+
+export async function executeCrawlJob(
+  supabase: ReturnType<typeof createClient>,
+  openaiKey: string,
+  botId: string,
+) {
+  const { data: bot, error } = await supabase.from("tavrion_bots").select("id, source_url, name").eq("id", botId).single();
+  if (error || !bot) throw new Error("Bot not found");
 
   await supabase.from("tavrion_bot_chunks").delete().eq("bot_id", bot.id);
   await supabase.from("tavrion_bot_pages").delete().eq("bot_id", bot.id);
@@ -225,7 +231,7 @@ export async function runFallbackCrawl(
   if (pages.length === 0) {
     await supabase.from("tavrion_bots").update({
       status: "error",
-      crawl_error: "No pages could be crawled from this URL",
+      crawl_error: "No pages could be crawled from this URL. The site may block bots or require JavaScript rendering.",
       ...theme,
       updated_at: new Date().toISOString(),
     }).eq("id", bot.id);
@@ -291,4 +297,13 @@ export async function runFallbackCrawl(
     ragEngine: "edge-fallback",
     pipeline: { maxPages: MAX_PAGES, chunks: chunkCount, sitemap: true, brandDna: !!dna },
   };
+}
+
+export async function runFallbackCrawl(
+  supabase: ReturnType<typeof createClient>,
+  openaiKey: string,
+  body: { url?: string; name?: string; botId?: string; welcomeMessage?: string; primaryColor?: string },
+) {
+  const bot = await prepareCrawl(supabase, body);
+  return executeCrawlJob(supabase, openaiKey, bot.id);
 }

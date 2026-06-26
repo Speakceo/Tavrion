@@ -1,6 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { runFallbackCrawl } from "../_shared/crawlFallback.ts";
+import { executeCrawlJob, prepareCrawl } from "../_shared/crawlFallback.ts";
+
+declare const EdgeRuntime: { waitUntil: (promise: Promise<unknown>) => void };
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,7 +21,16 @@ async function proxyToBotApi(apiUrl: string, path: string, body: unknown): Promi
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const data = await res.json();
+  let data: Record<string, unknown>;
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error(`Bot API unreachable (${res.status}). Check TAVRION_BOT_API_URL.`);
+  }
+  if (!res.ok) {
+    const msg = (data.error as string) || (data.detail as string) || `Bot API error (${res.status})`;
+    throw new Error(msg);
+  }
   return new Response(JSON.stringify(data), {
     status: res.status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -44,9 +55,29 @@ Deno.serve(async (req: Request) => {
     const openaiKey = await getSecret(supabase, "OPENAI_API_KEY");
     if (!openaiKey) throw new Error("OPENAI_API_KEY not configured");
 
-    const result = await runFallbackCrawl(supabase, openaiKey, body);
-    return new Response(JSON.stringify(result), {
-      status: 200,
+    const bot = await prepareCrawl(supabase, body);
+
+    EdgeRuntime.waitUntil(
+      executeCrawlJob(supabase, openaiKey, bot.id).catch(async (err) => {
+        const message = err instanceof Error ? err.message : "Crawl failed";
+        await supabase.from("tavrion_bots").update({
+          status: "error",
+          crawl_error: message,
+          updated_at: new Date().toISOString(),
+        }).eq("id", bot.id);
+      }),
+    );
+
+    const { data: botRow } = await supabase.from("tavrion_bots").select("*").eq("id", bot.id).single();
+
+    return new Response(JSON.stringify({
+      bot: botRow || { ...bot, status: "crawling" },
+      status: "crawling",
+      async: true,
+      crawlEngine: "edge-fallback",
+      message: "Crawl started. Large sites can take 1–3 minutes.",
+    }), {
+      status: 202,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {

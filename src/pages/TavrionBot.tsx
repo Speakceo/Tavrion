@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type Dispatch, type SetStateAction } from 'react';
 import { Link } from 'react-router-dom';
 import { ChatMessageBubble, SourceLink } from '../components/ChatMessageBubble';
 import {
@@ -100,6 +100,80 @@ function apiHeaders() {
   };
 }
 
+async function parseCrawlResponse(res: Response) {
+  let data: Record<string, unknown>;
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error(
+      res.status >= 500
+        ? `Crawl timed out (HTTP ${res.status}). Large sites take 1–3 min — please retry.`
+        : `Crawl failed (HTTP ${res.status})`,
+    );
+  }
+  if (!res.ok && res.status !== 202) {
+    throw new Error((data.error as string) || `Crawl failed (${res.status})`);
+  }
+  return data;
+}
+
+async function pollCrawlUntilDone(botId: string): Promise<{
+  bot: BotRecord;
+  pages: { url: string; title: string; words: number }[];
+}> {
+  const { createClient } = await import('@supabase/supabase-js');
+  const sb = createClient(SUPABASE_URL, ANON_KEY);
+
+  for (let i = 0; i < 120; i++) {
+    await new Promise((r) => setTimeout(r, 2000));
+
+    const { data: bot, error } = await sb.from('tavrion_bots').select('*').eq('id', botId).single();
+    if (error || !bot) throw new Error('Bot not found while waiting for crawl');
+
+    if (bot.status === 'ready') {
+      const { data: pageRows } = await sb
+        .from('tavrion_bot_pages')
+        .select('url, title, word_count')
+        .eq('bot_id', botId)
+        .order('crawled_at', { ascending: true });
+      return {
+        bot: bot as BotRecord,
+        pages: (pageRows || []).map((p) => ({
+          url: p.url,
+          title: p.title || p.url,
+          words: p.word_count || 0,
+        })),
+      };
+    }
+
+    if (bot.status === 'error') {
+      throw new Error(bot.crawl_error || 'Crawl failed');
+    }
+  }
+
+  throw new Error('Crawl is still running. Wait a minute and click Recrawl, or try a smaller site.');
+}
+
+function applyCrawlResult(
+  data: Record<string, unknown>,
+  setBot: (b: BotRecord) => void,
+  setPages: (p: { url: string; title: string; words: number }[]) => void,
+  setMessages: Dispatch<SetStateAction<ChatMessage[]>>,
+  setEngineInfo: (s: string) => void,
+) {
+  const bot = data.bot as BotRecord;
+  setBot(bot);
+  setPages((data.pages as { url: string; title: string; words: number }[]) || []);
+  setMessages([{ role: 'assistant', content: bot.welcome_message || 'Hi! Ask me anything about this website.' }]);
+  const crawl = (data.crawlEngine as string) || 'unknown';
+  const rag = (data.ragEngine as string) || crawl;
+  if (crawl === 'edge-fallback') {
+    setEngineInfo('Lightweight mode (no Docker/Python). Works on static sites. For JS-heavy SPAs, run services/tavrion-bot-api/start.sh or deploy to Railway.');
+  } else {
+    setEngineInfo(`Crawl: ${crawl} · RAG: ${rag}`);
+  }
+}
+
 export function TavrionBot() {
   const [url, setUrl] = useState('');
   const [botName, setBotName] = useState('');
@@ -178,18 +252,15 @@ export function TavrionBot() {
         headers: apiHeaders(),
         body: JSON.stringify({ url: url.trim(), name: botName.trim() || undefined }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Crawl failed');
+      const data = await parseCrawlResponse(res);
 
-      setBot(data.bot);
-      setPages(data.pages || []);
-      setMessages([{ role: 'assistant', content: data.bot.welcome_message }]);
-      const crawl = data.crawlEngine || 'unknown';
-      const rag = data.ragEngine || crawl;
-      if (crawl === 'edge-fallback') {
-        setEngineInfo('Lightweight mode (no Docker/Python). Works on static sites. For JS-heavy SPAs, run services/tavrion-bot-api/start.sh or deploy to Railway.');
+      if (res.status === 202 || data.async) {
+        const botRow = data.bot as BotRecord;
+        setBot({ ...botRow, status: 'crawling' });
+        const result = await pollCrawlUntilDone(botRow.id);
+        applyCrawlResult({ ...data, bot: result.bot, pages: result.pages }, setBot, setPages, setMessages, setEngineInfo);
       } else {
-        setEngineInfo(`Crawl: ${crawl} · RAG: ${rag}`);
+        applyCrawlResult(data, setBot, setPages, setMessages, setEngineInfo);
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to create bot');
@@ -208,10 +279,15 @@ export function TavrionBot() {
         headers: apiHeaders(),
         body: JSON.stringify({ botId: bot.id }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Recrawl failed');
-      setBot(data.bot);
-      setPages(data.pages || []);
+      const data = await parseCrawlResponse(res);
+
+      if (res.status === 202 || data.async) {
+        setBot({ ...bot, status: 'crawling' });
+        const result = await pollCrawlUntilDone(bot.id);
+        applyCrawlResult({ ...data, bot: result.bot, pages: result.pages }, setBot, setPages, setMessages, setEngineInfo);
+      } else {
+        applyCrawlResult(data, setBot, setPages, setMessages, setEngineInfo);
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Recrawl failed');
     } finally {
