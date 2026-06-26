@@ -7,6 +7,7 @@ import {
   UserPlus, Search, Trash2, UserX, Check, X, CreditCard as Edit, KeyRound,
 } from 'lucide-react';
 import { Organization, UserProfile } from '../../types';
+import { ORG_ASSIGNABLE_ROLES, sanitizeUserRole } from '../../utils/platformAccess';
 
 const DEFAULT_FEATURES = {
   ai_tutor: false,
@@ -124,7 +125,7 @@ export function OrgDetail() {
       unique_id: newUser.unique_id,
       full_name: newUser.full_name,
       email: newUser.email,
-      role: newUser.role,
+      role: sanitizeUserRole(newUser.role, newUser.unique_id),
       department: newUser.department || null,
       country: newUser.country || null,
       is_active: true,
@@ -474,10 +475,9 @@ export function OrgDetail() {
                         <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#666', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Role *</label>
                         <select value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value as any })}
                           className="lt-input" style={{ width: '100%', padding: '8px 12px', boxSizing: 'border-box' }}>
-                          <option value="employee">Employee</option>
-                          <option value="trainer">Trainer</option>
-                          <option value="admin">Admin</option>
-                          <option value="super_admin">Super Admin</option>
+                          {ORG_ASSIGNABLE_ROLES.map((role) => (
+                            <option key={role} value={role}>{role.replace('_', ' ')}</option>
+                          ))}
                         </select>
                       </div>
                     </div>

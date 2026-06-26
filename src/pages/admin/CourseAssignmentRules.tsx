@@ -436,7 +436,7 @@ export function CourseAssignmentRules() {
                       <label style={labelStyle}>Role</label>
                       <select style={inputStyle} value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value as UserRole | '' }))}>
                         <option value="">Any role</option>
-                        {(['employee', 'trainer', 'partner', 'admin', 'super_admin'] as UserRole[]).map(r => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}
+                        {(['employee', 'trainer', 'partner', 'admin'] as UserRole[]).map(r => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}
                       </select>
                     </div>
                     <div>

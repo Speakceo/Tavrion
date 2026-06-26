@@ -1,6 +1,20 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { UserProfile, Organization } from '../types';
+import { isMasterSuperAdmin } from '../utils/platformAccess';
+
+async function assertActiveOrganization(organizationId: string) {
+  const { data: org } = await supabase
+    .from('organizations')
+    .select('is_active')
+    .eq('id', organizationId)
+    .maybeSingle();
+
+  if (!org?.is_active) {
+    return { error: { message: 'This organisation has been deactivated. Contact your administrator.' } };
+  }
+  return { error: null };
+}
 
 interface AuthContextType {
   profile: UserProfile | null;
@@ -46,11 +60,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(data);
 
       if (data?.organization_id) {
+        const inactive = await assertActiveOrganization(data.organization_id);
+        if (inactive.error) {
+          localStorage.removeItem('user_id');
+          localStorage.removeItem('org_id');
+          setProfile(null);
+          setOrganization(null);
+          return;
+        }
+
         const { data: orgData } = await supabase
           .from('organizations')
           .select('*')
           .eq('id', data.organization_id)
+          .eq('is_active', true)
           .maybeSingle();
+        if (!orgData) {
+          localStorage.removeItem('user_id');
+          localStorage.removeItem('org_id');
+          setProfile(null);
+          setOrganization(null);
+          return;
+        }
         setOrganization(orgData);
       }
     } catch (error) {
@@ -64,6 +95,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (userId: string, password: string, organizationId?: string) => {
     try {
+      if (organizationId) {
+        const inactive = await assertActiveOrganization(organizationId);
+        if (inactive.error) return { error: inactive.error, profile: null };
+      }
+
       let query = supabase
         .from('user_profiles')
         .select('*')
@@ -72,11 +108,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (organizationId) {
         query = query.eq('organization_id', organizationId);
+      } else if (!isMasterSuperAdmin(userId)) {
+        return { error: { message: 'Invalid organisation, User ID, or password' }, profile: null };
       }
 
       const { data, error } = await query.maybeSingle();
 
       if (error || !data) {
+        return { error: { message: 'Invalid organisation, User ID, or password' }, profile: null };
+      }
+
+      if (data.role === 'super_admin' && !isMasterSuperAdmin(data.unique_id)) {
+        return { error: { message: 'Invalid organisation, User ID, or password' }, profile: null };
+      }
+
+      if (!organizationId && !data.is_platform_owner) {
         return { error: { message: 'Invalid organisation, User ID, or password' }, profile: null };
       }
 
@@ -95,7 +141,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .from('organizations')
           .select('*')
           .eq('id', data.organization_id)
+          .eq('is_active', true)
           .maybeSingle();
+        if (!orgData) {
+          localStorage.removeItem('user_id');
+          localStorage.removeItem('org_id');
+          setProfile(null);
+          setOrganization(null);
+          return { error: { message: 'This organisation has been deactivated. Contact your administrator.' }, profile: null };
+        }
         setOrganization(orgData);
       } else {
         setOrganization(null);

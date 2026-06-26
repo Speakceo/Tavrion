@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -31,6 +31,8 @@ const SOCIAL_PROOF = [
 
 interface OrgOption { id: string; name: string; slug: string; }
 
+const OWNER_SENTINEL = '__platform_owner__';
+
 export function Login() {
   usePageSeo(SEO.login);
 
@@ -47,17 +49,29 @@ export function Login() {
   const { signIn } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    supabase
+  const fetchOrgs = useCallback(async () => {
+    setOrgsLoading(true);
+    const { data } = await supabase
       .from('organizations')
       .select('id, name, slug')
       .eq('is_active', true)
-      .order('name', { ascending: true })
-      .then(({ data }) => {
-        if (data) setOrgs(data);
-        setOrgsLoading(false);
-      });
+      .order('name', { ascending: true });
+
+    const activeOrgs = data || [];
+    setOrgs(activeOrgs);
+    setOrgId((current) => {
+      if (!current || current === OWNER_SENTINEL) return current;
+      return activeOrgs.some((org) => org.id === current) ? current : '';
+    });
+    setOrgsLoading(false);
   }, []);
+
+  useEffect(() => {
+    fetchOrgs();
+    const onFocus = () => fetchOrgs();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [fetchOrgs]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,14 +79,13 @@ export function Login() {
     setLoading(true);
     const { error, profile: signedIn } = await signIn(userId, password, orgId === OWNER_SENTINEL ? undefined : orgId);
     if (error) {
-      setError('Invalid organisation, User ID, or password. Please try again.');
+      setError(error.message || 'Invalid organisation, User ID, or password. Please try again.');
       setLoading(false);
     } else {
       navigate(signedIn?.is_platform_owner ? '/owner' : '/dashboard');
     }
   };
 
-  const OWNER_SENTINEL = '__platform_owner__';
   const isDisabled = loading || !orgId || !userId.trim() || !password.trim();
 
   return (

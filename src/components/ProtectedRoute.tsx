@@ -1,6 +1,7 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { UserRole } from '../types';
+import { isMasterSuperAdmin } from '../utils/platformAccess';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -23,7 +24,7 @@ export function ProtectedRoute({ children, allowedRoles, ownerOnly }: ProtectedR
     return <Navigate to="/login" replace />;
   }
 
-  if (ownerOnly && !profile.is_platform_owner) {
+  if (ownerOnly && (!profile.is_platform_owner || !isMasterSuperAdmin(profile.unique_id))) {
     return <Navigate to="/dashboard" replace />;
   }
 
