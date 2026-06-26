@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Layout } from '../../components/Layout';
+import { useAuth } from '../../contexts/AuthContext';
 import { Mail, Send, Users, BookOpen, Check, Filter } from 'lucide-react';
 
 type CourseKind = 'builtin' | 'uploaded';
@@ -79,7 +80,102 @@ function statusLabel(status: string) {
   return status.replace('_', ' ');
 }
 
+function resolveRecipientEmail(
+  user: { email?: string | null; unique_id?: string | null },
+  orgEmailDomain?: string
+) {
+  const email = user.email?.trim() || '';
+  if (email.includes('@')) return email;
+  if (user.unique_id && orgEmailDomain) {
+    return `${user.unique_id.toLowerCase()}@${orgEmailDomain}`;
+  }
+  return email;
+}
+
+function mapLearnerRows(
+  rows: { status?: string | null; user: LearnerRow | null }[],
+  orgEmailDomain?: string
+): LearnerRow[] {
+  return rows
+    .filter((row) => row.user?.id)
+    .map((row) => {
+      const user = row.user as LearnerRow;
+      return {
+        ...user,
+        email: resolveRecipientEmail(user, orgEmailDomain),
+        status: row.status || 'assigned',
+      };
+    })
+    .filter((row) => Boolean(row.email?.includes('@') || row.unique_id));
+}
+
+async function loadUploadedLearners(courseId: string, orgId?: string | null) {
+  const { data, error } = await supabase
+    .from('uploaded_course_assignments')
+    .select('status, user_id, user:user_profiles!uploaded_course_assignments_user_id_fkey(id, full_name, email, unique_id, department, organization_id)')
+    .eq('course_id', courseId);
+
+  if (error) {
+    console.error('Email nudges uploaded join failed:', error);
+    const { data: assignments, error: assignmentError } = await supabase
+      .from('uploaded_course_assignments')
+      .select('status, user_id')
+      .eq('course_id', courseId);
+
+    if (assignmentError) throw assignmentError;
+
+    const userIds = [...new Set((assignments || []).map((row) => row.user_id))];
+    if (userIds.length === 0) return [];
+
+    let profileQuery = supabase
+      .from('user_profiles')
+      .select('id, full_name, email, unique_id, department, organization_id')
+      .in('id', userIds);
+
+    if (orgId) profileQuery = profileQuery.eq('organization_id', orgId);
+
+    const { data: profiles, error: profileError } = await profileQuery;
+    if (profileError) throw profileError;
+
+    const profileMap = new Map((profiles || []).map((profile) => [profile.id, profile]));
+    return (assignments || [])
+      .map((assignment) => {
+        const user = profileMap.get(assignment.user_id);
+        if (!user) return null;
+        return { status: assignment.status, user };
+      })
+      .filter(Boolean) as { status?: string | null; user: LearnerRow | null }[];
+  }
+
+  const filtered = orgId
+    ? (data || []).filter((row: any) => row.user?.organization_id === orgId)
+    : data || [];
+
+  return filtered as { status?: string | null; user: LearnerRow | null }[];
+}
+
+async function loadBuiltinLearners(courseId: string, orgId?: string | null) {
+  const { data, error } = await supabase
+    .from('user_course_enrollments')
+    .select('status, user:user_profiles(id, full_name, email, unique_id, department, organization_id)')
+    .eq('course_id', courseId);
+
+  if (error) throw error;
+
+  const filtered = orgId
+    ? (data || []).filter((row: any) => row.user?.organization_id === orgId)
+    : data || [];
+
+  return filtered as { status?: string | null; user: LearnerRow | null }[];
+}
+
 export function EmailNudges() {
+  const { profile, organization } = useAuth();
+  const orgEmailDomain =
+    (organization?.settings as { email_domain?: string } | undefined)?.email_domain ||
+    (organization?.slug ? `${organization.slug}.com` : undefined);
+  const scopeOrgId = profile?.is_platform_owner ? null : profile?.organization_id || null;
+
   const [courses, setCourses] = useState<CourseOption[]>([]);
   const [learners, setLearners] = useState<LearnerRow[]>([]);
   const [selectedCourseKey, setSelectedCourseKey] = useState('');
@@ -90,6 +186,7 @@ export function EmailNudges() {
   const [loadingLearners, setLoadingLearners] = useState(false);
   const [result, setResult] = useState<{ sent: number; failed: number } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   const selectedCourse = useMemo(() => {
     if (!selectedCourseKey) return null;
@@ -120,38 +217,25 @@ export function EmailNudges() {
 
     setLoadingLearners(true);
     setSelectedUsers([]);
+    setLoadError('');
 
     (async () => {
-      if (selectedCourse.kind === 'builtin') {
-        const { data } = await supabase
-          .from('user_course_enrollments')
-          .select('status, user:user_profiles(id, full_name, email, unique_id, department)')
-          .eq('course_id', selectedCourse.id);
+      try {
+        const rawRows =
+          selectedCourse.kind === 'builtin'
+            ? await loadBuiltinLearners(selectedCourse.id, scopeOrgId)
+            : await loadUploadedLearners(selectedCourse.id, scopeOrgId);
 
-        const rows: LearnerRow[] = (data || [])
-          .filter((row) => row.user && (row.user as LearnerRow).email?.includes('@'))
-          .map((row) => ({
-            ...(row.user as LearnerRow),
-            status: row.status || 'assigned',
-          }));
-        setLearners(rows);
-      } else {
-        const { data } = await supabase
-          .from('uploaded_course_assignments')
-          .select('status, user:user_profiles(id, full_name, email, unique_id, department)')
-          .eq('course_id', selectedCourse.id);
-
-        const rows: LearnerRow[] = (data || [])
-          .filter((row) => row.user && (row.user as LearnerRow).email?.includes('@'))
-          .map((row) => ({
-            ...(row.user as LearnerRow),
-            status: row.status || 'assigned',
-          }));
-        setLearners(rows);
+        setLearners(mapLearnerRows(rawRows, orgEmailDomain));
+      } catch (err) {
+        console.error('Error loading email nudge recipients:', err);
+        setLearners([]);
+        setLoadError('Could not load recipients for this course. Please try again.');
+      } finally {
+        setLoadingLearners(false);
       }
-      setLoadingLearners(false);
     })();
-  }, [selectedCourse]);
+  }, [selectedCourse, scopeOrgId, orgEmailDomain]);
 
   const filteredLearners = useMemo(() => {
     return learners.filter((u) => {
@@ -182,7 +266,12 @@ export function EmailNudges() {
     const tpl = TEMPLATES[template];
     const recipients = learners
       .filter((u) => selectedUsers.includes(u.id))
-      .map((u) => ({ email: u.email, name: u.full_name, courseTitle: selectedCourse.title }));
+      .map((u) => ({
+        email: resolveRecipientEmail(u, orgEmailDomain),
+        name: u.full_name,
+        courseTitle: selectedCourse.title,
+      }))
+      .filter((recipient) => recipient.email.includes('@'));
 
     try {
       const { data, error } = await supabase.functions.invoke('send-email-nudge', {
@@ -354,6 +443,8 @@ export function EmailNudges() {
                 <div style={{ padding: 40, textAlign: 'center', color: '#808080', fontSize: 13 }}>Select a course to see assigned learners</div>
               ) : loadingLearners ? (
                 <div style={{ padding: 40, textAlign: 'center', color: '#808080', fontSize: 13 }}>Loading learners...</div>
+              ) : loadError ? (
+                <div style={{ padding: 40, textAlign: 'center', color: '#c0392b', fontSize: 13 }}>{loadError}</div>
               ) : filteredLearners.length === 0 ? (
                 <div style={{ padding: 40, textAlign: 'center', color: '#808080', fontSize: 13 }}>
                   {learners.length === 0
