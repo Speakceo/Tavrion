@@ -46,6 +46,8 @@ type CampaignAsset = {
 type CampaignConcept = {
   name: string;
   description: string;
+  imageScene?: string;
+  generatedImageUrl?: string | null;
   assets: CampaignAsset[];
 };
 
@@ -84,7 +86,7 @@ const FEATURES = [
 const STEPS = [
   { n: '01', title: 'Paste a URL', desc: 'Extract logo, colors, tone, and voice automatically from any site.' },
   { n: '02', title: 'Define your campaign', desc: 'You choose the purpose, message, and use case — design stays on-brand.' },
-  { n: '03', title: 'Generate assets', desc: 'Platform-specific ad copy and image prompts, styled by DNA.' },
+  { n: '03', title: 'Generate assets', desc: '3 AI-generated campaign images plus platform-specific ad copy.' },
 ];
 
 const EXAMPLE_URLS = ['https://jointavrion.com', 'https://stripe.com', 'https://linear.app'];
@@ -109,7 +111,7 @@ function PlatformIcon({ platform }: { platform: string }) {
   return <p.icon size={16} color={p.color} />;
 }
 
-function SocialPreview({ asset, brand, previewImage, primaryColor = '#8b5cf6' }: { asset: CampaignAsset; brand: BrandProfile; previewImage?: string | null; primaryColor?: string }) {
+function SocialPreview({ asset, brand, generatedImage, primaryColor = '#8b5cf6' }: { asset: CampaignAsset; brand: BrandProfile; generatedImage?: string | null; primaryColor?: string }) {
   const [copied, setCopied] = useState(false);
   const text = `${asset.caption}\n\n${asset.hashtags.map((h) => (h.startsWith('#') ? h : `#${h}`)).join(' ')}`;
 
@@ -131,18 +133,16 @@ function SocialPreview({ asset, brand, previewImage, primaryColor = '#8b5cf6' }:
           {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
-      {(previewImage || brand.name) && (
-        <div style={{ aspectRatio: asset.platform === 'instagram' ? '1' : '16/9', background: `linear-gradient(135deg, ${primaryColor}33, ${T.bgCard})`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
-          {previewImage ? (
-            <img src={proxyImage(previewImage)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-          ) : (
-            <div style={{ textAlign: 'center', padding: 24 }}>
-              <ImageIcon size={32} color={T.textMuted} />
-              <p style={{ fontSize: 12, color: T.textMuted, marginTop: 8 }}>Image prompt ready</p>
-            </div>
-          )}
-        </div>
-      )}
+      <div style={{ aspectRatio: asset.platform === 'instagram' ? '1' : '16/9', background: `linear-gradient(135deg, ${primaryColor}33, ${T.bgCard})`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
+        {generatedImage ? (
+          <img src={generatedImage} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        ) : (
+          <div style={{ textAlign: 'center', padding: 24 }}>
+            <Loader2 size={28} color={T.textMuted} className="animate-spin" />
+            <p style={{ fontSize: 12, color: T.textMuted, marginTop: 8 }}>Generating image…</p>
+          </div>
+        )}
+      </div>
       <div style={{ padding: 16 }}>
         <p style={{ fontSize: 14, color: T.text, lineHeight: 1.6, margin: '0 0 10px', whiteSpace: 'pre-wrap' }}>{asset.caption}</p>
         <p style={{ fontSize: 12, color: T.accent2, margin: '0 0 8px' }}>
@@ -173,6 +173,7 @@ export function DnaStudio() {
   });
   const [campaigns, setCampaigns] = useState<CampaignConcept[] | null>(null);
   const [campaignLoading, setCampaignLoading] = useState(false);
+  const [imagesLoading, setImagesLoading] = useState(false);
   const [campaignError, setCampaignError] = useState('');
   const [activeConcept, setActiveConcept] = useState(0);
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -203,6 +204,58 @@ export function DnaStudio() {
       setError(err instanceof Error ? err.message : 'Unexpected error while analyzing URL');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const generateImages = async (concepts: CampaignConcept[]) => {
+    if (!result) return;
+    setImagesLoading(true);
+
+    const brandPayload = {
+      name: result.brand.name,
+      industry: result.brand.industry,
+      category: result.brand.category,
+      tone: result.brand.tone,
+      colorPalette: result.colorPalette,
+      detectedColors: result.detectedColors,
+    };
+
+    const requests = concepts.slice(0, 3).map((c, i) =>
+      fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dna-studio-generate-images`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          brand: brandPayload,
+          conceptIndex: i,
+          concept: {
+            name: c.name,
+            imageScene: c.imageScene || c.assets[0]?.imagePrompt || c.description,
+          },
+        }),
+      }).then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || `Image ${i + 1} failed`);
+        const img = data.images?.[0];
+        if (img) {
+          setCampaigns((prev) => {
+            if (!prev) return prev;
+            const updated = [...prev];
+            updated[img.conceptIndex] = { ...updated[img.conceptIndex], generatedImageUrl: img.url };
+            return updated;
+          });
+        }
+      }),
+    );
+
+    try {
+      await Promise.all(requests);
+    } catch (err) {
+      setCampaignError((prev) => prev || (err instanceof Error ? err.message : 'Image generation failed'));
+    } finally {
+      setImagesLoading(false);
     }
   };
 
@@ -244,8 +297,13 @@ export function DnaStudio() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data?.error || 'Campaign generation failed');
-      setCampaigns(data.concepts || []);
+      const concepts: CampaignConcept[] = (data.concepts || []).map((c: CampaignConcept) => ({
+        ...c,
+        generatedImageUrl: null,
+      }));
+      setCampaigns(concepts);
       setActiveConcept(0);
+      generateImages(concepts);
     } catch (err) {
       setCampaignError(err instanceof Error ? err.message : 'Failed to generate campaign');
     } finally {
@@ -524,7 +582,7 @@ export function DnaStudio() {
 
               <button type="button" onClick={generateCampaign} disabled={campaignLoading || !brief.purpose.trim()}
                 style={{ padding: '14px 24px', borderRadius: 10, border: 'none', background: campaignLoading || !brief.purpose.trim() ? T.textMuted : `linear-gradient(135deg, ${T.accent}, ${T.accent2})`, color: '#fff', fontWeight: 700, fontSize: 14, cursor: campaignLoading || !brief.purpose.trim() ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                {campaignLoading ? <><Loader2 size={16} /> Generating…</> : <><Share2 size={16} /> Generate on-brand assets</>}
+                {campaignLoading ? <><Loader2 size={16} className="animate-spin" /> Generating…</> : <><Share2 size={16} /> Generate on-brand assets</>}
               </button>
               {campaignError && <p style={{ color: '#fca5a5', fontSize: 13, marginTop: 12 }}>{campaignError}</p>}
             </div>
@@ -537,18 +595,63 @@ export function DnaStudio() {
                 3 creative angles for: <strong style={{ color: T.text }}>{brief.purpose}</strong>
                 {brief.useCase && <> · {brief.useCase}</>}
               </p>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+
+              {/* 3 generated image cards */}
+              <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <ImageIcon size={18} color={T.accent2} />
+                Campaign visuals
+                {imagesLoading && <Loader2 size={16} color={T.textMuted} className="animate-spin" />}
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 28 }}>
                 {campaigns.map((c, i) => (
-                  <button key={c.name} type="button" onClick={() => setActiveConcept(i)}
-                    style={{ padding: '10px 16px', borderRadius: 8, border: `1px solid ${activeConcept === i ? T.accent : T.border}`, background: activeConcept === i ? 'rgba(139,92,246,0.2)' : T.bgCard, color: T.text, cursor: 'pointer', fontSize: 13, fontWeight: activeConcept === i ? 700 : 500 }}>
-                    {c.name}
+                  <button
+                    key={c.name}
+                    type="button"
+                    onClick={() => setActiveConcept(i)}
+                    style={{
+                      padding: 0,
+                      border: `2px solid ${activeConcept === i ? T.accent : T.border}`,
+                      borderRadius: 14,
+                      background: T.bgCard,
+                      cursor: 'pointer',
+                      overflow: 'hidden',
+                      textAlign: 'left',
+                      boxShadow: activeConcept === i ? `0 0 0 1px ${T.accent}44` : 'none',
+                    }}
+                  >
+                    <div style={{ aspectRatio: '1', background: `linear-gradient(135deg, ${primaryColor}22, ${T.bgElevated})`, position: 'relative' }}>
+                      {c.generatedImageUrl ? (
+                        <img src={c.generatedImageUrl} alt={c.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                          <Loader2 size={32} color={T.accent} className="animate-spin" />
+                          <span style={{ fontSize: 12, color: T.textMuted }}>Generating…</span>
+                        </div>
+                      )}
+                      {activeConcept === i && (
+                        <div style={{ position: 'absolute', top: 10, right: 10, background: T.accent, color: '#fff', fontSize: 10, fontWeight: 700, padding: '4px 8px', borderRadius: 6 }}>
+                          SELECTED
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ padding: '14px 16px' }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 4 }}>{c.name}</div>
+                      <div style={{ fontSize: 12, color: T.textBody, lineHeight: 1.4 }}>{c.description}</div>
+                    </div>
                   </button>
                 ))}
               </div>
-              <p style={{ fontSize: 14, color: T.textBody, marginBottom: 20 }}>{campaigns[activeConcept].description}</p>
+
+              <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 16px' }}>Platform copy — {campaigns[activeConcept].name}</h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
                 {campaigns[activeConcept].assets.map((asset) => (
-                  <SocialPreview key={`${asset.platform}-${asset.caption.slice(0, 20)}`} asset={asset} brand={result.brand} previewImage={previewImg} primaryColor={primaryColor} />
+                  <SocialPreview
+                    key={`${asset.platform}-${asset.caption.slice(0, 20)}`}
+                    asset={asset}
+                    brand={result.brand}
+                    generatedImage={campaigns[activeConcept].generatedImageUrl}
+                    primaryColor={primaryColor}
+                  />
                 ))}
               </div>
             </div>

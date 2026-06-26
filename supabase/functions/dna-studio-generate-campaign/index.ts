@@ -142,7 +142,7 @@ CRITICAL RULE — TWO LAYERS:
 1. DESIGN (LOCKED FROM BRAND DNA): Colors, visual style, tone of voice, and image aesthetics are FIXED from the brand's extracted DNA. You MUST NOT invent new brand colors, change voice, or drift from the design system.
 2. MESSAGING (FROM USER BRIEF): Ad copy, captions, CTAs, campaign angles, and what the post is ABOUT come entirely from the user's campaign brief. The user defines purpose and message — you write copy that delivers it in the brand's locked voice.
 
-For every imagePrompt, START with the exact designSystem.imageStyleRules string, then append a scene description that supports the user's campaign purpose (not generic brand awareness).
+Each concept needs ONE unique "imageScene" — a concise 2-3 sentence purely VISUAL description for AI image generation (subjects, setting, mood, composition). No text/logos in scene. Must reflect user campaign purpose AND brand colors visually.
 
 Return JSON:
 {
@@ -151,19 +151,20 @@ Return JSON:
     {
       "name": "Campaign angle name tied to user purpose",
       "description": "1 sentence — how this angle serves the user's stated purpose",
+      "imageScene": "Visual scene for hero image — 2-3 sentences, no text/logos, brand colors in environment",
       "assets": [
         {
           "platform": "instagram|linkedin|twitter|facebook",
           "caption": "post copy about USER purpose in brand voice",
           "hashtags": ["tag1","tag2"],
           "cta": "call to action aligned with user ctaIntent or purpose",
-          "imagePrompt": "designSystem.imageStyleRules + scene for this campaign"
+          "imagePrompt": "Full prompt reference combining design rules + imageScene"
         }
       ]
     }
   ]
 }
-Generate exactly 3 distinct creative angles, all serving the SAME user purpose but with different hooks.
+Generate exactly 3 distinct creative angles with 3 DIFFERENT imageScene visuals, all serving the SAME user purpose but with different hooks.
 Each concept must include one asset per requested platform.
 Platform rules:\n${platformContext}`,
           },
