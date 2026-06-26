@@ -63,12 +63,12 @@ export function Login() {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const { error } = await signIn(userId, password, orgId === OWNER_SENTINEL ? undefined : orgId);
+    const { error, profile: signedIn } = await signIn(userId, password, orgId === OWNER_SENTINEL ? undefined : orgId);
     if (error) {
       setError('Invalid organisation, User ID, or password. Please try again.');
       setLoading(false);
     } else {
-      navigate('/dashboard');
+      navigate(signedIn?.is_platform_owner ? '/owner' : '/dashboard');
     }
   };
 
@@ -209,7 +209,7 @@ export function Login() {
                   }}
                 >
                   <option value="">{orgsLoading ? 'Loading...' : 'Select organisation...'}</option>
-                  <option value={OWNER_SENTINEL}>— Platform Owner —</option>
+                  <option value={OWNER_SENTINEL}>— Platform Owner (Master Admin) —</option>
                   {orgs.map(o => (
                     <option key={o.id} value={o.id}>{o.name}</option>
                   ))}
@@ -280,7 +280,11 @@ export function Login() {
                   {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
               </div>
-              <p style={{ fontSize: 11, color: T.textFaint, marginTop: 6 }}>Default password is your User ID</p>
+              <p style={{ fontSize: 11, color: T.textFaint, marginTop: 6 }}>
+                {orgId === OWNER_SENTINEL
+                  ? 'Master login: use User ID MasterAdmin (or TavrionOwner)'
+                  : 'Default password is your User ID unless changed'}
+              </p>
             </div>
 
             <button

@@ -431,6 +431,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                 {[
                   { name: 'Platform Overview', href: '/owner', icon: Building2 },
+                  { name: 'Manage Courses', href: '/admin/courses', icon: BookOpen },
+                  { name: 'Manage Users', href: '/admin/users', icon: UsersIcon },
+                  { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
                 ].map(item => {
                   const active = location.pathname === item.href || location.pathname.startsWith('/owner/');
                   return (

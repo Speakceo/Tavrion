@@ -6,7 +6,7 @@ interface AuthContextType {
   profile: UserProfile | null;
   organization: Organization | null;
   loading: boolean;
-  signIn: (userId: string, password: string, organizationId?: string) => Promise<{ error: any }>;
+  signIn: (userId: string, password: string, organizationId?: string) => Promise<{ error: any; profile?: UserProfile | null }>;
   signOut: () => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<{ error: any }>;
 }
@@ -77,16 +77,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await query.maybeSingle();
 
       if (error || !data) {
-        return { error: { message: 'Invalid organisation, User ID, or password' } };
+        return { error: { message: 'Invalid organisation, User ID, or password' }, profile: null };
       }
 
       const expectedPassword = data.password ?? data.unique_id;
       if (password !== expectedPassword) {
-        return { error: { message: 'Invalid organisation, User ID, or password' } };
+        return { error: { message: 'Invalid organisation, User ID, or password' }, profile: null };
       }
 
       localStorage.setItem('user_id', userId);
       if (organizationId) localStorage.setItem('org_id', organizationId);
+      else localStorage.removeItem('org_id');
       setProfile(data);
 
       if (data.organization_id) {
@@ -96,11 +97,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .eq('id', data.organization_id)
           .maybeSingle();
         setOrganization(orgData);
+      } else {
+        setOrganization(null);
       }
 
-      return { error: null };
+      return { error: null, profile: data };
     } catch (error: any) {
-      return { error };
+      return { error, profile: null };
     }
   };
 

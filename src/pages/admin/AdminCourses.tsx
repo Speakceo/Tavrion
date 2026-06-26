@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { Layout } from '../../components/Layout';
-import { Plus, Search, CreditCard as Edit, Trash2, Sparkles, Users, FileCheck } from 'lucide-react';
+import { Plus, Search, CreditCard as Edit, Trash2, Sparkles, Users, FileCheck, ToggleLeft, ToggleRight } from 'lucide-react';
 import { Course, UserProfile } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -43,11 +43,6 @@ export function AdminCourses() {
 
     if (data) setAllUsers(data);
   };
-
-  const filteredCourses = courses.filter(course =>
-    course.title.toLowerCase().includes(search.toLowerCase()) ||
-    course.description?.toLowerCase().includes(search.toLowerCase())
-  );
 
   const deleteCourse = async (courseId: string) => {
     if (!confirm('Are you sure you want to delete this course? This will also delete all modules, lessons, and enrollments.')) return;
@@ -114,6 +109,26 @@ export function AdminCourses() {
     navigate(`/admin/courses/${course.id}/report`);
   };
 
+  const filteredCourses = courses.filter(course =>
+    course.title.toLowerCase().includes(search.toLowerCase()) ||
+    course.description?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const toggleCourseStatus = async (course: Course) => {
+    const next = course.status === 'published' ? 'draft' : 'published';
+    const { error } = await supabase
+      .from('courses')
+      .update({ status: next, updated_at: new Date().toISOString() })
+      .eq('id', course.id);
+
+    if (error) {
+      alert(`Failed to update course: ${error.message}`);
+      return;
+    }
+
+    setCourses((prev) => prev.map((c) => (c.id === course.id ? { ...c, status: next } : c)));
+  };
+
   return (
     <Layout>
       <div>
@@ -174,9 +189,20 @@ export function AdminCourses() {
                         <div style={{ fontSize: 11, color: '#808080', marginTop: 2, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{course.description}</div>
                       </td>
                       <td>
-                        <span className={`lt-badge ${course.status === 'published' ? 'lt-badge-success' : course.status === 'draft' ? 'lt-badge-warn' : ''}`}>
-                          {course.status}
-                        </span>
+                        <button
+                          type="button"
+                          onClick={() => toggleCourseStatus(course)}
+                          title={course.status === 'published' ? 'Unpublish (hide from learners)' : 'Publish (show to learners)'}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px',
+                            borderRadius: 999, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
+                            background: course.status === 'published' ? '#ecfdf5' : '#f5f5f5',
+                            color: course.status === 'published' ? '#047857' : '#666',
+                          }}
+                        >
+                          {course.status === 'published' ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+                          {course.status === 'published' ? 'Live' : 'Off'}
+                        </button>
                       </td>
                       <td style={{ textTransform: 'capitalize' }}>{course.target_role || '-'}</td>
                       <td>{course.is_mandatory ? 'Yes' : 'No'}</td>

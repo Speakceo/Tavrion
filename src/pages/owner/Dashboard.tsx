@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { Layout } from '../../components/Layout';
-import { Building2, Users, BookOpen, Plus, ExternalLink, ToggleRight } from 'lucide-react';
+import { Building2, Users, BookOpen, Plus, ExternalLink, ToggleRight, BarChart3 } from 'lucide-react';
 import { Organization } from '../../types';
 
 interface OrgWithStats extends Organization {
@@ -72,6 +72,23 @@ export function OwnerDashboard() {
             style={{ padding: '9px 16px', display: 'flex', alignItems: 'center', gap: 6, borderRadius: 8, textDecoration: 'none' }}>
             <Plus size={14} /> New Organization
           </Link>
+        </div>
+
+        {/* Quick actions for master admin */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4" style={{ marginBottom: 28 }}>
+          {[
+            { label: 'New Organization', href: '/owner/organizations/new', Icon: Plus },
+            { label: 'Manage Courses', href: '/admin/courses', Icon: BookOpen },
+            { label: 'Manage Users', href: '/admin/users', Icon: Users },
+            { label: 'Analytics', href: '/admin/analytics', Icon: BarChart3 },
+          ].map(({ label, href, Icon }) => (
+            <Link key={label} to={href} className="lt-card" style={{ padding: '16px 18px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Icon size={16} color="#4d4d4d" />
+              </div>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#171717' }}>{label}</span>
+            </Link>
+          ))}
         </div>
 
         {/* Platform stats */}
