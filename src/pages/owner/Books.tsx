@@ -8,10 +8,7 @@ import {
   BookCollection,
   BookDocument,
   coverHueFromTitle,
-  extractPdfsFromZip,
   formatBookSize,
-  humanizePdfName,
-  sanitizeStorageName,
 } from '../../utils/books';
 import { BookCover } from '../../components/BookCover';
 import {
@@ -69,16 +66,20 @@ export function OwnerBooks() {
     e.preventDefault();
     if (!zipFile || !title.trim() || !profile) return;
 
+    const sizeMb = zipFile.size / (1024 * 1024);
+    if (sizeMb > 2048) {
+      setError('ZIP file is too large. Maximum size is 2GB.');
+      return;
+    }
+
     setUploading(true);
     setError('');
-    setUploadProgress('Reading ZIP file...');
+    setUploadProgress(`Preparing upload (${formatBookSize(zipFile.size)})...`);
+
+    let collectionId: string | null = null;
+    let zipPath: string | null = null;
 
     try {
-      const pdfs = await extractPdfsFromZip(zipFile);
-      if (pdfs.length === 0) {
-        throw new Error('No PDF files found in this ZIP. Add .pdf files and try again.');
-      }
-
       const coverHue = coverHueFromTitle(title.trim());
       const { data: collection, error: collectionError } = await supabase
         .from('book_collections')
@@ -95,47 +96,32 @@ export function OwnerBooks() {
 
       if (collectionError || !collection) throw collectionError || new Error('Failed to create collection');
 
-      const collectionId = collection.id;
-      const zipPath = `uploads/${collectionId}/source.zip`;
-      setUploadProgress('Uploading ZIP archive...');
+      collectionId = collection.id;
+      zipPath = `uploads/${collectionId}/source.zip`;
+      setUploadProgress(`Uploading ZIP (${sizeMb.toFixed(0)} MB) — large files use resumable upload, please wait...`);
 
-      const zipUpload = await uploadLargeFile({ bucket: 'book-files', path: zipPath, file: zipFile });
-      if (!zipUpload.success) throw zipUpload.error || new Error('ZIP upload failed');
+      const zipUpload = await uploadLargeFile({
+        bucket: 'book-files',
+        path: zipPath,
+        file: zipFile,
+        contentType: 'application/zip',
+        onProgress: (pct) => setUploadProgress(`Uploading ZIP: ${pct}%`),
+      });
+
+      if (!zipUpload.success) {
+        throw new Error(zipUpload.error?.message || 'ZIP upload failed');
+      }
 
       await supabase.from('book_collections').update({ zip_file_path: zipPath }).eq('id', collectionId);
 
-      const docRows: Omit<BookDocument, 'id' | 'created_at'>[] = [];
+      setUploadProgress('Extracting PDFs on server...');
 
-      for (let i = 0; i < pdfs.length; i += 1) {
-        const pdf = pdfs[i];
-        setUploadProgress(`Uploading ${i + 1} of ${pdfs.length}: ${pdf.name}`);
-        const safeName = sanitizeStorageName(pdf.name);
-        const filePath = `extracted/${collectionId}/${Date.now()}_${i}_${safeName}`;
-        const file = new File([pdf.blob], pdf.name, { type: 'application/pdf' });
+      const { data: extractData, error: extractError } = await supabase.functions.invoke('extract-book-zip', {
+        body: { collectionId, zipPath },
+      });
 
-        const upload = await uploadLargeFile({ bucket: 'book-files', path: filePath, file });
-        if (!upload.success) throw upload.error || new Error(`Failed to upload ${pdf.name}`);
-
-        docRows.push({
-          collection_id: collectionId,
-          title: humanizePdfName(pdf.name),
-          original_filename: pdf.name,
-          file_path: filePath,
-          file_size: pdf.blob.size,
-          sort_order: i,
-        });
-      }
-
-      const { error: docsError } = await supabase.from('book_documents').insert(docRows);
-      if (docsError) throw docsError;
-
-      await supabase
-        .from('book_collections')
-        .update({
-          document_count: docRows.length,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', collectionId);
+      if (extractError) throw extractError;
+      if (extractData?.error) throw new Error(extractData.error);
 
       setShowUpload(false);
       setTitle('');
@@ -144,7 +130,15 @@ export function OwnerBooks() {
       setUploadProgress('');
       await fetchCollections();
     } catch (err: any) {
+      console.error('Book upload failed:', err);
       setError(err.message || 'Upload failed');
+
+      if (collectionId) {
+        if (zipPath) {
+          await supabase.storage.from('book-files').remove([zipPath]);
+        }
+        await supabase.from('book_collections').delete().eq('id', collectionId);
+      }
     } finally {
       setUploading(false);
     }
@@ -282,7 +276,9 @@ export function OwnerBooks() {
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" onClick={() => !uploading && setShowUpload(false)}>
           <div className="lt-card w-full max-w-lg rounded-b-none p-5 sm:rounded-b-[10px]" onClick={(e) => e.stopPropagation()}>
             <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Upload book collection</h2>
-            <p style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>ZIP file containing PDF ebooks. Nested folders are supported.</p>
+            <p style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>
+              ZIP file containing PDF ebooks. Nested folders are supported. Files up to 2GB use resumable upload.
+            </p>
 
             {error && (
               <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', background: '#fff5f5', padding: '10px 12px', borderRadius: 8, marginBottom: 14, fontSize: 13, color: '#c0392b' }}>
@@ -301,7 +297,10 @@ export function OwnerBooks() {
               </div>
               <div style={{ marginBottom: 16 }}>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#666', marginBottom: 6, textTransform: 'uppercase' }}>ZIP file</label>
-                <input type="file" accept=".zip,application/zip" required onChange={(e) => setZipFile(e.target.files?.[0] || null)} className="lt-input" style={{ width: '100%', padding: '9px 12px', boxSizing: 'border-box' }} />
+                <input type="file" accept=".zip,application/zip,application/x-zip-compressed,application/octet-stream" required onChange={(e) => setZipFile(e.target.files?.[0] || null)} className="lt-input" style={{ width: '100%', padding: '9px 12px', boxSizing: 'border-box' }} />
+                {zipFile && (
+                  <p style={{ fontSize: 12, color: '#808080', marginTop: 6 }}>Selected: {zipFile.name} ({formatBookSize(zipFile.size)})</p>
+                )}
               </div>
 
               {uploadProgress && (
