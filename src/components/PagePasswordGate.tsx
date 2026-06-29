@@ -1,22 +1,21 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { isMasterSuperAdmin, MASTER_SUPER_ADMIN_UNIQUE_ID } from '../utils/platformAccess';
+import { MASTER_SUPER_ADMIN_UNIQUE_ID } from '../utils/platformAccess';
 
-const GATE_STORAGE_KEY = 'tavrion_internal_tools_gate';
+const DEFAULT_GATE_KEY = 'tavrion_internal_tools_gate';
 
-function isGateUnlocked() {
+function isGateUnlocked(storageKey: string) {
   try {
-    return sessionStorage.getItem(GATE_STORAGE_KEY) === '1';
+    return sessionStorage.getItem(storageKey) === '1';
   } catch {
     return false;
   }
 }
 
-function unlockGate() {
+function unlockGate(storageKey: string) {
   try {
-    sessionStorage.setItem(GATE_STORAGE_KEY, '1');
+    sessionStorage.setItem(storageKey, '1');
   } catch {
     // ignore storage errors
   }
@@ -26,26 +25,31 @@ interface PagePasswordGateProps {
   children: React.ReactNode;
   title: string;
   description?: string;
+  /** Separate key per page if you want independent unlock state */
+  storageKey?: string;
 }
 
-export function PagePasswordGate({ children, title, description }: PagePasswordGateProps) {
-  const { profile, loading } = useAuth();
-  const [unlocked, setUnlocked] = useState(isGateUnlocked);
+export function PagePasswordGate({
+  children,
+  title,
+  description,
+  storageKey = DEFAULT_GATE_KEY,
+}: PagePasswordGateProps) {
+  const [ready, setReady] = useState(false);
+  const [unlocked, setUnlocked] = useState(false);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!loading && isMasterSuperAdmin(profile?.unique_id)) {
-      unlockGate();
-      setUnlocked(true);
-    }
-  }, [loading, profile?.unique_id]);
+    setUnlocked(isGateUnlocked(storageKey));
+    setReady(true);
+  }, [storageKey]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (password.trim().toLowerCase() === MASTER_SUPER_ADMIN_UNIQUE_ID) {
-      unlockGate();
+      unlockGate(storageKey);
       setUnlocked(true);
       setError('');
       return;
@@ -53,9 +57,9 @@ export function PagePasswordGate({ children, title, description }: PagePasswordG
     setError('Incorrect password');
   };
 
-  if (loading) {
+  if (!ready) {
     return (
-      <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="page-password-gate page-password-gate--loading">
         <div className="lt-spinner" />
       </div>
     );
@@ -64,58 +68,31 @@ export function PagePasswordGate({ children, title, description }: PagePasswordG
   if (unlocked) return <>{children}</>;
 
   return (
-    <div
-      style={{
-        minHeight: '100dvh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '24px 16px',
-        background: '#fafafa',
-        fontFamily: '"Geist", "Inter", system-ui, -apple-system, sans-serif',
-      }}
-    >
-      <div
-        className="lt-card"
-        style={{ width: '100%', maxWidth: 400, padding: '28px 24px' }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-          <div
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 10,
-              background: '#171717',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
+    <div className="page-password-gate" role="dialog" aria-modal="true" aria-labelledby="page-gate-title">
+      <div className="page-password-gate-card lt-card">
+        <div className="page-password-gate-header">
+          <div className="page-password-gate-icon">
             <Lock size={18} color="#fff" />
           </div>
           <div>
-            <p style={{ fontSize: 11, fontWeight: 700, color: '#808080', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 2 }}>
-              Protected
-            </p>
-            <h1 style={{ fontSize: 18, fontWeight: 700, color: '#171717', letterSpacing: '-0.03em' }}>{title}</h1>
+            <p className="page-password-gate-label">Protected</p>
+            <h1 id="page-gate-title" className="page-password-gate-title">{title}</h1>
           </div>
         </div>
 
-        <p style={{ fontSize: 14, color: '#666', lineHeight: 1.6, marginBottom: 20 }}>
+        <p className="page-password-gate-description">
           {description || 'Enter the access password to continue.'}
         </p>
 
         <form onSubmit={handleSubmit}>
           {error && (
-            <div style={{ background: '#fff5f5', borderRadius: 8, padding: '10px 12px', fontSize: 13, color: '#c0392b', marginBottom: 14 }}>
-              {error}
-            </div>
+            <div className="page-password-gate-error">{error}</div>
           )}
 
-          <label htmlFor="gate-password" style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#666', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          <label htmlFor="gate-password" className="page-password-gate-field-label">
             Access password
           </label>
-          <div style={{ position: 'relative', marginBottom: 16 }}>
+          <div className="page-password-gate-input-wrap">
             <input
               id="gate-password"
               type={showPassword ? 'text' : 'password'}
@@ -123,24 +100,16 @@ export function PagePasswordGate({ children, title, description }: PagePasswordG
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter password"
               autoComplete="current-password"
-              className="lt-input login-input"
-              style={{ width: '100%', padding: '12px 44px 12px 12px', boxSizing: 'border-box' }}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              enterKeyHint="go"
+              className="lt-input login-input page-password-gate-input"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              style={{
-                position: 'absolute',
-                right: 12,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: '#808080',
-                padding: 4,
-                display: 'flex',
-              }}
+              className="page-password-gate-eye"
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
               {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
@@ -150,23 +119,14 @@ export function PagePasswordGate({ children, title, description }: PagePasswordG
           <button
             type="submit"
             disabled={!password.trim()}
-            className="lt-btn-primary"
-            style={{
-              width: '100%',
-              padding: '12px 16px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              opacity: password.trim() ? 1 : 0.5,
-            }}
+            className="lt-btn-primary page-password-gate-submit"
           >
             Continue <ArrowRight size={14} />
           </button>
         </form>
 
-        <p style={{ marginTop: 20, textAlign: 'center', fontSize: 13 }}>
-          <Link to="/" style={{ color: '#808080', textDecoration: 'none' }}>&larr; Back to home</Link>
+        <p className="page-password-gate-back">
+          <Link to="/">&larr; Back to home</Link>
         </p>
       </div>
     </div>

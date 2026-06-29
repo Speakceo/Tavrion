@@ -105,18 +105,13 @@ export function Login() {
         color: T.text,
       }}
     >
-      {/* ── LEFT BRANDING PANEL ── */}
+      {/* ── LEFT BRANDING PANEL (lg+ only — no inline display; it overrides Tailwind hidden) */}
       <div
+        className="login-brand-panel"
         style={{
-          width: '50%',
           background: T.bgSection,
           boxShadow: `${T.borderStrong} 1px 0 0 0`,
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          position: 'relative',
         }}
-        className="hidden lg:flex"
       >
         <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1px)', backgroundSize: '24px 24px', pointerEvents: 'none' }} />
         <div style={{ position: 'absolute', top: '30%', left: '30%', width: 320, height: 320, background: `radial-gradient(ellipse, ${T.blue}18 0%, transparent 70%)`, pointerEvents: 'none' }} />
@@ -320,6 +315,7 @@ export function Login() {
             <button
               type="submit"
               disabled={isDisabled}
+              className="login-submit-btn"
               style={{
                 width: '100%', padding: '14px 24px', minHeight: 48,
                 background: isDisabled ? T.bgSection : T.text,

@@ -158,7 +158,11 @@ function App() {
           <Route
             path="/dna-studio"
             element={
-              <PagePasswordGate title="DNA Studio" description="DNA Studio is restricted. Enter the access password to open the brand analysis tools.">
+              <PagePasswordGate
+                title="DNA Studio"
+                storageKey="tavrion_gate_dna_studio"
+                description="DNA Studio is restricted. Enter the access password to open the brand analysis tools."
+              >
                 <DnaStudio />
               </PagePasswordGate>
             }
@@ -167,7 +171,11 @@ function App() {
           <Route
             path="/tavrion-bot"
             element={
-              <PagePasswordGate title="Tavrion Bot" description="Tavrion Bot is restricted. Enter the access password to manage chatbots and embeds.">
+              <PagePasswordGate
+                title="Tavrion Bot"
+                storageKey="tavrion_gate_tavrion_bot"
+                description="Tavrion Bot is restricted. Enter the access password to manage chatbots and embeds."
+              >
                 <TavrionBot />
               </PagePasswordGate>
             }

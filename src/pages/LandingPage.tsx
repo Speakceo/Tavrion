@@ -1,11 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
-import { SEO, usePageSeo } from '../lib/seo';
+import { Reveal } from '../components/LandingReveal';
+import { SEO, usePageSeo, injectJsonLd, removeJsonLd, SITE_URL } from '../lib/seo';
 import {
   Globe as Globe2, ArrowRight, CheckCircle, Users, BookOpen, TrendingUp, BarChart3,
   Brain, Phone, Shield, Video, Star, ChevronRight, Play, Award, MessageSquare,
   Activity, Zap, Building2, Layers, Target, GraduationCap, Headphones, Lock, Globe,
-  Check, Menu, X,
+  Check, Menu, X, Sparkles, Bot, Mail, Workflow, ChevronDown, Library,
 } from 'lucide-react';
 
 const T = {
@@ -40,6 +39,63 @@ const FEATURES = [
   { icon: Shield, title: 'Enterprise Security', body: 'SOC 2 compliant. Role-based access, SSO, and end-to-end encryption — zero friction.', accent: T.blue },
   { icon: Video, title: 'SCORM + xAPI', body: 'Full SCORM 1.2/2004 support. Import existing content in minutes. No rebuild required.', accent: T.pink },
   { icon: BarChart3, title: 'Deep Analytics', body: 'Surface completion, performance, and ROI signals across every market from a single dashboard.', accent: T.red },
+  { icon: Mail, title: 'Email Nudges', body: 'Automated reminders and drip campaigns that lift completion without manual chasing from managers.', accent: T.blue },
+  { icon: Award, title: 'Certificates', body: 'Issue branded completion certificates with audit trails — ready for compliance and regulator reviews.', accent: T.pink },
+  { icon: Workflow, title: 'Assignment Rules', body: 'Auto-assign courses by role, department, or region. Onboard new hires on day one, globally.', accent: T.red },
+];
+
+const PRODUCT_MODULES = [
+  { icon: Phone, title: 'AI Mock Calls', body: 'Practice pitches and objection handling. AI scores tone, structure, and product knowledge.', href: '/login', tag: 'Sales', accent: T.pink, span: 2 },
+  { icon: Brain, title: 'AI Tutor', body: '24/7 coaching grounded in your course content and company policies.', href: '/login', tag: 'Learning', accent: T.blue, span: 1 },
+  { icon: Video, title: 'Live Call Coaching', body: 'Record, review, and score real customer calls with manager feedback loops.', href: '/login', tag: 'Coaching', accent: T.red, span: 1 },
+  { icon: BookOpen, title: 'SCORM Courses', body: 'Upload SCORM packages or build modules in the editor. Track every interaction.', href: '/login', tag: 'Content', accent: T.blue, span: 1 },
+  { icon: Library, title: 'Books Library', body: 'PDF libraries with in-app reader — ideal for playbooks, policies, and product docs.', href: '/login', tag: 'Resources', accent: T.pink, span: 1 },
+  { icon: Sparkles, title: 'DNA Studio', body: 'Extract brand DNA from any URL and generate on-brand social campaigns with AI.', href: '/dna-studio', tag: 'Marketing', accent: T.red, span: 1 },
+  { icon: Bot, title: 'Tavrion Bot', body: 'Turn any website into a RAG-powered chatbot widget in minutes.', href: '/tavrion-bot', tag: 'Support', accent: T.blue, span: 1 },
+  { icon: BarChart3, title: 'Analytics Hub', body: 'Completion, scores, leaderboards, and course reports — one dashboard for every org.', href: '/login', tag: 'Insights', accent: T.pink, span: 2 },
+];
+
+const INTEGRATIONS = [
+  'Salesforce', 'HubSpot', 'Slack', 'Microsoft Teams', 'Okta', 'Google Workspace',
+  'Workday', 'BambooHR', 'Zapier', 'REST API',
+];
+
+const COMPARE_ROWS = [
+  { label: 'AI mock call grading', tavrion: true, legacy: false },
+  { label: 'Multi-organisation tenancy', tavrion: true, legacy: false },
+  { label: 'SCORM 1.2 & 2004 import', tavrion: true, legacy: true },
+  { label: 'Live call coaching & vault', tavrion: true, legacy: false },
+  { label: 'Automated email nudges', tavrion: true, legacy: false },
+  { label: 'Department-level assignment rules', tavrion: true, legacy: false },
+  { label: 'Real-time global analytics', tavrion: true, legacy: false },
+  { label: 'SSO / SAML (Enterprise)', tavrion: true, legacy: true },
+];
+
+const FAQS = [
+  {
+    q: 'What is Tavrion?',
+    a: 'Tavrion is an enterprise learning management system (LMS) built for global sales and operations teams. It combines course delivery, AI mock calls, live coaching, certificates, and analytics in one platform.',
+  },
+  {
+    q: 'Does Tavrion support SCORM?',
+    a: 'Yes. Tavrion supports SCORM 1.2 and SCORM 2004 packages. Upload existing content without rebuilding, and track completion, scores, and time-on-task per learner.',
+  },
+  {
+    q: 'Can I manage multiple organisations or brands?',
+    a: 'Yes. Tavrion is multi-tenant by design. Platform owners can spin up separate organisations, each with its own admins, learners, courses, branding, and feature toggles.',
+  },
+  {
+    q: 'How does AI mock call training work?',
+    a: 'Learners run simulated sales or support calls. Tavrion\'s AI analyses transcripts for objection handling, tone, product knowledge, and call structure — then surfaces coaching feedback and manager dashboards.',
+  },
+  {
+    q: 'Is there a free plan?',
+    a: 'Yes. The Starter plan is free for up to 5 learners and includes core LMS features, SCORM import, and basic analytics. Growth and Enterprise plans add AI coaching, mock calls, SSO, and dedicated support.',
+  },
+  {
+    q: 'How quickly can we go live?',
+    a: 'Most teams import their first SCORM courses and invite learners within a day. Enterprise customers receive a dedicated CSM, SSO setup, and custom onboarding playbooks.',
+  },
 ];
 
 const SOLUTIONS = [
@@ -117,10 +173,12 @@ const TESTIMONIALS = [
 const LOGOS = ['Meridian', 'NovaPay', 'AtlasOps', 'TechScale', 'GlobalBank', 'Stellar'];
 
 const NAV_ITEMS = [
+  { label: 'Product', id: 'product' },
   { label: 'Platform', id: 'platform' },
   { label: 'Solutions', id: 'solutions' },
   { label: 'Enterprise', id: 'enterprise' },
   { label: 'Pricing', id: 'pricing' },
+  { label: 'FAQ', id: 'faq' },
 ];
 
 function scrollTo(id: string) {
@@ -142,11 +200,54 @@ export function LandingPage() {
   const [activeTesti, setActiveTesti] = useState(0);
   const [activeNav, setActiveNav] = useState('');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
   const width = useWindowWidth();
   const isMobile = width < 768;
   const isTablet = width < 1024;
 
-  usePageSeo(SEO.home);
+  usePageSeo({
+    title: SEO.home.title,
+    description: SEO.home.description,
+    keywords: SEO.home.keywords,
+    path: SEO.home.path,
+  });
+
+  useEffect(() => {
+    injectJsonLd('home-faq', {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: FAQS.map(({ q, a }) => ({
+        '@type': 'Question',
+        name: q,
+        acceptedAnswer: { '@type': 'Answer', text: a },
+      })),
+    });
+    injectJsonLd('home-software', {
+      '@context': 'https://schema.org',
+      '@type': 'SoftwareApplication',
+      name: 'Tavrion',
+      applicationCategory: 'BusinessApplication',
+      operatingSystem: 'Web',
+      url: SITE_URL,
+      description: SEO.home.description,
+      offers: [
+        { '@type': 'Offer', name: 'Starter', price: '0', priceCurrency: 'USD' },
+        { '@type': 'Offer', name: 'Growth', price: '12', priceCurrency: 'USD', priceSpecification: { '@type': 'UnitPriceSpecification', unitText: 'user/month' } },
+      ],
+      featureList: [
+        'AI Mock Call Training',
+        'SCORM 1.2 and 2004',
+        'Live Call Coaching',
+        'Multi-organisation LMS',
+        'Email Nudges',
+        'Learning Analytics',
+      ],
+    });
+    return () => {
+      removeJsonLd('home-faq');
+      removeJsonLd('home-software');
+    };
+  }, []);
 
   useEffect(() => {
     const fn = () => setScrollY(window.scrollY);
@@ -323,31 +424,34 @@ export function LandingPage() {
         }} />
 
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 20px', position: 'relative', zIndex: 1 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 24 }}>
+          <div className="lp-hero-in" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 24, flexWrap: 'wrap', justifyContent: 'center', animationDelay: '0ms' }}>
             <span style={{
               fontSize: 12, fontWeight: 500, color: T.blue,
               background: '#ebf5ff', padding: '4px 12px', borderRadius: 9999,
               boxShadow: T.shadowBorder,
-            }}>Now in 40+ languages</span>
+            }}>Enterprise LMS · AI coaching built in</span>
+            <span style={{ fontSize: 12, fontWeight: 500, color: T.textMuted }}>Deploy in 150+ countries</span>
           </div>
 
-          <h1 style={{
+          <h1 className="lp-hero-in" style={{
             fontSize: isMobile ? 38 : 'clamp(44px, 7vw, 72px)',
             fontWeight: 700, letterSpacing: '-0.045em', lineHeight: 1.0,
-            color: T.text, maxWidth: 800, margin: '0 auto 20px',
+            color: T.text, maxWidth: 860, margin: '0 auto 20px',
+            animationDelay: '80ms',
           }}>
-            Train the world.<br />
-            Scale without limits.
+            The enterprise LMS<br />
+            <span style={{ color: T.textMuted }}>your global teams actually use.</span>
           </h1>
 
-          <p style={{
+          <p className="lp-hero-in" style={{
             fontSize: isMobile ? 16 : 20, fontWeight: 400, color: T.textBody,
-            lineHeight: 1.75, maxWidth: 520, margin: '0 auto 36px', letterSpacing: '-0.01em',
+            lineHeight: 1.75, maxWidth: 580, margin: '0 auto 36px', letterSpacing: '-0.01em',
+            animationDelay: '160ms',
           }}>
-            The enterprise learning platform for global organisations — AI coaching, live call training, and analytics in one system.
+            Onboard faster, coach smarter, and prove ROI — with SCORM courses, AI mock calls, live coaching, certificates, and analytics in one SaaS platform.
           </p>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 48 }}>
+          <div className="lp-hero-in" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 48, animationDelay: '240ms' }}>
             <Link to="/login" style={{
               display: 'flex', alignItems: 'center', gap: 8,
               fontSize: isMobile ? 14 : 15, fontWeight: 500, color: 'white',
@@ -359,7 +463,7 @@ export function LandingPage() {
               onMouseLeave={e => (e.currentTarget.style.background = T.text)}
             >Start free trial <ArrowRight size={14} /></Link>
             <button
-              onClick={() => scrollTo('platform')}
+              onClick={() => scrollTo('product')}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 fontSize: isMobile ? 14 : 15, fontWeight: 500, color: T.text,
@@ -385,12 +489,25 @@ export function LandingPage() {
             ))}
           </div>
 
+          {/* Mobile stat strip */}
+          {isMobile && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 8, maxWidth: 400, marginLeft: 'auto', marginRight: 'auto' }}>
+              {STATS.slice(0, 3).map(stat => (
+                <div key={stat.label} style={{ background: T.bgSubtle, borderRadius: 10, padding: '12px 8px', boxShadow: T.shadowBorder, textAlign: 'center' }}>
+                  <p style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.04em', color: T.text, lineHeight: 1, marginBottom: 4 }}>{stat.value}</p>
+                  <p style={{ fontSize: 9, color: T.textFaint, fontWeight: 500, lineHeight: 1.2 }}>{stat.label}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Dashboard mockup — hidden on small mobile */}
           {!isMobile && (
-            <div style={{
+            <div className="lp-hero-in" style={{
               marginTop: 72, background: T.bg, borderRadius: '12px 12px 0 0',
               boxShadow: T.shadowCard, overflow: 'hidden',
               border: `1px solid ${T.borderStrong}`, maxWidth: 960, marginLeft: 'auto', marginRight: 'auto',
+              animationDelay: '400ms',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '12px 16px', background: T.bgSubtle, borderBottom: `1px solid ${T.borderStrong}` }}>
                 <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5b4f' }} />
@@ -424,7 +541,7 @@ export function LandingPage() {
                   <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>96.2%</span>
                 </div>
                 <div style={{ background: T.bgSection, borderRadius: 100, height: 4, overflow: 'hidden' }}>
-                  <div style={{ width: '96.2%', height: '100%', background: `linear-gradient(90deg, ${T.blue}, ${T.pink})`, borderRadius: 100 }} />
+                  <div className="lp-progress-fill" style={{ width: '96.2%', height: '100%', background: `linear-gradient(90deg, ${T.blue}, ${T.pink})`, borderRadius: 100 }} />
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
                   {['Americas', 'Europe', 'Asia Pac', 'MENA', 'LatAm'].map(r => (
@@ -454,13 +571,88 @@ export function LandingPage() {
 
       {/* ── STATS ── */}
       <section style={{ padding: isMobile ? '48px 20px' : '96px 24px', maxWidth: 1200, margin: '0 auto' }}>
+        <Reveal>
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 1, background: T.borderStrong, borderRadius: 12, overflow: 'hidden', boxShadow: T.shadowCard }}>
-          {STATS.map(stat => (
-            <div key={stat.label} style={{ background: T.bg, padding: isMobile ? '28px 16px' : '40px 32px', textAlign: 'center' }}>
+          {STATS.map((stat, i) => (
+            <Reveal key={stat.label} delay={i * 70}>
+            <div style={{ background: T.bg, padding: isMobile ? '28px 16px' : '40px 32px', textAlign: 'center' }}>
               <p style={{ fontSize: isMobile ? 36 : 'clamp(36px,5vw,52px)', fontWeight: 700, letterSpacing: '-0.045em', color: T.text, lineHeight: 1, marginBottom: 8 }}>{stat.value}</p>
               <p style={{ fontSize: 12, color: T.textFaint, fontWeight: 500 }}>{stat.label}</p>
             </div>
+            </Reveal>
           ))}
+        </div>
+        </Reveal>
+      </section>
+
+      {/* ── PRODUCT SUITE (bento) ── */}
+      <section id="product" style={{ padding: isMobile ? '60px 20px' : '96px 24px', background: T.bgSubtle, scrollMarginTop: 60 }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+          <Reveal>
+          <div style={{ textAlign: 'center', marginBottom: 52 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: T.textFaint, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 14 }}>Product Suite</p>
+            <h2 style={{ fontSize: isMobile ? 28 : 'clamp(28px,4vw,40px)', fontWeight: 700, letterSpacing: '-0.04em', color: T.text, marginBottom: 14 }}>
+              One platform. Every workflow.
+            </h2>
+            <p style={{ fontSize: isMobile ? 15 : 17, color: T.textBody, maxWidth: 560, margin: '0 auto', lineHeight: 1.7 }}>
+              From course delivery to AI coaching and brand tools — every module shares the same learner data, org structure, and analytics layer.
+            </p>
+          </div>
+          </Reveal>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
+            gap: 12,
+          }}>
+            {PRODUCT_MODULES.map((mod, i) => {
+              const isExternal = mod.href.startsWith('http');
+              const inner = (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
+                    <div style={{ width: 40, height: 40, background: `${mod.accent}12`, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `${mod.accent}30 0px 0px 0px 1px` }}>
+                      <mod.icon size={18} style={{ color: mod.accent }} />
+                    </div>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: mod.accent, background: `${mod.accent}10`, padding: '3px 8px', borderRadius: 9999, letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>{mod.tag}</span>
+                  </div>
+                  <h3 style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.03em', color: T.text, marginBottom: 8 }}>{mod.title}</h3>
+                  <p style={{ fontSize: 13, color: T.textBody, lineHeight: 1.65, marginBottom: 16, flex: 1 }}>{mod.body}</p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 500, color: mod.accent }}>
+                    Explore <ChevronRight size={13} />
+                  </div>
+                </>
+              );
+              const cardStyle: React.CSSProperties = {
+                ...cardBase,
+                padding: isMobile ? 20 : 24,
+                display: 'flex',
+                flexDirection: 'column',
+                textDecoration: 'none',
+                minHeight: isMobile ? undefined : 200,
+                height: '100%',
+              };
+              const card = isExternal ? (
+                <a href={mod.href} className="lp-card-lift" style={cardStyle}
+                  onMouseEnter={e => (e.currentTarget.style.boxShadow = T.shadowHover)}
+                  onMouseLeave={e => (e.currentTarget.style.boxShadow = T.shadowCard)}
+                >{inner}</a>
+              ) : (
+                <Link to={mod.href} className="lp-card-lift" style={cardStyle}
+                  onMouseEnter={e => (e.currentTarget.style.boxShadow = T.shadowHover)}
+                  onMouseLeave={e => (e.currentTarget.style.boxShadow = T.shadowCard)}
+                >{inner}</Link>
+              );
+              return (
+                <Reveal
+                  key={mod.title}
+                  delay={i * 55}
+                  style={{ gridColumn: !isMobile && mod.span === 2 ? 'span 2' : undefined }}
+                >
+                  {card}
+                </Reveal>
+              );
+            })}
+          </div>
         </div>
       </section>
 
@@ -470,17 +662,18 @@ export function LandingPage() {
           <div style={{ textAlign: 'center', marginBottom: 52 }}>
             <p style={{ fontSize: 11, fontWeight: 700, color: T.textFaint, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 14 }}>The Platform</p>
             <h2 style={{ fontSize: isMobile ? 28 : 'clamp(28px,4vw,40px)', fontWeight: 700, letterSpacing: '-0.04em', color: T.text, marginBottom: 14 }}>
-              Everything your global team needs
+              Ship training programs 10× faster
             </h2>
-            <p style={{ fontSize: isMobile ? 15 : 17, color: T.textBody, maxWidth: 480, margin: '0 auto', lineHeight: 1.7 }}>
-              One platform. Every region. No compromise on quality.
+            <p style={{ fontSize: isMobile ? 15 : 17, color: T.textBody, maxWidth: 520, margin: '0 auto', lineHeight: 1.7 }}>
+              Learn → Practice → Measure. The closed loop every revenue and ops leader needs.
             </p>
           </div>
 
           {/* How it works */}
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3,1fr)', gap: isMobile ? 32 : 48, marginBottom: 64 }}>
             {PIPELINE.map((step, i) => (
-              <div key={step.step} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <Reveal key={step.step} delay={i * 90}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: step.accent, fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                     {String(i + 1).padStart(2, '0')}
@@ -493,14 +686,16 @@ export function LandingPage() {
                 <h3 style={{ fontSize: 19, fontWeight: 600, letterSpacing: '-0.03em', color: step.accent }}>{step.step}</h3>
                 <p style={{ fontSize: 14, color: T.textBody, lineHeight: 1.7 }}>{step.desc}</p>
               </div>
+              </Reveal>
             ))}
           </div>
 
           {/* Feature cards */}
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : isTablet ? 'repeat(2,1fr)' : 'repeat(3,1fr)', gap: 12 }}>
-            {FEATURES.map(feat => (
+            {FEATURES.map((feat, i) => (
+              <Reveal key={feat.title} delay={(i % 3) * 60}>
               <div
-                key={feat.title}
+                className="lp-card-lift"
                 style={{ ...cardBase, padding: isMobile ? 20 : 28, cursor: 'pointer' }}
                 onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.boxShadow = T.shadowHover}
                 onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.boxShadow = T.shadowCard}
@@ -514,6 +709,7 @@ export function LandingPage() {
                   Learn more <ChevronRight size={13} />
                 </div>
               </div>
+              </Reveal>
             ))}
           </div>
         </div>
@@ -566,6 +762,63 @@ export function LandingPage() {
               onMouseEnter={e => (e.currentTarget.style.background = '#2d2d2d')}
               onMouseLeave={e => (e.currentTarget.style.background = T.text)}
             >Find your solution <ArrowRight size={15} /></Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ── INTEGRATIONS ── */}
+      <section style={{ borderTop: `1px solid ${T.borderStrong}`, borderBottom: `1px solid ${T.borderStrong}`, padding: isMobile ? '40px 20px' : '56px 24px', background: T.bg }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', textAlign: 'center' }}>
+          <p style={{ fontSize: 11, fontWeight: 700, color: T.textFaint, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>Integrations</p>
+          <h2 style={{ fontSize: isMobile ? 22 : 28, fontWeight: 700, letterSpacing: '-0.04em', color: T.text, marginBottom: 10 }}>
+            Fits your existing stack
+          </h2>
+          <p style={{ fontSize: 14, color: T.textBody, maxWidth: 480, margin: '0 auto 28px', lineHeight: 1.65 }}>
+            Connect HRIS, CRM, and identity providers. Push completions and scores where your team already works.
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: isMobile ? 10 : 14 }}>
+            {INTEGRATIONS.map(name => (
+              <span key={name} style={{
+                fontSize: 12, fontWeight: 600, color: T.textBody,
+                background: T.bgSubtle, padding: '8px 14px', borderRadius: 8,
+                boxShadow: T.shadowBorder, letterSpacing: '-0.01em',
+              }}>{name}</span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── WHY TAVRION ── */}
+      <section style={{ padding: isMobile ? '60px 20px' : '80px 24px', background: T.bgSubtle }}>
+        <div style={{ maxWidth: 720, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 36 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: T.textFaint, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 14 }}>Why Tavrion</p>
+            <h2 style={{ fontSize: isMobile ? 26 : 32, fontWeight: 700, letterSpacing: '-0.04em', color: T.text }}>
+              Built for revenue teams, not just compliance
+            </h2>
+          </div>
+          <div style={{ ...cardBase, overflow: 'hidden' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 72px 72px' : '1fr 120px 120px', gap: 0, background: T.bgSection, borderBottom: `1px solid ${T.borderStrong}`, padding: '12px 16px', fontSize: 11, fontWeight: 700, color: T.textFaint, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              <span>Capability</span>
+              <span style={{ textAlign: 'center' }}>Tavrion</span>
+              <span style={{ textAlign: 'center' }}>Legacy LMS</span>
+            </div>
+            {COMPARE_ROWS.map((row, i) => (
+              <div key={row.label} style={{
+                display: 'grid', gridTemplateColumns: isMobile ? '1fr 72px 72px' : '1fr 120px 120px',
+                padding: '14px 16px', alignItems: 'center',
+                borderBottom: i < COMPARE_ROWS.length - 1 ? `1px solid ${T.borderStrong}` : 'none',
+                background: T.bg,
+              }}>
+                <span style={{ fontSize: 13, color: T.textBody, paddingRight: 8 }}>{row.label}</span>
+                <span style={{ display: 'flex', justifyContent: 'center' }}>
+                  {row.tavrion ? <CheckCircle size={16} style={{ color: '#10b981' }} /> : <X size={16} style={{ color: T.textFaint }} />}
+                </span>
+                <span style={{ display: 'flex', justifyContent: 'center' }}>
+                  {row.legacy ? <CheckCircle size={16} style={{ color: T.textFaint }} /> : <X size={16} style={{ color: T.borderStrong }} />}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -673,6 +926,7 @@ export function LandingPage() {
           <div style={{ maxWidth: 720, margin: '0 auto' }}>
             <div style={{ ...cardBase, padding: isMobile ? '28px 20px' : '48px 40px', textAlign: 'center', position: 'relative', overflow: 'hidden', minHeight: 180 }}>
               <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: [T.blue, T.pink, T.red][activeTesti], transition: 'background 0.6s' }} />
+              <div key={activeTesti} className="lp-testi-slide">
               <blockquote style={{ fontSize: isMobile ? 15 : 'clamp(16px,2.5vw,20px)', fontWeight: 400, color: T.textBody, lineHeight: 1.7, marginBottom: 24, letterSpacing: '-0.01em', fontStyle: 'italic' }}>
                 "{TESTIMONIALS[activeTesti].quote}"
               </blockquote>
@@ -685,6 +939,7 @@ export function LandingPage() {
                   <p style={{ fontSize: 11, color: T.textFaint }}>{TESTIMONIALS[activeTesti].role}</p>
                 </div>
               </div>
+              </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 20 }}>
               {TESTIMONIALS.map((_, i) => (
@@ -696,6 +951,47 @@ export function LandingPage() {
                 }} />
               ))}
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── FAQ ── */}
+      <section id="faq" style={{ padding: isMobile ? '60px 20px' : '96px 24px', background: T.bg, scrollMarginTop: 60 }}>
+        <div style={{ maxWidth: 720, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 40 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: T.textFaint, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 14 }}>FAQ</p>
+            <h2 style={{ fontSize: isMobile ? 28 : 'clamp(28px,4vw,40px)', fontWeight: 700, letterSpacing: '-0.04em', color: T.text, marginBottom: 10 }}>
+              Frequently asked questions
+            </h2>
+            <p style={{ fontSize: 15, color: T.textBody, lineHeight: 1.65 }}>
+              Everything you need to know before rolling out Tavrion to your team.
+            </p>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {FAQS.map((faq, i) => {
+              const isOpen = openFaq === i;
+              return (
+                <div key={faq.q} style={{ ...cardBase, overflow: 'hidden' }}>
+                  <button
+                    type="button"
+                    aria-expanded={isOpen}
+                    onClick={() => setOpenFaq(isOpen ? null : i)}
+                    style={{
+                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                      padding: '16px 18px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
+                    }}
+                  >
+                    <span style={{ fontSize: 14, fontWeight: 600, color: T.text, letterSpacing: '-0.02em', lineHeight: 1.4 }}>{faq.q}</span>
+                    <ChevronDown size={16} style={{ color: T.textFaint, flexShrink: 0, transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                  </button>
+                  {isOpen && (
+                    <div className="lp-faq-body" style={{ padding: '0 18px 16px', fontSize: 14, color: T.textBody, lineHeight: 1.7, borderTop: `1px solid ${T.borderStrong}`, paddingTop: 14 }}>
+                      {faq.a}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -840,6 +1136,10 @@ export function LandingPage() {
             </span>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? 16 : 24 }}>
+            <button type="button" onClick={() => scrollTo('product')} style={{ fontSize: 12, color: T.textFaint, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Product</button>
+            <button type="button" onClick={() => scrollTo('platform')} style={{ fontSize: 12, color: T.textFaint, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Platform</button>
+            <button type="button" onClick={() => scrollTo('pricing')} style={{ fontSize: 12, color: T.textFaint, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Pricing</button>
+            <button type="button" onClick={() => scrollTo('faq')} style={{ fontSize: 12, color: T.textFaint, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>FAQ</button>
             <Link to="/dna-studio" style={{ fontSize: 12, color: T.textFaint, textDecoration: 'none' }}>DNA Studio</Link>
             <Link to="/tavrion-bot" style={{ fontSize: 12, color: T.textFaint, textDecoration: 'none' }}>Tavrion Bot</Link>
             <Link to="/login" style={{ fontSize: 12, color: T.textFaint, textDecoration: 'none' }}>Sign in</Link>
