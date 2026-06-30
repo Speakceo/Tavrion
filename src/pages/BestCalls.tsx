@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Layout } from '../components/Layout';
+import { Play, ThumbsUp, MessageCircle, Send, User } from 'lucide-react';
 import { applyOrgScope, orgIdForInsert } from '../utils/orgScope';
 
 interface BestCall {
