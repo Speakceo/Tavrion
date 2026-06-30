@@ -1,6 +1,7 @@
-import { Component, ErrorInfo, ReactNode } from 'react';
+import { Component, ErrorInfo, ReactNode, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { pingSupabaseKeepalive } from './lib/supabaseKeepalive';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { PagePasswordGate } from './components/PagePasswordGate';
 import { BooksFeatureRoute } from './components/BooksFeatureRoute';
@@ -74,10 +75,18 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
   }
 }
 
+function KeepaliveBoot() {
+  useEffect(() => {
+    pingSupabaseKeepalive();
+  }, []);
+  return null;
+}
+
 function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
+        <KeepaliveBoot />
         <AuthProvider>
           <Routes>
             <Route path="/" element={<LandingPage />} />

@@ -1,0 +1,50 @@
+# Supabase free-tier projects pause after ~7 days without external API traffic.
+# Internal DB cron does NOT count — pings must come from outside the project.
+# Runs daily with a small margin vs the 7-day window.
+
+name: Supabase keepalive
+
+on:
+  schedule:
+    # Daily at 06:23 UTC (off the hour to reduce GitHub schedule congestion)
+    - cron: '23 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping Supabase (auth + REST)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_ANON_KEY:-}" ]; then
+            echo "::error::Add SUPABASE_URL and SUPABASE_ANON_KEY to GitHub repository secrets."
+            exit 1
+          fi
+
+          BASE="${SUPABASE_URL%/}"
+          AUTH_CODE=$(curl -s -o /tmp/auth-health.json -w "%{http_code}" \
+            "${BASE}/auth/v1/health" \
+            -H "apikey: ${SUPABASE_ANON_KEY}")
+
+          REST_CODE=$(curl -s -o /tmp/rest-orgs.json -w "%{http_code}" \
+            "${BASE}/rest/v1/organizations?select=id&limit=1" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}")
+
+          echo "Auth health HTTP ${AUTH_CODE}"
+          echo "REST organizations HTTP ${REST_CODE}"
+
+          if [ "$AUTH_CODE" != "200" ] && [ "$REST_CODE" != "200" ]; then
+            echo "::error::Keepalive failed — auth=${AUTH_CODE}, rest=${REST_CODE}"
+            cat /tmp/auth-health.json 2>/dev/null || true
+            cat /tmp/rest-orgs.json 2>/dev/null || true
+            exit 1
+          fi
+
+          echo "Supabase keepalive OK at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
