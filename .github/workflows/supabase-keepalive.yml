@@ -32,18 +32,18 @@ jobs:
             "${BASE}/auth/v1/health" \
             -H "apikey: ${SUPABASE_ANON_KEY}")
 
-          REST_CODE=$(curl -s -o /tmp/rest-orgs.json -w "%{http_code}" \
-            "${BASE}/rest/v1/organizations?select=id&limit=1" \
+          REST_CODE=$(curl -s -o /tmp/rest-enquiries.json -w "%{http_code}" \
+            "${BASE}/rest/v1/enquiries?select=id&limit=1" \
             -H "apikey: ${SUPABASE_ANON_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_ANON_KEY}")
 
           echo "Auth health HTTP ${AUTH_CODE}"
-          echo "REST organizations HTTP ${REST_CODE}"
+          echo "REST enquiries HTTP ${REST_CODE}"
 
           if [ "$AUTH_CODE" != "200" ] && [ "$REST_CODE" != "200" ]; then
             echo "::error::Keepalive failed — auth=${AUTH_CODE}, rest=${REST_CODE}"
             cat /tmp/auth-health.json 2>/dev/null || true
-            cat /tmp/rest-orgs.json 2>/dev/null || true
+            cat /tmp/rest-enquiries.json 2>/dev/null || true
             exit 1
           fi
 

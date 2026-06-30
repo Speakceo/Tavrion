@@ -19,5 +19,5 @@ export function pingSupabaseKeepalive() {
   const headers = { apikey: key, Authorization: `Bearer ${key}` };
 
   void fetch(`${base}/auth/v1/health`, { headers }).catch(() => {});
-  void fetch(`${base}/rest/v1/organizations?select=id&limit=1`, { headers }).catch(() => {});
+  void fetch(`${base}/rest/v1/enquiries?select=id&limit=1`, { headers }).catch(() => {});
 }

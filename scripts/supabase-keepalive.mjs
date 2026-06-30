@@ -26,7 +26,7 @@ async function ping(path, label) {
 }
 
 const authOk = await ping('/auth/v1/health', 'Auth health');
-const restOk = await ping('/rest/v1/organizations?select=id&limit=1', 'REST organizations');
+const restOk = await ping('/rest/v1/enquiries?select=id&limit=1', 'REST enquiries');
 
 if (!authOk && !restOk) process.exit(1);
 console.log('Keepalive OK');
