@@ -1,32 +1,18 @@
 #!/usr/bin/env node
-/**
- * Manual / local keepalive ping for Supabase free tier.
- * Usage: node scripts/supabase-keepalive.mjs
- * Env: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY (or SUPABASE_URL, SUPABASE_ANON_KEY)
- */
-import dotenv from 'dotenv';
+/** Manual keepalive check — no env vars required. */
+const BASE = 'https://jilehijfjayayfumbrsl.supabase.co';
+const KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppbGVoaWpmamF5YXlmdW1icnNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzNzQ1ODQsImV4cCI6MjA5Nzk1MDU4NH0.UFzU1lXpguU3NoW8zKqsfYUVMdIgxOrSbofWV7OmmQw';
 
-dotenv.config();
-
-const url = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
-const key = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-
-if (!url || !key) {
-  console.error('Missing SUPABASE_URL and SUPABASE_ANON_KEY');
-  process.exit(1);
-}
-
-const headers = { apikey: key, Authorization: `Bearer ${key}` };
+const headers = { apikey: KEY, Authorization: `Bearer ${KEY}` };
 
 async function ping(path, label) {
-  const res = await fetch(`${url}${path}`, { headers });
-  const body = await res.text();
-  console.log(`${label}: HTTP ${res.status}${body ? ` — ${body.slice(0, 120)}` : ''}`);
+  const res = await fetch(`${BASE}${path}`, { headers });
+  console.log(`${label}: HTTP ${res.status}`);
   return res.ok;
 }
 
 const authOk = await ping('/auth/v1/health', 'Auth health');
-const restOk = await ping('/rest/v1/enquiries?select=id&limit=1', 'REST enquiries');
-
+const restOk = await ping('/rest/v1/organizations?select=id&limit=1', 'REST organizations');
 if (!authOk && !restOk) process.exit(1);
 console.log('Keepalive OK');

@@ -1,23 +1,26 @@
+import {
+  SUPABASE_KEEPALIVE_PATHS,
+  SUPABASE_PROJECT_URL,
+  supabaseKeepaliveHeaders,
+} from '../../shared/supabaseProject';
+
 const SESSION_KEY = 'tavrion_supabase_keepalive';
-const MIN_INTERVAL_MS = 4 * 60 * 60 * 1000; // once per 4 hours per browser session
+const MIN_INTERVAL_MS = 4 * 60 * 60 * 1000;
 
-/** Lightweight client ping when the app is used (backup to scheduled GitHub Action). */
+/** Lightweight client ping when the app loads (backup to scheduled keepalives). */
 export function pingSupabaseKeepalive() {
-  const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-  const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
-  if (!url || !key) return;
-
   try {
     const last = sessionStorage.getItem(SESSION_KEY);
     if (last && Date.now() - Number(last) < MIN_INTERVAL_MS) return;
     sessionStorage.setItem(SESSION_KEY, String(Date.now()));
   } catch {
-    // sessionStorage unavailable (SSR / private mode)
+    // sessionStorage unavailable
   }
 
-  const base = url.replace(/\/$/, '');
-  const headers = { apikey: key, Authorization: `Bearer ${key}` };
+  const base = SUPABASE_PROJECT_URL.replace(/\/$/, '');
+  const headers = supabaseKeepaliveHeaders();
 
-  void fetch(`${base}/auth/v1/health`, { headers }).catch(() => {});
-  void fetch(`${base}/rest/v1/enquiries?select=id&limit=1`, { headers }).catch(() => {});
+  for (const path of SUPABASE_KEEPALIVE_PATHS) {
+    void fetch(`${base}${path}`, { headers }).catch(() => {});
+  }
 }
