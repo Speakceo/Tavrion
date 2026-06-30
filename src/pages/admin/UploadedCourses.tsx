@@ -9,6 +9,7 @@ import { createScormPackage, type ScormCourseData } from '../../utils/scormCreat
 import { convertScormForCompatibility, needsConversion, type ConversionResult } from '../../utils/scormConverter';
 import { uploadLargeFile } from '../../utils/chunkedUpload';
 import { applyOrgUserScope, filterByDepartment, uniqueSortedStrings } from '../../utils/orgUsers';
+import { applyOrgScope, orgIdForInsert } from '../../utils/orgScope';
 
 interface UploadedCourse {
   id: string;
@@ -87,7 +88,7 @@ export function UploadedCourses() {
   const loadCourses = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      let query = supabase
         .from('uploaded_courses')
         .select(`
           *,
@@ -95,6 +96,8 @@ export function UploadedCourses() {
           quiz:uploaded_course_quizzes(enabled, passing_score)
         `)
         .order('created_at', { ascending: false });
+      query = applyOrgScope(query, profile);
+      const { data, error } = await query;
 
       if (error) throw error;
       const processedData = (data || []).map((course: any) => ({
@@ -232,6 +235,7 @@ export function UploadedCourses() {
           file_size: scormBlob.size,
           category: createScormForm.category,
           uploaded_by: profile?.id,
+          organization_id: orgIdForInsert(profile),
         });
 
       if (dbError) throw dbError;
@@ -361,6 +365,7 @@ export function UploadedCourses() {
           file_size: uploadForm.file.size,
           category: uploadForm.category,
           uploaded_by: profile?.id,
+          organization_id: orgIdForInsert(profile),
         })
         .select()
         .single();

@@ -91,7 +91,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { scenarioType, userMessage, conversationHistory, userId, isNewCall } = await req.json();
+    const { scenarioType, userMessage, conversationHistory, userId, isNewCall, systemPrompt: systemPromptOverride } = await req.json();
 
     if (!userId) {
       return new Response(
@@ -315,7 +315,7 @@ OBJECTIONS TO RAISE:
 Be pleasant but transactional. Appreciate value-adds beyond just price matching.`
     };
 
-    const systemPrompt = `${scenarios[scenarioType]}
+    const RULES_SUFFIX = `
 
 IMPORTANT RULES:
 - Keep responses brief (2-4 sentences maximum)
@@ -326,6 +326,10 @@ IMPORTANT RULES:
 - Use realistic filler words occasionally: "um", "like", "you know"
 - Ask follow-up questions based on what the agent says
 - Remember previous conversation context`;
+
+    const systemPrompt = systemPromptOverride
+      ? `${systemPromptOverride}${RULES_SUFFIX}`
+      : `${scenarios[scenarioType] || scenarios.budget_concern}${RULES_SUFFIX}`;
 
     const messages = [
       { role: "system", content: systemPrompt },

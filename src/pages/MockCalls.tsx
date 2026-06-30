@@ -6,7 +6,11 @@ import { Phone, Mic, MicOff, PhoneOff, Send, TrendingUp, Award, Clock, Sparkles,
 import { openaiService } from '../services/openai';
 import type { MockCallSession } from '../types';
 
-type ScenarioType = 'budget_concern' | 'location_specific' | 'safety_parent' | 'amenities_luxury' | 'urgent_booking' | 'payment_issues' | 'roommate_issues' | 'lease_negotiation' | 'maintenance_complaints' | 'cancellation_refund' | 'group_booking' | 'pet_friendly' | 'accessibility_needs' | 'cultural_dietary' | 'late_night_inquiry' | 'competitive_offer';
+import { fetchOrgMockScenarios, getScenarioIcon } from '../utils/mockCallScenarios';
+import { orgIdForInsert } from '../utils/orgScope';
+import type { MockScenarioRow } from '../data/defaultMockScenarios';
+
+type ScenarioKey = string;
 
 interface Message {
   role: 'agent' | 'customer';
@@ -14,157 +18,11 @@ interface Message {
   timestamp: Date;
 }
 
-const scenarios = [
-  {
-    type: 'budget_concern' as ScenarioType,
-    title: 'Budget-Conscious Student',
-    character: 'Priya',
-    description: 'Price-sensitive student comparing options and worried about hidden costs',
-    icon: DollarSign,
-    color: 'emerald',
-    difficulty: 'Medium'
-  },
-  {
-    type: 'location_specific' as ScenarioType,
-    title: 'Location-Focused Student',
-    character: 'Jake',
-    description: 'Concerned about distance to campus, neighborhood safety, and local amenities',
-    icon: MapPin,
-    color: 'blue',
-    difficulty: 'Easy'
-  },
-  {
-    type: 'safety_parent' as ScenarioType,
-    title: 'Concerned Parent',
-    character: 'Mrs. Chen',
-    description: 'Protective parent worried about daughter\'s safety and accommodation security',
-    icon: Shield,
-    color: 'rose',
-    difficulty: 'Hard'
-  },
-  {
-    type: 'amenities_luxury' as ScenarioType,
-    title: 'Premium Seeker',
-    character: 'Mohammed',
-    description: 'High expectations for amenities, quality, and service standards',
-    icon: Award,
-    color: 'violet',
-    difficulty: 'Medium'
-  },
-  {
-    type: 'urgent_booking' as ScenarioType,
-    title: 'Urgent Booking',
-    character: 'Lisa',
-    description: 'Stressed student with immediate accommodation needs and scam concerns',
-    icon: Clock,
-    color: 'amber',
-    difficulty: 'Hard'
-  },
-  {
-    type: 'payment_issues' as ScenarioType,
-    title: 'Payment Complications',
-    character: 'Raj',
-    description: 'International student facing guarantor and payment transfer challenges',
-    icon: Users,
-    color: 'cyan',
-    difficulty: 'Medium'
-  },
-  {
-    type: 'roommate_issues' as ScenarioType,
-    title: 'Roommate Concerns',
-    character: 'Sofia',
-    description: 'PhD student with bad roommate history seeking control over living arrangements',
-    icon: Users,
-    color: 'teal',
-    difficulty: 'Medium'
-  },
-  {
-    type: 'lease_negotiation' as ScenarioType,
-    title: 'Lease Negotiation',
-    character: 'David',
-    description: 'Experienced mature student who knows tenant rights and negotiates terms',
-    icon: FileText,
-    color: 'slate',
-    difficulty: 'Hard'
-  },
-  {
-    type: 'maintenance_complaints' as ScenarioType,
-    title: 'Maintenance Worries',
-    character: 'Emma',
-    description: 'Student with past maintenance nightmares needing response time reassurance',
-    icon: AlertCircle,
-    color: 'orange',
-    difficulty: 'Easy'
-  },
-  {
-    type: 'cancellation_refund' as ScenarioType,
-    title: 'Cancellation Anxiety',
-    character: 'Marcus',
-    description: 'Risk-averse student worried about visa rejection and deposit loss',
-    icon: X,
-    color: 'red',
-    difficulty: 'Medium'
-  },
-  {
-    type: 'group_booking' as ScenarioType,
-    title: 'Group Booking',
-    character: 'Aisha',
-    description: 'Organizer seeking group discount and coordinating multiple friends',
-    icon: Users,
-    color: 'indigo',
-    difficulty: 'Medium'
-  },
-  {
-    type: 'pet_friendly' as ScenarioType,
-    title: 'Emotional Support Pet',
-    character: 'Tom',
-    description: 'Grad student with service dog facing discrimination and legal concerns',
-    icon: Heart,
-    color: 'pink',
-    difficulty: 'Hard'
-  },
-  {
-    type: 'accessibility_needs' as ScenarioType,
-    title: 'Accessibility Requirements',
-    character: 'Fatima',
-    description: 'Wheelchair user tired of false accessibility claims needing specifics',
-    icon: Accessibility,
-    color: 'purple',
-    difficulty: 'Hard'
-  },
-  {
-    type: 'cultural_dietary' as ScenarioType,
-    title: 'Cultural & Dietary Needs',
-    character: 'Hassan',
-    description: 'Muslim student requiring halal kitchen and prayer space',
-    icon: Globe,
-    color: 'green',
-    difficulty: 'Medium'
-  },
-  {
-    type: 'late_night_inquiry' as ScenarioType,
-    title: 'Late Night Inquiry',
-    character: 'Alex',
-    description: 'Busy professional expecting service outside business hours',
-    icon: Moon,
-    color: 'navy',
-    difficulty: 'Easy'
-  },
-  {
-    type: 'competitive_offer' as ScenarioType,
-    title: 'Competitive Offer',
-    character: 'Nina',
-    description: 'Savvy negotiator with multiple offers seeking best deal',
-    icon: Zap,
-    color: 'yellow',
-    difficulty: 'Hard'
-  }
-];
-
 export function MockCalls() {
   const { profile } = useAuth();
+  const [orgScenarios, setOrgScenarios] = useState<MockScenarioRow[]>([]);
   const [sessions, setSessions] = useState<MockCallSession[]>([]);
-  const [selectedScenario, setSelectedScenario] = useState<ScenarioType | null>(null);
+  const [selectedScenario, setSelectedScenario] = useState<ScenarioKey | null>(null);
   const [inCall, setInCall] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -179,6 +37,11 @@ export function MockCalls() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [isTranscribing, setIsTranscribing] = useState(false);
+
+  useEffect(() => {
+    if (!profile?.organization_id) return;
+    fetchOrgMockScenarios(profile.organization_id).then(setOrgScenarios).catch(console.error);
+  }, [profile?.organization_id]);
 
   useEffect(() => {
     fetchSessions();
@@ -357,9 +220,10 @@ export function MockCalls() {
 
       await supabase.from('mock_call_sessions').insert({
         user_id: profile!.id,
+        organization_id: orgIdForInsert(profile),
         scenario_type: selectedScenario!,
         scenario_details: {
-          character: scenarios.find(s => s.type === selectedScenario)?.character
+          character: activeScenario?.character_name
         },
         transcript: messages,
         score: result.score,
@@ -377,6 +241,8 @@ export function MockCalls() {
     }
   };
 
+  const activeScenario = orgScenarios.find((s) => s.scenario_key === selectedScenario);
+
   const getAIResponse = async (conversationHistory: Message[], isNewCall: boolean = false): Promise<string> => {
     try {
       if (!profile) {
@@ -385,6 +251,7 @@ export function MockCalls() {
 
       const response = await openaiService.mockCallAgent({
         scenarioType: selectedScenario!,
+        systemPrompt: activeScenario?.system_prompt,
         userMessage: conversationHistory.length > 0 ? conversationHistory[conversationHistory.length - 1].message : '',
         conversationHistory: conversationHistory.map(msg => ({
           role: msg.role,
@@ -513,18 +380,20 @@ export function MockCalls() {
             <p className="text-gray-600 mb-6">Select a realistic customer situation to practice your sales and support skills</p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              {scenarios.map((scenario) => (
+              {orgScenarios.map((scenario) => {
+                const Icon = getScenarioIcon(scenario.icon_name);
+                return (
                 <button
-                  key={scenario.type}
-                  onClick={() => setSelectedScenario(scenario.type)}
+                  key={scenario.scenario_key}
+                  onClick={() => setSelectedScenario(scenario.scenario_key)}
                   className={`p-5 rounded-xl border-2 transition-all text-left hover:scale-105 ${
-                    selectedScenario === scenario.type
+                    selectedScenario === scenario.scenario_key
                       ? 'border-blue-600 bg-blue-50 shadow-lg'
                       : 'border-gray-200 hover:border-gray-300 bg-white'
                   }`}
                 >
                   <div className="bg-gray-100 p-3 rounded-lg inline-block mb-3">
-                    <scenario.icon className="w-6 h-6 text-gray-700" />
+                    <Icon className="w-6 h-6 text-gray-700" />
                   </div>
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-base font-bold text-gray-900">{scenario.title}</h3>
@@ -532,10 +401,10 @@ export function MockCalls() {
                       {scenario.difficulty}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-600 mb-2 font-medium">{scenario.character}</p>
+                  <p className="text-xs text-gray-600 mb-2 font-medium">{scenario.character_name}</p>
                   <p className="text-xs text-gray-500 line-clamp-2">{scenario.description}</p>
                 </button>
-              ))}
+              );})}
             </div>
 
             {selectedScenario && (
@@ -564,7 +433,7 @@ export function MockCalls() {
                 <div>
                   <h2 className="text-2xl font-bold mb-1">Live Call in Progress</h2>
                   <p className="text-blue-100">
-                    {scenarios.find(s => s.type === selectedScenario)?.title} - {scenarios.find(s => s.type === selectedScenario)?.character}
+                    {activeScenario?.title} - {activeScenario?.character_name}
                   </p>
                   <div className="flex items-center space-x-2 mt-2">
                     <div className="flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-medium bg-blue-400 text-white">
@@ -600,7 +469,7 @@ export function MockCalls() {
                     }`}
                   >
                     <div className="text-xs font-medium mb-1 opacity-75">
-                      {msg.role === 'agent' ? 'You' : scenarios.find(s => s.type === selectedScenario)?.character}
+                      {msg.role === 'agent' ? 'You' : activeScenario?.character_name}
                     </div>
                     <p className="text-sm leading-relaxed">{msg.message}</p>
                   </div>
@@ -751,13 +620,13 @@ export function MockCalls() {
             </div>
             <div className="divide-y divide-gray-200">
               {sessions.slice(0, 5).map((session) => {
-                const scenario = scenarios.find(s => s.type === session.scenario_type);
+                const scenario = orgScenarios.find(s => s.scenario_key === session.scenario_type);
                 return (
                   <div key={session.id} className="p-6 hover:bg-gray-50 transition-colors">
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <div className="flex items-center space-x-3 mb-2">
-                          {scenario && <scenario.icon className="w-5 h-5 text-gray-600" />}
+                          {scenario && (() => { const Icon = getScenarioIcon(scenario.icon_name); return <Icon className="w-5 h-5 text-gray-600" />; })()}
                           <h3 className="text-lg font-semibold text-gray-900">
                             {scenario?.title || 'Practice Call'}
                           </h3>

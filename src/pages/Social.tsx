@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { applyOrgScope, orgIdForInsert } from '../utils/orgScope';
 import { Heart, MessageCircle, Share2, Send, MoreHorizontal, Bookmark, Image as ImageIcon, Video, X, Trash2 } from 'lucide-react';
 
 interface Post {
@@ -52,10 +53,9 @@ export function Social() {
     try {
       setLoading(true);
 
-      const { data: postsData, error: postsError } = await supabase
-        .from('social_posts')
-        .select('*')
-        .order('created_at', { ascending: false });
+      let query = supabase.from('social_posts').select('*').order('created_at', { ascending: false });
+      query = applyOrgScope(query, profile);
+      const { data: postsData, error: postsError } = await query;
 
       if (postsError) throw postsError;
 
@@ -153,6 +153,7 @@ export function Social() {
 
       const postData = {
         user_id: profile.id,
+        organization_id: orgIdForInsert(profile),
         content: newPost || '',
         media_url: mediaUrl,
         media_type: mediaType,

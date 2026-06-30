@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { Layout } from '../../components/Layout';
 import { Upload, Trash2, Play, Pause, ThumbsUp, MessageCircle, Search, Filter, Plus, X } from 'lucide-react';
+import { applyOrgScope, orgIdForInsert } from '../../utils/orgScope';
 
 interface BestCall {
   id: string;
@@ -52,18 +53,20 @@ export function BestCalls() {
 
   useEffect(() => {
     loadCalls();
-  }, []);
+  }, [profile]);
 
   const loadCalls = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      let query = supabase
         .from('best_calls')
         .select(`
           *,
           uploader:user_profiles!best_calls_uploaded_by_fkey(full_name, email)
         `)
         .order('created_at', { ascending: false });
+      query = applyOrgScope(query, profile);
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -135,6 +138,7 @@ export function BestCalls() {
           file_size: uploadForm.file.size,
           duration: uploadForm.duration ? parseInt(uploadForm.duration) : null,
           uploaded_by: profile?.id,
+          organization_id: orgIdForInsert(profile),
         });
 
       if (dbError) throw dbError;

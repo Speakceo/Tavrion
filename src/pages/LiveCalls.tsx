@@ -2,9 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Layout } from '../components/Layout';
-import { Radio, Mic, PhoneOff, TrendingUp, Award, Clock, AlertCircle, Sparkles, DollarSign, MapPin, Shield, Users, FileText, X, Heart, Accessibility, Globe, Moon, Zap, Star } from 'lucide-react';
-
-type ScenarioType = 'budget_concern' | 'location_specific' | 'safety_parent' | 'amenities_luxury' | 'urgent_booking' | 'payment_issues' | 'roommate_issues' | 'lease_negotiation' | 'maintenance_complaints' | 'cancellation_refund' | 'group_booking' | 'pet_friendly' | 'accessibility_needs' | 'cultural_dietary' | 'late_night_inquiry' | 'competitive_offer';
+import { Radio, Mic, PhoneOff, TrendingUp, Award, Clock, AlertCircle, Sparkles, Star } from 'lucide-react';
+import { openaiService } from '../services/openai';
+import { fetchOrgMockScenarios, getScenarioIcon } from '../utils/mockCallScenarios';
+import { applyOrgScope, orgIdForInsert } from '../utils/orgScope';
+import type { MockScenarioRow } from '../data/defaultMockScenarios';
 
 interface Message {
   role: 'agent' | 'customer';
@@ -15,7 +17,7 @@ interface Message {
 interface LiveCallSession {
   id: string;
   user_id: string;
-  scenario_type: ScenarioType;
+  scenario_type: string;
   scenario_details: any;
   duration: number;
   transcript: Message[];
@@ -24,173 +26,11 @@ interface LiveCallSession {
   completed_at: string;
 }
 
-const scenarios = [
-  {
-    type: 'budget_concern' as ScenarioType,
-    title: 'Budget-Conscious Student',
-    character: 'Priya',
-    description: 'Price-sensitive student comparing options and worried about hidden costs',
-    icon: DollarSign,
-    systemPrompt: 'You are Priya, a 19-year-old international student from India on a tight budget. Every dollar matters to you. You compare everything, ask about hidden fees, mention cheaper options you found online, and get nervous when prices seem too high. You want accommodation but are scared of overspending. React with relief when things are affordable, concern when they\'re expensive. Be polite but persistent about costs. Keep responses natural and conversational, 1-3 sentences max.',
-    difficulty: 'Medium',
-    voice: 'nova'
-  },
-  {
-    type: 'location_specific' as ScenarioType,
-    title: 'Location-Focused Student',
-    character: 'Jake',
-    description: 'Concerned about distance to campus, neighborhood safety, and local amenities',
-    icon: MapPin,
-    systemPrompt: 'You are Jake, a student very concerned about location. Ask about distance to campus, public transportation, neighborhood safety, nearby grocery stores, and local amenities. Keep responses natural and conversational, 1-3 sentences max.',
-    difficulty: 'Easy',
-    voice: 'onyx'
-  },
-  {
-    type: 'safety_parent' as ScenarioType,
-    title: 'Concerned Parent',
-    character: 'Mrs. Chen',
-    description: 'Protective parent worried about daughter\'s safety and accommodation security',
-    icon: Shield,
-    systemPrompt: 'You are Mrs. Chen, a protective mother booking accommodation for your 18-year-old daughter who will be living alone for the first time in a foreign country. You need to be ABSOLUTELY certain she will be safe. You ask detailed questions about locks, security cameras, who has access to buildings, emergency procedures, lighting, and neighborhood safety. You won\'t accept vague answers like "it\'s safe" - you need specific details. Show anxiety about your daughter\'s safety. Keep responses 1-3 sentences. Only relax when given concrete security information.',
-    difficulty: 'Hard',
-    voice: 'shimmer'
-  },
-  {
-    type: 'amenities_luxury' as ScenarioType,
-    title: 'Premium Seeker',
-    character: 'Mohammed',
-    description: 'High expectations for amenities, quality, and service standards',
-    icon: Award,
-    systemPrompt: 'You are Mohammed, a student with high expectations for quality. Ask about premium amenities, room quality, maintenance standards, and service levels. You are willing to pay more for better quality. Keep responses natural and conversational, 1-3 sentences max.',
-    difficulty: 'Medium',
-    voice: 'onyx'
-  },
-  {
-    type: 'urgent_booking' as ScenarioType,
-    title: 'Urgent Booking',
-    character: 'Lisa',
-    description: 'Stressed student with immediate accommodation needs and scam concerns',
-    icon: Clock,
-    systemPrompt: 'You are Lisa, a panicked student who just got accepted off a waitlist and needs to move in within 3-4 days. You\'re stressed, speaking quickly, and worried you\'ll get scammed because you have to decide so fast. You keep asking "how quickly can I move in?" and "is this legitimate?" You want to believe them but you\'re scared. Show urgency and anxiety. Get frustrated if the agent is too slow or unclear. Keep responses 2-3 sentences.',
-    difficulty: 'Hard',
-    voice: 'nova'
-  },
-  {
-    type: 'payment_issues' as ScenarioType,
-    title: 'Payment Complications',
-    character: 'Raj',
-    description: 'International student facing guarantor and payment transfer challenges',
-    icon: Users,
-    systemPrompt: 'You are Raj, an international student with payment concerns. Ask about guarantor requirements, international payment methods, currency conversion, and payment schedules. Express concern about financial logistics. Keep responses natural and conversational, 1-3 sentences max.',
-    difficulty: 'Medium',
-    voice: 'onyx'
-  },
-  {
-    type: 'roommate_issues' as ScenarioType,
-    title: 'Roommate Concerns',
-    character: 'Sofia',
-    description: 'PhD student with bad roommate history seeking control over living arrangements',
-    icon: Users,
-    systemPrompt: 'You are Sofia, a PhD student who had bad roommate experiences. Ask about roommate matching process, private room options, quiet hours, and whether you can choose roommates. Express concern about compatibility. Keep responses natural and conversational, 1-3 sentences max.',
-    difficulty: 'Medium',
-    voice: 'shimmer'
-  },
-  {
-    type: 'lease_negotiation' as ScenarioType,
-    title: 'Lease Negotiation',
-    character: 'David',
-    description: 'Experienced mature student who knows tenant rights and negotiates terms',
-    icon: FileText,
-    systemPrompt: 'You are David, a 28-year-old mature student who has rented many places before and knows his rights. You\'re confident and assertive. You question anything that seems unfair, reference tenant laws, and negotiate professionally. You push back on unreasonable deposits, ask about lease break clauses, and want flexibility. You\'re friendly but firm - you won\'t be taken advantage of. If the agent gives you a standard "that\'s just our policy," challenge it respectfully. Keep responses 2-3 sentences.',
-    difficulty: 'Hard',
-    voice: 'onyx'
-  },
-  {
-    type: 'maintenance_complaints' as ScenarioType,
-    title: 'Maintenance Worries',
-    character: 'Emma',
-    description: 'Student with past maintenance nightmares needing response time reassurance',
-    icon: AlertCircle,
-    systemPrompt: 'You are Emma, a student who had terrible maintenance experiences before. Ask about maintenance response times, how to report issues, past maintenance problems, and express anxiety about potential issues. Keep responses natural and conversational, 1-3 sentences max.',
-    difficulty: 'Easy',
-    voice: 'nova'
-  },
-  {
-    type: 'cancellation_refund' as ScenarioType,
-    title: 'Cancellation Anxiety',
-    character: 'Marcus',
-    description: 'Risk-averse student worried about visa rejection and deposit loss',
-    icon: X,
-    systemPrompt: 'You are Marcus, a risk-averse student worried about visa rejection. Ask repeatedly about cancellation policy, refund terms, what happens if visa is rejected, and express anxiety about losing money. Keep responses natural and conversational, 1-3 sentences max.',
-    difficulty: 'Medium',
-    voice: 'onyx'
-  },
-  {
-    type: 'group_booking' as ScenarioType,
-    title: 'Group Booking',
-    character: 'Aisha',
-    description: 'Organizer seeking group discount and coordinating multiple friends',
-    icon: Users,
-    systemPrompt: 'You are Aisha, organizing accommodation for you and 3-4 friends. Ask about group discounts, nearby rooms, group booking process, and coordinating multiple applications. Keep responses natural and conversational, 1-3 sentences max.',
-    difficulty: 'Medium',
-    voice: 'shimmer'
-  },
-  {
-    type: 'pet_friendly' as ScenarioType,
-    title: 'Emotional Support Pet',
-    character: 'Tom',
-    description: 'Grad student with service dog facing discrimination and legal concerns',
-    icon: Heart,
-    systemPrompt: 'You are Tom, a grad student with a registered emotional support dog. Assert your legal rights, ask about pet policies, express frustration if you sense discrimination, and provide documentation readiness. Keep responses natural and conversational, 1-3 sentences max.',
-    difficulty: 'Hard',
-    voice: 'onyx'
-  },
-  {
-    type: 'accessibility_needs' as ScenarioType,
-    title: 'Accessibility Requirements',
-    character: 'Fatima',
-    description: 'Wheelchair user tired of false accessibility claims needing specifics',
-    icon: Accessibility,
-    systemPrompt: 'You are Fatima, a 21-year-old wheelchair user who is EXHAUSTED from landlords claiming places are "accessible" when they\'re not. You\'ve been burned before. You ask hyper-specific questions: exact door widths in centimeters, threshold heights, grab bar locations, shower chair space, turning radius in bathrooms. When agents say "yes it\'s accessible," you respond with skepticism and demand specifics. You\'re polite but direct - you NEED real measurements and details, not promises. Show frustration with vague answers but relief with concrete information. Keep responses 2-3 sentences.',
-    difficulty: 'Hard',
-    voice: 'shimmer'
-  },
-  {
-    type: 'cultural_dietary' as ScenarioType,
-    title: 'Cultural & Dietary Needs',
-    character: 'Hassan',
-    description: 'Muslim student requiring halal kitchen and prayer space',
-    icon: Globe,
-    systemPrompt: 'You are Hassan, a Muslim student with specific cultural needs. Ask about halal kitchen facilities, prayer space, cultural diversity in building, and whether your needs can be accommodated. Keep responses natural and conversational, 1-3 sentences max.',
-    difficulty: 'Medium',
-    voice: 'onyx'
-  },
-  {
-    type: 'late_night_inquiry' as ScenarioType,
-    title: 'Late Night Inquiry',
-    character: 'Alex',
-    description: 'Busy professional expecting service outside business hours',
-    icon: Moon,
-    systemPrompt: 'You are Alex, a busy professional student contacting late at night. Express frustration about difficulty reaching someone, ask about 24/7 support, and mention you can only communicate outside business hours. Keep responses natural and conversational, 1-3 sentences max.',
-    difficulty: 'Easy',
-    voice: 'alloy'
-  },
-  {
-    type: 'competitive_offer' as ScenarioType,
-    title: 'Competitive Offer',
-    character: 'Nina',
-    description: 'Savvy negotiator with multiple offers seeking best deal',
-    icon: Zap,
-    systemPrompt: 'You are Nina, a confident 22-year-old grad student who has THREE other accommodation offers and you know it gives you leverage. You casually mention what competitors are offering ("XYZ Housing is giving me a $200 discount..." or "ABC Apartments includes utilities..."). You\'re not rude but you\'re definitely negotiating. You want the best deal and you\'re not afraid to play offers against each other. If they match or beat other offers, you\'re ready to commit. Show interest but make it clear you have options. Keep responses 2-3 sentences.',
-    difficulty: 'Hard',
-    voice: 'nova'
-  }
-];
-
 export function LiveCalls() {
   const { profile } = useAuth();
+  const [orgScenarios, setOrgScenarios] = useState<MockScenarioRow[]>([]);
   const [sessions, setSessions] = useState<LiveCallSession[]>([]);
-  const [selectedScenario, setSelectedScenario] = useState<ScenarioType | null>(null);
+  const [selectedScenario, setSelectedScenario] = useState<string | null>(null);
   const [inCall, setInCall] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -211,6 +51,15 @@ export function LiveCalls() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [callQualityRating, setCallQualityRating] = useState<number>(0);
   const [showRatingModal, setShowRatingModal] = useState(false);
+
+  const activeScenario = orgScenarios.find((s) => s.scenario_key === selectedScenario);
+  const scenarioByKey = (key: string | null | undefined) =>
+    orgScenarios.find((s) => s.scenario_key === key);
+
+  useEffect(() => {
+    if (!profile?.organization_id) return;
+    fetchOrgMockScenarios(profile.organization_id).then(setOrgScenarios).catch(console.error);
+  }, [profile?.organization_id]);
 
   useEffect(() => {
     fetchSessions();
@@ -240,13 +89,16 @@ export function LiveCalls() {
   const fetchSessions = async () => {
     if (!profile) return;
 
-    const { data } = await supabase
+    let query = supabase
       .from('live_call_sessions')
       .select('*')
       .eq('user_id', profile.id)
       .order('completed_at', { ascending: false })
       .limit(10);
 
+    query = applyOrgScope(query, profile);
+
+    const { data } = await query;
     if (data) setSessions(data);
   };
 
@@ -258,24 +110,10 @@ export function LiveCalls() {
 
       setIsPlaying(true);
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/live-call-proxy`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({
-          action: 'text-to-speech',
-          text: text,
-          voice: voice
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate speech');
-      }
-
-      const audioBlob = await response.blob();
+      const validVoice = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'].includes(voice)
+        ? (voice as 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer')
+        : 'nova';
+      const audioBlob = await openaiService.textToSpeech(text, validVoice);
       const audioUrl = URL.createObjectURL(audioBlob);
       const audio = new Audio(audioUrl);
 
@@ -293,149 +131,23 @@ export function LiveCalls() {
     }
   };
 
-  const analyzeAgentResponse = (agentMessage: string): string => {
-    const msg = agentMessage.toLowerCase();
-
-    if (msg.includes('unfortunately') || msg.includes('not available') || msg.includes('cannot') || msg.includes('can\'t')) {
-      return '\n\nIMPORTANT: The agent just declined or said something is unavailable. Show disappointment or concern. Either ask for alternatives or express how important this is to you.';
-    }
-
-    if (msg.includes('$') || msg.includes('price') || msg.includes('cost') || msg.includes('per month') || msg.includes('deposit')) {
-      return '\n\nIMPORTANT: The agent mentioned pricing. React based on your character - is it affordable? too expensive? Ask what\'s included or if there are any discounts.';
-    }
-
-    if (msg.includes('?')) {
-      return '\n\nIMPORTANT: The agent asked YOU a question. Answer it directly and naturally, then you can add your own question or concern if relevant.';
-    }
-
-    if (msg.length < 30) {
-      return '\n\nIMPORTANT: The agent gave a very brief response. Press for more specific details or clarification about what you care about.';
-    }
-
-    if (msg.includes('available') || msg.includes('we have') || msg.includes('we offer') || msg.includes('we can')) {
-      return '\n\nIMPORTANT: The agent is offering something. Show interest but ask practical follow-up questions relevant to your specific concerns.';
-    }
-
-    return '';
-  };
-
   const getAIResponse = async (conversationHistory: Message[], isNewCall: boolean = false): Promise<string> => {
     try {
-      const scenario = scenarios.find(s => s.type === selectedScenario);
-      if (!scenario) {
-        throw new Error('Scenario not found');
-      }
+      if (!profile) throw new Error('User profile not found');
 
-      if (isNewCall) {
-        const messages = [
-          {
-            role: 'system',
-            content: `${scenario.systemPrompt}
-
-CRITICAL: You are calling AmberStudent, a student accommodation booking platform. You are ONLY interested in finding and booking student housing through AmberStudent. DO NOT discuss any other topics or services.
-
-You are ${scenario.character} making your FIRST call to AmberStudent accommodation service. Start naturally with a brief greeting and IMMEDIATELY express your primary concern about STUDENT ACCOMMODATION. Be authentic and show your personality. Keep it to 1-2 sentences maximum.
-
-Example style (adapt to your character):
-- "Hi, I'm looking for student accommodation but I'm really worried about [main concern]"
-- "Hello! I need help finding a place near my university. The thing is, [specific situation/concern]"
-
-REMEMBER: You are ONLY here to discuss AmberStudent's accommodation services. Stay focused on housing-related topics like pricing, location, safety, amenities, booking process, lease terms, move-in dates, etc.
-
-Be natural, direct, and show emotion. Start your call now:`
-          },
-          {
-            role: 'user',
-            content: 'Begin the call now.'
-          }
-        ];
-
-        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/live-call-proxy`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          },
-          body: JSON.stringify({
-            action: 'chat',
-            messages: messages,
-            model: 'anthropic/claude-3.5-sonnet',
-            temperature: 0.8,
-            max_tokens: 150
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to get AI response');
-        }
-
-        const data = await response.json();
-        return data.message || 'Hello, I have a question about accommodation.';
-      }
-
-      const lastMessage = conversationHistory[conversationHistory.length - 1];
-      const conversationLog = conversationHistory.slice(-6).map(msg =>
-        `${msg.role === 'agent' ? 'Agent' : scenario.character}: ${msg.message}`
-      ).join('\n');
-
-      const agentResponseQuality = analyzeAgentResponse(lastMessage.message);
-
-      const messages = [
-        {
-          role: 'system',
-          content: `${scenario.systemPrompt}
-
-CRITICAL: You are calling AmberStudent about STUDENT ACCOMMODATION ONLY. If the agent goes off-topic or discusses anything other than housing services, redirect the conversation back to accommodation immediately. Say something like "That's nice, but what about the accommodation?" or "I really need to focus on finding housing first."
-
-CONTEXT - You are in the middle of a phone call with an AmberStudent agent about STUDENT HOUSING:
-${conversationLog}
-
-The agent just said: "${lastMessage.message}"
-
-Respond NATURALLY as ${scenario.character}. React authentically based on:
-1. What the agent ACTUALLY said (helpful? vague? addressing your concern?)
-2. Your character's personality and emotional state
-3. The conversation flow
-4. WHETHER THEY ARE STAYING ON-TOPIC (student accommodation services)
-
-RESPONSE RULES:
-- Acknowledge what the agent said (positive or negative)
-- Show genuine emotion (worry, relief, skepticism, excitement) when appropriate
-- Ask follow-up questions that YOUR character would naturally ask ABOUT ACCOMMODATION
-- If the agent avoided your question, press them for specifics
-- If something doesn't match your needs, say so clearly
-- If the agent discusses anything other than student housing, redirect immediately
-- Be conversational - 1-3 sentences maximum
-- Sound like a real person on a real phone call about finding student housing
-${agentResponseQuality}`
-        },
-        {
-          role: 'user',
-          content: 'Respond to the agent naturally based on what they just said.'
-        }
-      ];
-
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/live-call-proxy`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({
-          action: 'chat',
-          messages: messages,
-          model: 'anthropic/claude-3.5-sonnet',
-          temperature: 0.8,
-          max_tokens: 200
-        })
+      return await openaiService.mockCallAgent({
+        scenarioType: selectedScenario!,
+        systemPrompt: activeScenario?.system_prompt,
+        userMessage: conversationHistory.length > 0
+          ? conversationHistory[conversationHistory.length - 1].message
+          : '',
+        conversationHistory: conversationHistory.map((msg) => ({
+          role: msg.role,
+          message: msg.message,
+        })),
+        userId: profile.id,
+        isNewCall,
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to get AI response');
-      }
-
-      const data = await response.json();
-      return data.message || 'I see. Can you tell me more about that?';
     } catch (error: any) {
       console.error('Error getting AI response:', error);
       throw error;
@@ -444,76 +156,17 @@ ${agentResponseQuality}`
 
   const getAgentResponse = async (conversationHistory: Message[]): Promise<string> => {
     try {
-      const scenario = scenarios.find(s => s.type === selectedScenario);
-      if (!scenario) throw new Error('Scenario not found');
+      if (!activeScenario) throw new Error('Scenario not found');
 
       const conversationLog = conversationHistory.slice(-6).map(msg =>
         `${msg.role === 'agent' ? 'Agent' : 'Customer'}: ${msg.message}`
       ).join('\n');
 
-      const messages = [
-        {
-          role: 'system',
-          content: `You are a highly skilled customer service agent for AmberStudent, a student accommodation booking platform. Your ONLY job is to help students find and book STUDENT ACCOMMODATION.
-
-CRITICAL: ONLY discuss student accommodation services. Topics you can discuss:
-- Accommodation pricing, features, and amenities
-- Location and proximity to universities
-- Safety and security features
-- Booking process and lease terms
-- Payment options and schedules
-- Move-in dates and availability
-- Roommate matching and room types
-- Maintenance and support services
-- Cancellation and refund policies
-
-DO NOT discuss any other topics or services. If the customer asks about something unrelated, politely redirect to accommodation services.
-
-Key skills:
-- Be empathetic and understanding of student concerns about HOUSING
-- Provide specific, actionable information about ACCOMMODATION (mention real features, pricing ranges like $800-1500/month, timelines)
-- Address objections professionally with concrete solutions related to HOUSING
-- Build trust through detailed, honest answers about ACCOMMODATION SERVICES
-- Use a warm, conversational tone
-- Close positively when appropriate
-
-Current scenario: ${scenario.title} - ${scenario.description}
-Character: ${scenario.character}
-
-Recent conversation about STUDENT ACCOMMODATION:
-${conversationLog}
-
-The customer just said: "${conversationHistory[conversationHistory.length - 1].message}"
-
-Provide a helpful, professional response ABOUT STUDENT ACCOMMODATION. Be specific with housing details. Keep it natural and conversational (2-3 sentences max). Address their housing concerns directly and make them feel heard.`
-        },
-        {
-          role: 'user',
-          content: 'Respond to the customer professionally and helpfully.'
-        }
-      ];
-
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/live-call-proxy`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({
-          action: 'chat',
-          messages: messages,
-          model: 'openai/gpt-4o',
-          temperature: 0.7,
-          max_tokens: 200
-        })
+      return await openaiService.chatTutor({
+        userMessage: `Respond professionally as the accommodation agent. The customer just said: "${conversationHistory[conversationHistory.length - 1].message}"`,
+        context: `Scenario: ${activeScenario.title} — ${activeScenario.description}. Customer character: ${activeScenario.character_name}.\n\nRecent conversation:\n${conversationLog}\n\nKeep response to 2-3 sentences about student accommodation only.`,
+        userRole: 'sales_agent',
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to get agent response');
-      }
-
-      const data = await response.json();
-      return data.message || 'Thank you for your question. How can I help you further?';
     } catch (error) {
       console.error('Error getting agent response:', error);
       return 'Thank you for your question. Let me help you with that. What specific information would you like to know about our accommodation options?';
@@ -543,34 +196,11 @@ Provide a helpful, professional response ABOUT STUDENT ACCOMMODATION. Be specifi
 
           if (audioBlob.size > 1000) {
             try {
-              const reader = new FileReader();
-              reader.readAsDataURL(audioBlob);
-              reader.onloadend = async () => {
-                const base64Audio = reader.result?.toString().split(',')[1];
-
-                if (base64Audio) {
-                  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/live-call-proxy`, {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-                    },
-                    body: JSON.stringify({
-                      action: 'speech-to-text',
-                      audioData: base64Audio
-                    })
-                  });
-
-                  if (response.ok) {
-                    const data = await response.json();
-                    if (data.text && data.text.trim()) {
-                      await sendMessageFromUser(data.text.trim());
-                    }
-                  } else {
-                    alert('Failed to transcribe audio. Please try again.');
-                  }
-                }
-              };
+              setIsTranscribing(true);
+              const text = await openaiService.speechToText(audioBlob);
+              if (text?.trim()) {
+                await sendMessageFromUser(text.trim());
+              }
             } catch (error) {
               console.error('Error transcribing audio:', error);
               alert('Failed to transcribe audio. Please try again.');
@@ -628,8 +258,7 @@ Provide a helpful, professional response ABOUT STUDENT ACCOMMODATION. Be specifi
 
       setMessages([...updatedMessages, aiMessage]);
 
-      const scenario = scenarios.find(s => s.type === selectedScenario);
-      await speakText(aiResponse, scenario?.voice || 'nova');
+      await speakText(aiResponse, activeScenario?.voice || 'nova');
     } catch (error: any) {
       console.error('Error getting AI response:', error);
       alert(error.message || 'Failed to get response. Please try again.');
@@ -694,8 +323,7 @@ Provide a helpful, professional response ABOUT STUDENT ACCOMMODATION. Be specifi
         const updatedMessages = [...currentMessages, customerMessage];
         setMessages(updatedMessages);
 
-        const scenario = scenarios.find(s => s.type === selectedScenario);
-        await speakText(customerResponse, scenario?.voice || 'nova');
+        await speakText(customerResponse, activeScenario?.voice || 'nova');
 
         setIsTyping(false);
         processingRef.current = false;
@@ -734,8 +362,7 @@ Provide a helpful, professional response ABOUT STUDENT ACCOMMODATION. Be specifi
 
       setMessages([initialMessage]);
 
-      const scenario = scenarios.find(s => s.type === selectedScenario);
-      await speakText(greeting, scenario?.voice || 'nova');
+      await speakText(greeting, activeScenario?.voice || 'nova');
 
       processingRef.current = false;
 
@@ -749,95 +376,11 @@ Provide a helpful, professional response ABOUT STUDENT ACCOMMODATION. Be specifi
     }
   };
 
-  const evaluateCall = async (transcript: Message[]): Promise<any> => {
-    try {
-      const scenario = scenarios.find(s => s.type === selectedScenario);
-      const conversationLog = transcript.map(msg =>
-        `${msg.role === 'agent' ? 'Agent' : 'Customer'}: ${msg.message}`
-      ).join('\n');
-
-      const messages = [
-        {
-          role: 'system',
-          content: `You are evaluating a customer service call for AmberStudent student accommodation booking. The scenario was: ${scenario?.title} - ${scenario?.description}
-
-Conversation transcript:
-${conversationLog}
-
-Evaluate the agent's performance on handling this STUDENT ACCOMMODATION call. Consider:
-- Did the agent stay focused on AmberStudent's student housing services?
-- Were they empathetic and understanding of student concerns?
-- Did they provide specific, helpful information about accommodation?
-- Did they address the customer's unique scenario effectively?
-- Was the conversation professional and natural?
-- Did they handle objections or concerns well?
-
-Provide:
-1. A score from 0-100
-2. Brief overall feedback (2-3 sentences) about their accommodation sales skills
-3. 3 key strengths specific to this housing scenario
-4. 3 areas for improvement in student accommodation sales
-
-Format your response as JSON:
-{
-  "score": <number>,
-  "feedback": "<string>",
-  "strengths": ["<string>", "<string>", "<string>"],
-  "improvements": ["<string>", "<string>", "<string>"]
-}`
-        },
-        {
-          role: 'user',
-          content: 'Evaluate the call performance now.'
-        }
-      ];
-
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/live-call-proxy`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({
-          action: 'chat',
-          messages: messages,
-          model: 'openai/gpt-4o',
-          temperature: 0.3,
-          max_tokens: 500
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const jsonMatch = data.message.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          return JSON.parse(jsonMatch[0]);
-        }
-      }
-
-      return {
-        score: 75,
-        feedback: 'Call completed. Good effort in handling the customer interaction.',
-        strengths: [
-          'Professional communication',
-          'Engaged with customer concerns',
-          'Maintained conversation flow'
-        ],
-        improvements: [
-          'Provide more specific details',
-          'Address objections more directly',
-          'Show more empathy'
-        ]
-      };
-    } catch (error) {
-      console.error('Error evaluating call:', error);
-      return {
-        score: 70,
-        feedback: 'Call completed successfully.',
-        strengths: ['Engaged with customer', 'Professional approach', 'Clear communication'],
-        improvements: ['Provide more details', 'Handle objections better', 'Be more proactive']
-      };
-    }
+  const evaluateCall = async (transcript: Message[]) => {
+    return openaiService.evaluateMockCall({
+      scenarioType: selectedScenario!,
+      transcript: transcript.map((msg) => ({ role: msg.role, message: msg.message })),
+    });
   };
 
   const endCall = async () => {
@@ -876,9 +419,10 @@ Format your response as JSON:
 
       await supabase.from('live_call_sessions').insert({
         user_id: profile!.id,
+        organization_id: orgIdForInsert(profile),
         scenario_type: selectedScenario!,
         scenario_details: {
-          character: scenarios.find(s => s.type === selectedScenario)?.character
+          character: activeScenario?.character_name
         },
         duration,
         transcript: messages,
@@ -949,7 +493,7 @@ Format your response as JSON:
               <span className="text-sm font-semibold uppercase tracking-wider opacity-90">Live Call Practice</span>
             </div>
             <h1 className="text-4xl font-bold mb-2">Real-Time Voice Training with AI</h1>
-            <p className="text-orange-100 text-lg">Practice realistic AmberStudent scenarios with OpenRouter AI-powered voice conversations</p>
+            <p className="text-orange-100 text-lg">Practice realistic customer scenarios with OpenAI-powered voice conversations</p>
           </div>
         </div>
 
@@ -983,21 +527,23 @@ Format your response as JSON:
                 <h2 className="text-2xl font-bold text-gray-900">Choose Your Scenario</h2>
               </div>
             </div>
-            <p className="text-gray-600 mb-6">Select a realistic AmberStudent customer situation to practice with live voice interaction powered by OpenRouter AI</p>
+            <p className="text-gray-600 mb-6">Select a scenario configured for your organisation and practice with live voice interaction powered by OpenAI</p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              {scenarios.map((scenario) => (
+              {orgScenarios.map((scenario) => {
+                const Icon = getScenarioIcon(scenario.icon_name);
+                return (
                 <button
-                  key={scenario.type}
-                  onClick={() => setSelectedScenario(scenario.type)}
+                  key={scenario.scenario_key}
+                  onClick={() => setSelectedScenario(scenario.scenario_key)}
                   className={`p-5 rounded-xl border-2 transition-all text-left hover:scale-105 ${
-                    selectedScenario === scenario.type
+                    selectedScenario === scenario.scenario_key
                       ? 'border-orange-600 bg-orange-50 shadow-lg'
                       : 'border-gray-200 hover:border-gray-300 bg-white'
                   }`}
                 >
                   <div className="bg-gray-100 p-3 rounded-lg inline-block mb-3">
-                    <scenario.icon className="w-6 h-6 text-gray-700" />
+                    <Icon className="w-6 h-6 text-gray-700" />
                   </div>
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-base font-bold text-gray-900">{scenario.title}</h3>
@@ -1005,10 +551,10 @@ Format your response as JSON:
                       {scenario.difficulty}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-600 mb-2 font-medium">{scenario.character}</p>
+                  <p className="text-xs text-gray-600 mb-2 font-medium">{scenario.character_name}</p>
                   <p className="text-xs text-gray-500 line-clamp-2">{scenario.description}</p>
                 </button>
-              ))}
+              );})}
             </div>
 
             {selectedScenario && (
@@ -1049,7 +595,7 @@ Format your response as JSON:
                 <p className="text-center text-sm text-gray-500">
                   {autoTrainMode
                     ? 'AI agent will automatically handle the call for 10 turns - great for learning!'
-                    : 'Powered by OpenRouter AI - Voice Recording, Speech-to-Text (Whisper), Text-to-Speech (OpenAI) & Claude 3.5 Sonnet'
+                    : 'Powered by OpenAI — voice recording, Whisper speech-to-text, and text-to-speech'
                   }
                 </p>
               </div>
@@ -1064,12 +610,12 @@ Format your response as JSON:
                 <div>
                   <h2 className="text-2xl font-bold mb-1">Live Call in Progress</h2>
                   <p className="text-orange-100">
-                    {scenarios.find(s => s.type === selectedScenario)?.title} - {scenarios.find(s => s.type === selectedScenario)?.character}
+                    {activeScenario?.title} - {activeScenario?.character_name}
                   </p>
                   <div className="flex items-center space-x-2 mt-2">
                     <div className="flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-medium bg-orange-400 text-white">
                       <Radio className="w-3 h-3 animate-pulse" />
-                      <span>LIVE - OpenRouter AI + OpenAI Voice</span>
+                      <span>LIVE — OpenAI Voice</span>
                     </div>
                     {autoTrainMode && (
                       <div className="flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-medium bg-purple-500 text-white">
@@ -1103,7 +649,7 @@ Format your response as JSON:
                     }`}
                   >
                     <div className="text-xs font-medium mb-1 opacity-75">
-                      {msg.role === 'agent' ? 'You' : scenarios.find(s => s.type === selectedScenario)?.character}
+                      {msg.role === 'agent' ? 'You' : activeScenario?.character_name}
                     </div>
                     <p className="text-sm leading-relaxed">{msg.message}</p>
                   </div>
@@ -1284,13 +830,14 @@ Format your response as JSON:
             </div>
             <div className="divide-y divide-gray-200">
               {sessions.slice(0, 5).map((session) => {
-                const scenario = scenarios.find(s => s.type === session.scenario_type);
+                const scenario = scenarioByKey(session.scenario_type);
+                const SessionIcon = scenario ? getScenarioIcon(scenario.icon_name) : Radio;
                 return (
                   <div key={session.id} className="p-6 hover:bg-gray-50 transition-colors">
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <div className="flex items-center space-x-3 mb-2">
-                          {scenario && <scenario.icon className="w-5 h-5 text-gray-600" />}
+                          <SessionIcon className="w-5 h-5 text-gray-600" />
                           <h3 className="text-lg font-semibold text-gray-900">
                             {scenario?.title || 'Live Practice Call'}
                           </h3>

@@ -13,7 +13,6 @@ import { CourseDetail } from './pages/CourseDetail';
 import { LessonView } from './pages/LessonView';
 import { AITutor } from './pages/AITutor';
 import { MockCalls } from './pages/MockCalls';
-import { MockCallsNew } from './pages/MockCallsNew';
 import { LiveCalls } from './pages/LiveCalls';
 import { DnaStudio } from './pages/DnaStudio';
 import { TavrionBot } from './pages/TavrionBot';
@@ -148,11 +147,7 @@ function App() {
 
           <Route
             path="/mock-calls-new"
-            element={
-              <ProtectedRoute>
-                <MockCallsNew />
-              </ProtectedRoute>
-            }
+            element={<Navigate to="/mock-calls" replace />}
           />
 
           <Route

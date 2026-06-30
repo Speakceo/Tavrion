@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Layout } from '../components/Layout';
-import { ThumbsUp, MessageCircle, Send, Play, User } from 'lucide-react';
+import { applyOrgScope, orgIdForInsert } from '../utils/orgScope';
 
 interface BestCall {
   id: string;
@@ -64,13 +64,15 @@ export function BestCalls() {
 
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      let query = supabase
         .from('best_calls')
         .select(`
           *,
           uploader:user_profiles!best_calls_uploaded_by_fkey(full_name)
         `)
         .order('created_at', { ascending: false });
+      query = applyOrgScope(query, profile);
+      const { data, error } = await query;
 
       if (error) throw error;
 

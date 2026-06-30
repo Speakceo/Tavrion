@@ -76,7 +76,8 @@ export class OpenAIService {
   }
 
   async mockCallAgent(params: {
-    scenarioType: 'budget_concern' | 'location_specific' | 'safety_parent' | 'amenities_luxury' | 'urgent_booking' | 'payment_issues' | 'roommate_issues' | 'lease_negotiation' | 'maintenance_complaints' | 'cancellation_refund' | 'group_booking' | 'pet_friendly' | 'accessibility_needs' | 'cultural_dietary' | 'late_night_inquiry' | 'competitive_offer';
+    scenarioType: string;
+    systemPrompt?: string;
     userMessage: string;
     conversationHistory: { role: string; message: string }[];
     userId: string;
@@ -90,6 +91,7 @@ export class OpenAIService {
       },
       body: JSON.stringify({
         scenarioType: params.scenarioType,
+        systemPrompt: params.systemPrompt,
         userMessage: params.userMessage,
         conversationHistory: params.conversationHistory,
         userId: params.userId,

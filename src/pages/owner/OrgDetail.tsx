@@ -4,10 +4,14 @@ import { supabase } from '../../lib/supabase';
 import { Layout } from '../../components/Layout';
 import {
   Building2, ArrowLeft, Save, Users, BookOpen, ToggleLeft, ToggleRight,
-  UserPlus, Search, Trash2, UserX, Check, X, CreditCard as Edit, KeyRound,
+  UserPlus, Search, Trash2, UserX, Check, X, CreditCard as Edit, KeyRound, RotateCcw,
 } from 'lucide-react';
 import { Organization, UserProfile } from '../../types';
 import { ORG_ASSIGNABLE_ROLES, sanitizeUserRole, isMasterSuperAdmin } from '../../utils/platformAccess';
+import {
+  fetchOrgMockScenarios, saveMockScenario, resetOrgMockScenarios, ensureOrgMockScenarios, getScenarioIcon,
+} from '../../utils/mockCallScenarios';
+import type { MockScenarioRow } from '../../data/defaultMockScenarios';
 
 const DEFAULT_FEATURES = {
   ai_tutor: false,
@@ -23,7 +27,7 @@ const DEFAULT_FEATURES = {
   books: false,
 };
 
-type Tab = 'settings' | 'users';
+type Tab = 'settings' | 'users' | 'scenarios';
 
 export function OrgDetail() {
   const { orgId: orgIdParam } = useParams<{ orgId: string }>();
@@ -59,6 +63,12 @@ export function OrgDetail() {
   const [pwError, setPwError] = useState('');
   const [pwSuccess, setPwSuccess] = useState('');
 
+  const [mockScenarios, setMockScenarios] = useState<MockScenarioRow[]>([]);
+  const [scenariosLoading, setScenariosLoading] = useState(false);
+  const [editingScenarioId, setEditingScenarioId] = useState<string | null>(null);
+  const [scenarioDraft, setScenarioDraft] = useState<Partial<MockScenarioRow>>({});
+  const [scenarioMsg, setScenarioMsg] = useState('');
+
   useEffect(() => {
     if (isNew) {
       setLoading(false);
@@ -70,7 +80,21 @@ export function OrgDetail() {
 
   useEffect(() => {
     if (!isNew && orgId && tab === 'users') fetchOrgUsers(orgId);
+    if (!isNew && orgId && tab === 'scenarios') loadMockScenarios(orgId);
   }, [tab, orgId, isNew]);
+
+  const loadMockScenarios = async (id: string) => {
+    setScenariosLoading(true);
+    setScenarioMsg('');
+    try {
+      const rows = await fetchOrgMockScenarios(id);
+      setMockScenarios(rows);
+    } catch (err: any) {
+      setScenarioMsg(err.message || 'Failed to load scenarios');
+    } finally {
+      setScenariosLoading(false);
+    }
+  };
 
   const fetchOrg = async (id: string) => {
     setLoading(true);
@@ -125,6 +149,7 @@ export function OrgDetail() {
           is_active: org.is_active ?? true,
         }).select().single();
         if (err) throw err;
+        await ensureOrgMockScenarios(data.id);
         setSuccess('Organization created!');
         setTimeout(() => navigate(`/owner/organizations/${data.id}`), 1200);
       } else {
@@ -218,6 +243,50 @@ export function OrgDetail() {
     setOrg(prev => ({ ...prev, features: { ...(prev.features || {}), [key]: !(prev.features || {})[key] } }));
   };
 
+  const startEditScenario = (s: MockScenarioRow) => {
+    setEditingScenarioId(s.id);
+    setScenarioDraft({ ...s });
+    setScenarioMsg('');
+  };
+
+  const saveScenarioEdit = async () => {
+    if (!orgId || !scenarioDraft.scenario_key) return;
+    setScenarioMsg('');
+    try {
+      await saveMockScenario(orgId, {
+        id: scenarioDraft.id,
+        scenario_key: scenarioDraft.scenario_key,
+        title: scenarioDraft.title || '',
+        character_name: scenarioDraft.character_name || '',
+        description: scenarioDraft.description || '',
+        system_prompt: scenarioDraft.system_prompt || '',
+        difficulty: scenarioDraft.difficulty || 'Medium',
+        icon_name: scenarioDraft.icon_name || 'Phone',
+        color: scenarioDraft.color || 'slate',
+        voice: scenarioDraft.voice || 'nova',
+        is_active: scenarioDraft.is_active ?? true,
+      });
+      setEditingScenarioId(null);
+      setScenarioMsg('Scenario saved.');
+      await loadMockScenarios(orgId);
+    } catch (err: any) {
+      setScenarioMsg(err.message || 'Failed to save scenario');
+    }
+  };
+
+  const handleResetScenarios = async () => {
+    if (!orgId || !confirm('Reset all mock call scenarios to defaults for this organisation?')) return;
+    setScenarioMsg('');
+    try {
+      await resetOrgMockScenarios(orgId);
+      setEditingScenarioId(null);
+      setScenarioMsg('Scenarios reset to defaults.');
+      await loadMockScenarios(orgId);
+    } catch (err: any) {
+      setScenarioMsg(err.message || 'Failed to reset scenarios');
+    }
+  };
+
   const filteredUsers = users.filter(u =>
     u.full_name.toLowerCase().includes(userSearch.toLowerCase()) ||
     u.unique_id?.toLowerCase().includes(userSearch.toLowerCase()) ||
@@ -273,10 +342,10 @@ export function OrgDetail() {
         {/* Tabs (existing orgs only) */}
         {!isNew && (
           <div style={{ display: 'flex', gap: 4, marginBottom: 20 }}>
-            {(['settings', 'users'] as Tab[]).map(t => (
+            {(['settings', 'users', 'scenarios'] as Tab[]).map(t => (
               <button key={t} onClick={() => setTab(t)}
                 style={{ padding: '7px 16px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: tab === t ? 600 : 500, background: tab === t ? '#171717' : '#fff', color: tab === t ? '#fff' : '#4d4d4d', boxShadow: tab === t ? 'none' : 'rgba(0,0,0,0.08) 0px 0px 0px 1px', transition: 'all 0.12s', textTransform: 'capitalize' }}>
-                {t === 'users' ? `Users (${users.length || '...'})` : 'Settings'}
+                {t === 'users' ? `Users (${users.length || '...'})` : t === 'scenarios' ? 'Mock Scenarios' : 'Settings'}
               </button>
             ))}
           </div>
@@ -529,6 +598,105 @@ export function OrgDetail() {
                     </div>
                   </form>
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── MOCK SCENARIOS TAB ── */}
+        {!isNew && tab === 'scenarios' && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div>
+                <p style={{ fontSize: 14, color: '#4d4d4d', marginBottom: 4 }}>
+                  Mock & live call scenarios for <strong>{org.name}</strong>
+                </p>
+                <p style={{ fontSize: 12, color: '#808080' }}>
+                  Customise AI customer personas — learners only see scenarios for their organisation.
+                </p>
+              </div>
+              <button type="button" onClick={handleResetScenarios} className="lt-btn-secondary"
+                style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 6, borderRadius: 8 }}>
+                <RotateCcw size={13} /> Reset to defaults
+              </button>
+            </div>
+
+            {scenarioMsg && (
+              <div style={{
+                background: scenarioMsg.includes('Failed') ? '#fff5f5' : '#f0faf0',
+                boxShadow: scenarioMsg.includes('Failed') ? '#ff5b4f50 0px 0px 0px 1px' : '#1a7f1a50 0px 0px 0px 1px',
+                borderRadius: 8, padding: '10px 14px', fontSize: 13,
+                color: scenarioMsg.includes('Failed') ? '#c0392b' : '#1a7f1a', marginBottom: 16,
+              }}>
+                {scenarioMsg}
+              </div>
+            )}
+
+            {scenariosLoading ? (
+              <div className="lt-card" style={{ padding: 40, textAlign: 'center', color: '#808080' }}>Loading scenarios...</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {mockScenarios.map((s) => {
+                  const Icon = getScenarioIcon(s.icon_name);
+                  const editing = editingScenarioId === s.id;
+                  return (
+                    <div key={s.id} className="lt-card" style={{ padding: '16px 20px' }}>
+                      {editing ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            {[
+                              { label: 'Title', key: 'title' },
+                              { label: 'Character name', key: 'character_name' },
+                              { label: 'Difficulty', key: 'difficulty' },
+                              { label: 'Voice', key: 'voice' },
+                            ].map((f) => (
+                              <div key={f.key}>
+                                <label style={{ fontSize: 11, fontWeight: 600, color: '#666', display: 'block', marginBottom: 4 }}>{f.label}</label>
+                                <input className="lt-input" style={{ width: '100%', padding: '8px 10px', boxSizing: 'border-box' }}
+                                  value={(scenarioDraft as any)[f.key] || ''}
+                                  onChange={(e) => setScenarioDraft({ ...scenarioDraft, [f.key]: e.target.value })} />
+                              </div>
+                            ))}
+                          </div>
+                          <div>
+                            <label style={{ fontSize: 11, fontWeight: 600, color: '#666', display: 'block', marginBottom: 4 }}>Description</label>
+                            <input className="lt-input" style={{ width: '100%', padding: '8px 10px', boxSizing: 'border-box' }}
+                              value={scenarioDraft.description || ''}
+                              onChange={(e) => setScenarioDraft({ ...scenarioDraft, description: e.target.value })} />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: 11, fontWeight: 600, color: '#666', display: 'block', marginBottom: 4 }}>System prompt (AI persona)</label>
+                            <textarea className="lt-input" rows={5} style={{ width: '100%', padding: '8px 10px', boxSizing: 'border-box', resize: 'vertical' }}
+                              value={scenarioDraft.system_prompt || ''}
+                              onChange={(e) => setScenarioDraft({ ...scenarioDraft, system_prompt: e.target.value })} />
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                            <button type="button" className="lt-btn-secondary" style={{ padding: '8px 14px' }}
+                              onClick={() => { setEditingScenarioId(null); setScenarioDraft({}); }}>Cancel</button>
+                            <button type="button" className="lt-btn-primary" style={{ padding: '8px 14px' }} onClick={saveScenarioEdit}>Save</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                          <div style={{ width: 36, height: 36, background: '#f5f5f5', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <Icon size={16} color="#4d4d4d" />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                              <span style={{ fontSize: 14, fontWeight: 600, color: '#171717' }}>{s.title}</span>
+                              <span className="lt-badge">{s.difficulty}</span>
+                              <span style={{ fontSize: 12, color: '#808080' }}>{s.character_name}</span>
+                            </div>
+                            <p style={{ fontSize: 13, color: '#666', marginBottom: 6 }}>{s.description}</p>
+                            <p style={{ fontSize: 11, color: '#999', fontFamily: 'monospace' }}>{s.scenario_key}</p>
+                          </div>
+                          <button type="button" onClick={() => startEditScenario(s)} className="lt-btn-secondary"
+                            style={{ padding: '6px 12px', fontSize: 12, flexShrink: 0 }}>Edit</button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

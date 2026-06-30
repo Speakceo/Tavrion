@@ -42,7 +42,6 @@ const PAGE_TITLES: Record<string, { label: string; section: string }> = {
   '/completed-learning': { label: 'Completed Learning', section: 'Learning' },
   '/ai-tutor': { label: 'AI Tutor', section: 'AI Tools' },
   '/mock-calls': { label: 'Mock Calls', section: 'AI Tools' },
-  '/mock-calls-new': { label: 'Mock Calls', section: 'AI Tools' },
   '/live-calls': { label: 'Live Calls', section: 'AI Tools' },
   '/admin/users': { label: 'User Management', section: 'Admin' },
   '/admin/teams': { label: 'Team Management', section: 'Admin' },
@@ -186,7 +185,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const aiTools = [
     { name: 'AI Tutor', href: '/ai-tutor', icon: MessageSquare },
     { name: 'Mock Calls', href: '/mock-calls', icon: Phone },
-    { name: 'Mock Call New', href: '/mock-calls-new', icon: Phone },
     { name: 'Live Calls', href: '/live-calls', icon: Phone },
   ];
 
