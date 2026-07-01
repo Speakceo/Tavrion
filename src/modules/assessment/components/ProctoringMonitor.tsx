@@ -1,0 +1,62 @@
+import { useEffect, useState } from 'react';
+import { supabase } from '../../../lib/supabase';
+import { AlertTriangle, Shield } from 'lucide-react';
+
+interface ProctoringMonitorProps {
+  attemptId: string;
+  violationCount?: number;
+}
+
+export function ProctoringMonitor({ attemptId, violationCount = 0 }: ProctoringMonitorProps) {
+  const [recent, setRecent] = useState<{ type: string; created_at: string }[]>([]);
+
+  useEffect(() => {
+    if (!attemptId) return;
+    const load = async () => {
+      const { data } = await supabase
+        .from('assessment_violations')
+        .select('violation_type, created_at')
+        .eq('attempt_id', attemptId)
+        .order('created_at', { ascending: false })
+        .limit(5);
+      setRecent(data || []);
+    };
+    load();
+    const interval = setInterval(load, 8000);
+    return () => clearInterval(interval);
+  }, [attemptId]);
+
+  const integrity = Math.max(0, 100 - violationCount * 8);
+
+  return (
+    <div className="lt-card" style={{ padding: 14, fontSize: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <Shield size={14} />
+        <span style={{ fontWeight: 700 }}>Integrity monitor</span>
+      </div>
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+          <span style={{ color: '#666' }}>Integrity score</span>
+          <span style={{ fontWeight: 700, color: integrity < 70 ? '#c0392b' : '#16a34a' }}>{integrity}%</span>
+        </div>
+        <div style={{ height: 4, background: '#f0f0f0', borderRadius: 2 }}>
+          <div style={{ width: `${integrity}%`, height: '100%', background: integrity < 70 ? '#c0392b' : '#171717', borderRadius: 2 }} />
+        </div>
+      </div>
+      <div style={{ color: '#666', marginBottom: 6 }}>Violations: {violationCount}</div>
+      {recent.length > 0 && (
+        <div>
+          {recent.map((v, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0', color: '#999' }}>
+              <AlertTriangle size={11} />
+              {v.violation_type.replace(/_/g, ' ')}
+            </div>
+          ))}
+        </div>
+      )}
+      <p style={{ fontSize: 10, color: '#bbb', marginTop: 8, lineHeight: 1.4 }}>
+        Tab switches, copy/paste, and focus loss are logged. Webcam monitoring available in settings.
+      </p>
+    </div>
+  );
+}

@@ -53,8 +53,11 @@ import { QuestionBank } from './modules/assessment/pages/QuestionBank';
 import { TestAssignments } from './modules/assessment/pages/TestAssignments';
 import { TestAnalytics } from './modules/assessment/pages/TestAnalytics';
 import { TestReports } from './modules/assessment/pages/TestReports';
+import { TestSessions } from './modules/assessment/pages/TestSessions';
+import { TestLinks } from './modules/assessment/pages/TestLinks';
 import { TakeAssessment } from './modules/assessment/pages/TakeAssessment';
 import { AssessmentResult } from './modules/assessment/pages/AssessmentResult';
+import { CandidateAccess } from './modules/assessment/pages/public/CandidateAccess';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -100,6 +103,9 @@ function App() {
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<Login />} />
+
+          {/* Public candidate assessment — no auth */}
+          <Route path="/assess/:linkCode" element={<CandidateAccess />} />
 
           <Route
             path="/dashboard"
@@ -499,6 +505,26 @@ function App() {
               <ProtectedRoute allowedRoles={['super_admin', 'admin', 'trainer']}>
                 <OrgFeatureGate feature="tavrion_test">
                   <TestAnalytics />
+                </OrgFeatureGate>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/test/sessions"
+            element={
+              <ProtectedRoute allowedRoles={['super_admin', 'admin', 'trainer']}>
+                <OrgFeatureGate feature="tavrion_test">
+                  <TestSessions />
+                </OrgFeatureGate>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/test/links"
+            element={
+              <ProtectedRoute allowedRoles={['super_admin', 'admin', 'trainer']}>
+                <OrgFeatureGate feature="tavrion_test">
+                  <TestLinks />
                 </OrgFeatureGate>
               </ProtectedRoute>
             }

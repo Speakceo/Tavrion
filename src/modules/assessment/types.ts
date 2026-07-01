@@ -10,6 +10,7 @@ export type QuestionType =
   | 'file_upload'
   | 'video_response'
   | 'audio_response'
+  | 'listening'
   | 'personality'
   | 'cognitive'
   | 'situational_judgment'
@@ -18,6 +19,46 @@ export type QuestionType =
 export type AssessmentStatus = 'draft' | 'published' | 'archived';
 export type AttemptStatus = 'in_progress' | 'submitted' | 'graded' | 'expired' | 'void';
 export type AssigneeType = 'learner' | 'user' | 'cohort' | 'external';
+export type SelectionStatus = 'pending' | 'shortlisted' | 'selected' | 'rejected' | 'on_hold';
+
+export interface AssessmentReusableLink {
+  id: string;
+  organization_id: string;
+  assessment_id: string;
+  assignment_id?: string | null;
+  link_code: string;
+  title: string;
+  is_active: boolean;
+  uses_count: number;
+  max_uses?: number | null;
+  expires_at?: string | null;
+  require_camera: boolean;
+  require_microphone: boolean;
+  post_form_enabled: boolean;
+  created_at: string;
+  assessment?: Assessment;
+}
+
+export interface SessionAnalytics {
+  id: string;
+  attempt_id: string;
+  overall_score?: number | null;
+  communication_score?: number | null;
+  aptitude_score?: number | null;
+  integrity_score?: number | null;
+  strengths: string[];
+  weaknesses: string[];
+  recommendation?: string;
+  ai_summary?: string;
+  detailed_scores: Record<string, unknown>;
+}
+
+export interface CandidateInfo {
+  name: string;
+  email: string;
+  phone?: string;
+  resume_url?: string;
+}
 
 export interface AssessmentQuestion {
   id: string;
@@ -134,7 +175,13 @@ export interface AssessmentAttempt {
   final_score?: number | null;
   passed?: boolean | null;
   integrity_score?: number | null;
+  selection_status?: SelectionStatus;
+  reusable_link_id?: string | null;
+  candidate_info?: Record<string, unknown>;
+  post_form_data?: Record<string, unknown>;
   progress: Record<string, unknown>;
+  violation_count?: number;
+  assignment?: AssessmentAssignment;
 }
 
 export interface AssessmentResponse {

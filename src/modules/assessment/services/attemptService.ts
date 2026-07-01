@@ -68,11 +68,26 @@ export async function fetchAttemptResponses(attemptId: string) {
   return (data || []) as AssessmentResponse[];
 }
 
+import { scoreResponse, calculateAttemptScore } from '../utils/scoring';
+import { invokeCalculateOverallScore } from './mediaService';
+
 export async function submitAttempt(
   attemptId: string,
   assignmentId: string,
   passingScore = 70,
 ) {
+  try {
+    const aiResult = await invokeCalculateOverallScore(attemptId);
+    return {
+      percentage: aiResult.overall_score ?? 0,
+      passed: aiResult.passed ?? false,
+      results: [] as ReturnType<typeof scoreResponse>[],
+      ai_summary: aiResult.ai_summary,
+    };
+  } catch {
+    // Fall through to client-side scoring
+  }
+
   const { data: assignment } = await supabase
     .from('assessment_assignments')
     .select('assessment_id, passing_score')
