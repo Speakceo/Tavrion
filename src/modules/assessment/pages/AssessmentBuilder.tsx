@@ -3,10 +3,12 @@ import { useParams, Link } from 'react-router-dom';
 import { TestLayout } from '../components/TestLayout';
 import { useAuth } from '../../../contexts/AuthContext';
 import { fetchAssessmentWithSections } from '../services/assessmentService';
-import { fetchQuestions } from '../services/questionService';
+import { fetchQuestions, fetchQuestionById } from '../services/questionService';
 import { supabase } from '../../../lib/supabase';
 import type { Assessment, AssessmentQuestion } from '../types';
-import { ArrowLeft, Plus, GripVertical } from 'lucide-react';
+import type { OrgViewer } from '../../../utils/orgScope';
+import { ArrowLeft, Plus, GripVertical, Pencil, Trash2, Eye } from 'lucide-react';
+import { QuestionEditorModal } from '../components/QuestionEditorModal';
 
 export function AssessmentBuilder() {
   const { id } = useParams<{ id: string }>();
@@ -16,6 +18,9 @@ export function AssessmentBuilder() {
   const [bank, setBank] = useState<AssessmentQuestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState<AssessmentQuestion | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [previewOnly, setPreviewOnly] = useState(false);
 
   const load = async () => {
     if (!id) return;
@@ -75,6 +80,26 @@ export function AssessmentBuilder() {
     }
   };
 
+  const removeFromAssessment = async (sectionQuestionId: string) => {
+    setSaving(true);
+    try {
+      await supabase.from('assessment_section_questions').delete().eq('id', sectionQuestionId);
+      if (id) await supabase.from('assessments').update({ updated_at: new Date().toISOString() }).eq('id', id);
+      await load();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openQuestion = async (questionId: string, preview = false) => {
+    const fresh = await fetchQuestionById(questionId, viewer);
+    if (fresh) {
+      setEditing(fresh);
+      setPreviewOnly(preview);
+      setEditorOpen(true);
+    }
+  };
+
   const updateMeta = async (field: string, value: unknown) => {
     if (!id) return;
     await supabase.from('assessments').update({ [field]: value, updated_at: new Date().toISOString() }).eq('id', id);
@@ -122,18 +147,68 @@ export function AssessmentBuilder() {
           />
 
           <div className="lt-card" style={{ padding: 16, marginBottom: 16 }}>
-            <h3 style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>Assessment questions ({sectionQuestions.length})</h3>
+            <h3 style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Assessment questions ({sectionQuestions.length})</h3>
+            <p style={{ fontSize: 11, color: '#999', marginBottom: 12 }}>Click a question to edit answers and prompt</p>
             {sectionQuestions.length === 0 ? (
               <p style={{ fontSize: 12, color: '#999' }}>Add questions from the bank on the right.</p>
             ) : (
-              sectionQuestions.map((sq, i) => (
-                <div key={sq.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0', borderBottom: '1px solid #f5f5f5' }}>
-                  <GripVertical size={14} color="#ccc" />
-                  <span style={{ fontSize: 12, color: '#999', width: 20 }}>{i + 1}</span>
-                  <span style={{ fontSize: 13, flex: 1 }}>{sq.question?.title || sq.question?.prompt?.slice(0, 60) || 'Question'}</span>
-                  <span style={{ fontSize: 10, color: '#aaa' }}>{sq.question?.question_type?.replace(/_/g, ' ')}</span>
-                </div>
-              ))
+              sectionQuestions.map((sq, i) => {
+                const q = sq.question;
+                const correct = q?.options?.filter((o) => o.is_correct).map((o) => o.option_text).join(', ');
+                return (
+                  <div
+                    key={sq.id}
+                    style={{
+                      display: 'flex', alignItems: 'flex-start', gap: 8,
+                      padding: '12px 8px', borderBottom: '1px solid #f5f5f5',
+                      cursor: 'pointer', borderRadius: 6, margin: '0 -8px',
+                    }}
+                    onClick={() => q && openQuestion(q.id, false)}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = '#fafafa'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <GripVertical size={14} color="#ccc" style={{ marginTop: 2 }} />
+                    <span style={{ fontSize: 12, color: '#999', width: 20, marginTop: 2 }}>{i + 1}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{q?.title || q?.prompt?.slice(0, 60) || 'Question'}</div>
+                      {correct && (
+                        <div style={{ fontSize: 11, color: '#16a34a', marginTop: 4 }}>✓ {correct}</div>
+                      )}
+                      <div style={{ fontSize: 10, color: '#aaa', marginTop: 4 }}>{q?.question_type?.replace(/_/g, ' ')}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 4, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => q && openQuestion(q.id, true)}
+                        className="lt-btn-secondary"
+                        style={{ padding: '4px 8px', fontSize: 11 }}
+                        title="Preview"
+                      >
+                        <Eye size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => q && openQuestion(q.id, false)}
+                        className="lt-btn-secondary"
+                        style={{ padding: '4px 8px', fontSize: 11 }}
+                        title="Edit"
+                      >
+                        <Pencil size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeFromAssessment(sq.id)}
+                        disabled={saving}
+                        className="lt-btn-secondary"
+                        style={{ padding: '4px 8px', fontSize: 11, color: '#c0392b' }}
+                        title="Remove from assessment"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
             )}
           </div>
 
@@ -150,18 +225,31 @@ export function AssessmentBuilder() {
         </div>
 
         <div className="lt-card" style={{ padding: 16, position: 'sticky', top: 72 }}>
-          <h3 style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>Question bank</h3>
+          <h3 style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Question bank</h3>
+          <p style={{ fontSize: 11, color: '#999', marginBottom: 12 }}>Click title to preview before adding</p>
           {available.length === 0 ? (
             <p style={{ fontSize: 12, color: '#999' }}>No more questions. <Link to="/test/questions">Create questions</Link></p>
           ) : (
-            available.slice(0, 20).map((q) => (
+            available.slice(0, 30).map((q) => (
               <div key={q.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: '1px solid #f5f5f5' }}>
-                <span style={{ fontSize: 12, flex: 1 }}>{q.title || q.prompt.slice(0, 40)}</span>
                 <button
+                  type="button"
+                  onClick={() => openQuestion(q.id, true)}
+                  style={{
+                    fontSize: 12, flex: 1, textAlign: 'left',
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: '#171717', padding: 0,
+                  }}
+                >
+                  {q.title || q.prompt.slice(0, 40)}
+                </button>
+                <button
+                  type="button"
                   onClick={() => addQuestionToAssessment(q.id)}
                   disabled={saving}
                   className="lt-btn-secondary"
                   style={{ padding: '4px 8px', fontSize: 11, display: 'flex', gap: 4, alignItems: 'center' }}
+                  title="Add to assessment"
                 >
                   <Plus size={12} />
                 </button>
@@ -170,6 +258,17 @@ export function AssessmentBuilder() {
           )}
         </div>
       </div>
+
+      {viewer?.id && (
+        <QuestionEditorModal
+          open={editorOpen}
+          question={editing}
+          viewer={viewer as OrgViewer & { id: string }}
+          readOnly={previewOnly}
+          onClose={() => { setEditorOpen(false); setEditing(null); setPreviewOnly(false); }}
+          onSaved={load}
+        />
+      )}
     </TestLayout>
   );
 }

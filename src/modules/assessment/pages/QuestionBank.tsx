@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
 import { TestLayout } from '../components/TestLayout';
 import { useAuth } from '../../../contexts/AuthContext';
-import { fetchQuestions, saveQuestion, archiveQuestion } from '../services/questionService';
+import { fetchQuestions, archiveQuestion } from '../services/questionService';
 import { QUESTION_TYPES } from '../constants';
 import type { AssessmentQuestion, QuestionType } from '../types';
-import { Plus, Search, Archive, Sparkles } from 'lucide-react';
+import type { OrgViewer } from '../../../utils/orgScope';
+import { Plus, Search, Archive, Sparkles, Pencil, ChevronRight, CheckCircle2 } from 'lucide-react';
 import { generateQuestions } from '../services/aiService';
+import { QuestionEditorModal } from '../components/QuestionEditorModal';
+import { saveQuestion } from '../services/questionService';
 
 export function QuestionBank() {
   const { profile } = useAuth();
@@ -14,8 +17,8 @@ export function QuestionBank() {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<QuestionType | ''>('');
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title: '', prompt: '', question_type: 'multiple_choice' as QuestionType, options: ['', ''] });
+  const [editing, setEditing] = useState<AssessmentQuestion | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
 
@@ -32,19 +35,14 @@ export function QuestionBank() {
 
   useEffect(() => { load(); }, [profile?.id, search, typeFilter]);
 
-  const handleSave = async () => {
-    if (!viewer?.id || !form.prompt.trim()) return;
-    const options = form.question_type === 'multiple_choice' || form.question_type === 'true_false'
-      ? form.options.filter(Boolean).map((t, i) => ({ option_text: t, is_correct: i === 0 }))
-      : undefined;
-    await saveQuestion(
-      { ...viewer, id: viewer.id },
-      { title: form.title || form.prompt.slice(0, 60), prompt: form.prompt, question_type: form.question_type },
-      options,
-    );
-    setShowForm(false);
-    setForm({ title: '', prompt: '', question_type: 'multiple_choice', options: ['', ''] });
-    await load();
+  const openNew = () => {
+    setEditing(null);
+    setEditorOpen(true);
+  };
+
+  const openEdit = (q: AssessmentQuestion) => {
+    setEditing(q);
+    setEditorOpen(true);
   };
 
   const handleAiGenerate = async () => {
@@ -66,14 +64,20 @@ export function QuestionBank() {
     }
   };
 
+  const correctLabel = (q: AssessmentQuestion) => {
+    const correct = q.options?.filter((o) => o.is_correct) || [];
+    if (!correct.length) return null;
+    return correct.map((o) => o.option_text).join(', ');
+  };
+
   return (
     <TestLayout>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em' }}>Question Bank</h1>
-          <p style={{ fontSize: 13, color: '#666', marginTop: 4 }}>Reusable questions with skills, difficulty, and tags.</p>
+          <p style={{ fontSize: 13, color: '#666', marginTop: 4 }}>Click any question to edit prompt, answers, and scoring.</p>
         </div>
-        <button onClick={() => setShowForm(true)} className="lt-btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', fontSize: 13 }}>
+        <button onClick={openNew} className="lt-btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', fontSize: 13 }}>
           <Plus size={14} /> Add question
         </button>
       </div>
@@ -97,48 +101,81 @@ export function QuestionBank() {
         </select>
       </div>
 
-      {showForm && (
-        <div className="lt-card" style={{ padding: 20, marginBottom: 16 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>New question</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <select className="lt-input" value={form.question_type} onChange={(e) => setForm({ ...form, question_type: e.target.value as QuestionType })}>
-              {QUESTION_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
-            <input className="lt-input" placeholder="Title (optional)" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-            <textarea className="lt-input" placeholder="Question prompt" value={form.prompt} onChange={(e) => setForm({ ...form, prompt: e.target.value })} rows={3} />
-            {(form.question_type === 'multiple_choice' || form.question_type === 'multiple_select') && form.options.map((opt, i) => (
-              <input key={i} className="lt-input" placeholder={`Option ${i + 1}`} value={opt} onChange={(e) => {
-                const opts = [...form.options];
-                opts[i] = e.target.value;
-                setForm({ ...form, options: opts });
-              }} />
-            ))}
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={handleSave} className="lt-btn-primary" style={{ padding: '8px 16px', fontSize: 13 }}>Save</button>
-              <button onClick={() => setShowForm(false)} className="lt-btn-secondary" style={{ padding: '8px 16px', fontSize: 13 }}>Cancel</button>
-            </div>
-          </div>
+      {loading ? <p style={{ color: '#808080' }}>Loading...</p> : questions.length === 0 ? (
+        <div className="lt-card" style={{ padding: 40, textAlign: 'center' }}>
+          <p style={{ color: '#666', marginBottom: 12 }}>No questions yet.</p>
+          <button onClick={openNew} className="lt-btn-primary" style={{ padding: '8px 16px', fontSize: 13 }}>Create first question</button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {questions.map((q) => {
+            const answer = correctLabel(q);
+            return (
+              <div
+                key={q.id}
+                className="lt-card"
+                style={{ padding: '14px 18px', cursor: 'pointer', transition: 'box-shadow 0.12s' }}
+                onClick={() => openEdit(q)}
+                onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.08)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.boxShadow = ''; }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#171717' }}>{q.title || 'Untitled'}</div>
+                    <p style={{ fontSize: 13, color: '#4d4d4d', marginTop: 6, lineHeight: 1.5 }}>
+                      {q.prompt.length > 160 ? `${q.prompt.slice(0, 160)}…` : q.prompt}
+                    </p>
+                    {answer && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 12, color: '#16a34a' }}>
+                        <CheckCircle2 size={13} />
+                        <span>Correct: {answer}</span>
+                      </div>
+                    )}
+                    {q.options && q.options.length > 0 && !answer && (
+                      <div style={{ fontSize: 11, color: '#999', marginTop: 6 }}>
+                        {q.options.length} options — click to view & edit
+                      </div>
+                    )}
+                    <div style={{ fontSize: 11, color: '#999', marginTop: 8 }}>
+                      {q.question_type.replace(/_/g, ' ')} · {q.difficulty} · weight {q.weight}
+                      {q.tags?.length ? ` · ${q.tags.slice(0, 3).join(', ')}` : ''}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); openEdit(q); }}
+                      className="lt-btn-secondary"
+                      style={{ padding: '5px 10px', fontSize: 11, display: 'flex', gap: 4, alignItems: 'center' }}
+                    >
+                      <Pencil size={12} /> Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); archiveQuestion(q.id).then(load); }}
+                      className="lt-btn-secondary"
+                      style={{ padding: '5px 10px', fontSize: 11 }}
+                      title="Archive"
+                    >
+                      <Archive size={12} />
+                    </button>
+                    <ChevronRight size={14} color="#ccc" />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {loading ? <p style={{ color: '#808080' }}>Loading...</p> : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {questions.map((q) => (
-            <div key={q.id} className="lt-card" style={{ padding: '14px 18px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>{q.title || q.prompt.slice(0, 80)}</div>
-                  <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
-                    {q.question_type.replace(/_/g, ' ')} · {q.difficulty} · weight {q.weight}
-                  </div>
-                </div>
-                <button onClick={() => archiveQuestion(q.id).then(load)} className="lt-btn-secondary" style={{ padding: '5px 10px', fontSize: 11 }}>
-                  <Archive size={12} />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+      {viewer?.id && (
+        <QuestionEditorModal
+          open={editorOpen}
+          question={editing}
+          viewer={viewer as OrgViewer & { id: string }}
+          onClose={() => { setEditorOpen(false); setEditing(null); }}
+          onSaved={load}
+        />
       )}
     </TestLayout>
   );

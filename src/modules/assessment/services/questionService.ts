@@ -3,6 +3,32 @@ import { applyOrgScope, orgIdForInsert } from '../../../utils/orgScope';
 import type { OrgViewer } from '../../../utils/orgScope';
 import type { AssessmentQuestion, QuestionType } from '../types';
 
+export function normalizeQuestion(
+  row: AssessmentQuestion & { assessment_question_options?: AssessmentQuestion['options'] },
+): AssessmentQuestion {
+  const options = (row.options || row.assessment_question_options || []).sort(
+    (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
+  );
+  const { assessment_question_options: _, ...rest } = row;
+  return { ...rest, options };
+}
+
+export async function fetchQuestionById(id: string, viewer?: OrgViewer | null) {
+  let query = supabase
+    .from('assessment_questions')
+    .select(`
+      *,
+      assessment_question_options (*),
+      assessment_coding_test_cases (*)
+    `)
+    .eq('id', id);
+  query = applyOrgScope(query, viewer);
+  const { data, error } = await query.maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return normalizeQuestion(data as AssessmentQuestion & { assessment_question_options?: AssessmentQuestion['options'] });
+}
+
 export async function fetchQuestions(
   viewer: OrgViewer | null | undefined,
   filters?: { search?: string; type?: QuestionType; includeArchived?: boolean },
@@ -25,7 +51,9 @@ export async function fetchQuestions(
 
   const { data, error } = await query;
   if (error) throw error;
-  return (data || []) as AssessmentQuestion[];
+  return (data || []).map((row) =>
+    normalizeQuestion(row as AssessmentQuestion & { assessment_question_options?: AssessmentQuestion['options'] }),
+  );
 }
 
 export async function saveQuestion(

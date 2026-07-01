@@ -1,7 +1,8 @@
 import { supabase } from '../../../lib/supabase';
 import { applyOrgScope, orgIdForInsert } from '../../../utils/orgScope';
 import type { OrgViewer } from '../../../utils/orgScope';
-import type { Assessment, AssessmentStatus } from '../types';
+import type { Assessment, AssessmentStatus, AssessmentQuestion } from '../types';
+import { normalizeQuestion } from './questionService';
 
 export async function logAssessmentAudit(
   orgId: string,
@@ -170,5 +171,15 @@ export async function fetchAssessmentWithSections(id: string, viewer?: OrgViewer
     .eq('assessment_id', id)
     .order('sort_order');
 
-  return { ...assessment, sections: sections || [] };
+  const normalizedSections = (sections || []).map((section) => ({
+    ...section,
+    assessment_section_questions: (section.assessment_section_questions || []).map((sq: {
+      question?: AssessmentQuestion & { assessment_question_options?: AssessmentQuestion['options'] };
+    }) => ({
+      ...sq,
+      question: sq.question ? normalizeQuestion(sq.question) : sq.question,
+    })),
+  }));
+
+  return { ...assessment, sections: normalizedSections };
 }
