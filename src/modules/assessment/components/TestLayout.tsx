@@ -7,6 +7,7 @@ import {
   Settings, PenLine,
 } from 'lucide-react';
 import { getOrgLogoUrl } from '../../../utils/orgSettings';
+import { useDocumentTitle } from '../../../lib/seo';
 import '../styles/test-module.css';
 
 const NAV_GROUPS = [
@@ -93,6 +94,7 @@ export function TestLayout({ children, wide }: { children: React.ReactNode; wide
 
   const pageTitle = PAGE_TITLES[location.pathname]
     || (location.pathname.startsWith('/test/library/') ? 'Assessment Builder' : 'Tavrion Test');
+  useDocumentTitle(pageTitle);
 
   const navLink = (href: string): React.CSSProperties => {
     const active = location.pathname === href

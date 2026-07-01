@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { SEO, usePageSeo } from '../lib/seo';
-import { Globe as Globe2, ArrowRight, Eye, EyeOff, Shield, Users, BarChart3, Zap, Building2, ChevronDown } from 'lucide-react';
+import { Globe as Globe2, ArrowRight, Eye, EyeOff, Shield, Users, BarChart3, Zap, Building2, X } from 'lucide-react';
 
 const T = {
   bg: '#ffffff',
@@ -32,54 +32,124 @@ const SOCIAL_PROOF = [
 interface OrgOption { id: string; name: string; slug: string; }
 
 const OWNER_SENTINEL = '__platform_owner__';
+const MIN_ORG_SEARCH = 3;
+const PLATFORM_OWNER_LABEL = 'Platform Owner (Master Admin)';
+
+function escapeIlike(term: string): string {
+  return term.replace(/[%_\\]/g, '\\$&');
+}
+
+function matchesPlatformOwner(query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (q.length < MIN_ORG_SEARCH) return false;
+  return PLATFORM_OWNER_LABEL.toLowerCase().includes(q);
+}
 
 export function Login() {
   usePageSeo(SEO.login);
 
-  const [orgs, setOrgs] = useState<OrgOption[]>([]);
+  const [orgQuery, setOrgQuery] = useState('');
   const [orgId, setOrgId] = useState('');
+  const [selectedOrgLabel, setSelectedOrgLabel] = useState('');
+  const [suggestions, setSuggestions] = useState<OrgOption[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [orgSearchLoading, setOrgSearchLoading] = useState(false);
+  const orgSearchRef = useRef<HTMLDivElement>(null);
+  const orgBlurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
   const [showId, setShowId] = useState(false);
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [orgsLoading, setOrgsLoading] = useState(true);
   const [focusedField, setFocusedField] = useState<'org' | 'id' | 'pw' | null>(null);
   const { signIn } = useAuth();
   const navigate = useNavigate();
 
-  const fetchOrgs = useCallback(async () => {
-    setOrgsLoading(true);
+  const searchOrganizations = useCallback(async (query: string) => {
+    const term = query.trim();
+    if (term.length < MIN_ORG_SEARCH) {
+      setSuggestions([]);
+      setOrgSearchLoading(false);
+      return;
+    }
+
+    setOrgSearchLoading(true);
     try {
-      const { data, error } = await supabase
+      const escaped = escapeIlike(term);
+      const { data, error: searchError } = await supabase
         .from('organizations')
         .select('id, name, slug')
         .eq('is_active', true)
-        .order('name', { ascending: true });
+        .or(`name.ilike.%${escaped}%,slug.ilike.%${escaped}%`)
+        .order('name', { ascending: true })
+        .limit(8);
 
-      if (error) throw error;
-
-      const activeOrgs = data || [];
-      setOrgs(activeOrgs);
-      setOrgId((current) => {
-        if (!current || current === OWNER_SENTINEL) return current;
-        return activeOrgs.some((org) => org.id === current) ? current : '';
-      });
+      if (searchError) throw searchError;
+      setSuggestions(data || []);
     } catch (err) {
-      console.error('Failed to load organisations:', err);
-      setOrgs([]);
+      console.error('Failed to search organisations:', err);
+      setSuggestions([]);
     } finally {
-      setOrgsLoading(false);
+      setOrgSearchLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchOrgs();
-    const onFocus = () => fetchOrgs();
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
-  }, [fetchOrgs]);
+    if (!showSuggestions) return;
+    const term = orgQuery.trim();
+    if (term.length < MIN_ORG_SEARCH) {
+      setSuggestions([]);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      searchOrganizations(term);
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [orgQuery, showSuggestions, searchOrganizations]);
+
+  useEffect(() => {
+    const onMouseDown = (e: MouseEvent) => {
+      if (orgSearchRef.current && !orgSearchRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', onMouseDown);
+    return () => document.removeEventListener('mousedown', onMouseDown);
+  }, []);
+
+  const clearOrgSelection = () => {
+    setOrgId('');
+    setSelectedOrgLabel('');
+    setOrgQuery('');
+    setSuggestions([]);
+    setShowSuggestions(false);
+  };
+
+  const selectOrganization = (id: string, label: string) => {
+    if (orgBlurTimer.current) clearTimeout(orgBlurTimer.current);
+    setOrgId(id);
+    setSelectedOrgLabel(label);
+    setOrgQuery(label);
+    setShowSuggestions(false);
+    setSuggestions([]);
+  };
+
+  const handleOrgInputChange = (value: string) => {
+    setOrgQuery(value);
+    if (orgId && value !== selectedOrgLabel) {
+      setOrgId('');
+      setSelectedOrgLabel('');
+    }
+    setShowSuggestions(true);
+  };
+
+  const platformOwnerMatch = matchesPlatformOwner(orgQuery);
+  const showOrgDropdown = showSuggestions && orgQuery.trim().length >= MIN_ORG_SEARCH;
+  const hasOrgResults = platformOwnerMatch || suggestions.length > 0;
+  const showNoResults = showOrgDropdown && !orgSearchLoading && !hasOrgResults;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -188,7 +258,7 @@ export function Login() {
               Welcome back
             </h2>
             <p style={{ fontSize: 14, color: T.textBody, lineHeight: 1.6 }}>
-              Select your organisation and sign in with your User ID.
+              Type your organisation name to find it, then sign in with your User ID.
             </p>
           </div>
 
@@ -200,44 +270,140 @@ export function Login() {
               </div>
             )}
 
-            {/* Organisation selector */}
+            {/* Organisation autocomplete */}
             <div style={{ marginBottom: 16 }}>
-              <label htmlFor="orgSelect" style={{ display: 'block', fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 6, letterSpacing: '0.04em', textTransform: 'uppercase' as const }}>
+              <label htmlFor="orgSearch" style={{ display: 'block', fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 6, letterSpacing: '0.04em', textTransform: 'uppercase' as const }}>
                 Organisation
               </label>
-              <div style={{ position: 'relative' }}>
-                <Building2 size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: T.textFaint, pointerEvents: 'none' }} />
-                <select
-                  id="orgSelect"
-                  value={orgId}
-                  onChange={e => setOrgId(e.target.value)}
-                  onFocus={() => setFocusedField('org')}
-                  onBlur={() => setFocusedField(null)}
-                  required
-                  disabled={orgsLoading}
+              <div ref={orgSearchRef} style={{ position: 'relative' }}>
+                <Building2 size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: T.textFaint, pointerEvents: 'none', zIndex: 1 }} />
+                <input
+                  id="orgSearch"
+                  type="text"
+                  value={orgQuery}
+                  onChange={(e) => handleOrgInputChange(e.target.value)}
+                  onFocus={() => {
+                    setFocusedField('org');
+                    if (orgQuery.trim().length >= MIN_ORG_SEARCH) setShowSuggestions(true);
+                  }}
+                  onBlur={() => {
+                    setFocusedField(null);
+                    orgBlurTimer.current = setTimeout(() => setShowSuggestions(false), 150);
+                  }}
+                  placeholder={`Type at least ${MIN_ORG_SEARCH} characters...`}
+                  autoComplete="off"
+                  role="combobox"
+                  aria-expanded={showOrgDropdown}
+                  aria-autocomplete="list"
+                  aria-controls="org-suggestions"
                   className="login-input"
                   style={{
                     width: '100%',
-                    padding: '12px 40px 12px 36px',
+                    padding: orgId ? '12px 40px 12px 36px' : '12px 14px 12px 36px',
                     background: T.bgSubtle,
                     boxShadow: focusedField === 'org' ? T.shadowFocus : T.shadow,
                     border: 'none',
                     borderRadius: 10,
-                    color: orgId ? T.text : T.textFaint,
+                    color: orgQuery ? T.text : T.textFaint,
                     outline: 'none',
                     transition: 'box-shadow 0.15s',
                     boxSizing: 'border-box' as const,
-                    appearance: 'none' as const,
-                    cursor: 'pointer',
                   }}
-                >
-                  <option value="">{orgsLoading ? 'Loading...' : 'Select organisation...'}</option>
-                  <option value={OWNER_SENTINEL}>— Platform Owner (Master Admin) —</option>
-                  {orgs.map(o => (
-                    <option key={o.id} value={o.id}>{o.name}</option>
-                  ))}
-                </select>
-                <ChevronDown size={14} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: T.textFaint, pointerEvents: 'none' }} />
+                />
+                {orgId && (
+                  <button
+                    type="button"
+                    onClick={clearOrgSelection}
+                    aria-label="Clear organisation"
+                    style={{
+                      position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                      background: 'none', border: 'none', cursor: 'pointer', color: T.textFaint,
+                      padding: 4, display: 'flex', borderRadius: 6,
+                    }}
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+
+                {showOrgDropdown && (
+                  <div
+                    id="org-suggestions"
+                    role="listbox"
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 6px)',
+                      left: 0,
+                      right: 0,
+                      background: T.bg,
+                      borderRadius: 10,
+                      boxShadow: 'rgba(0,0,0,0.08) 0px 0px 0px 1px, rgba(0,0,0,0.12) 0px 8px 24px',
+                      zIndex: 50,
+                      maxHeight: 240,
+                      overflowY: 'auto',
+                    }}
+                  >
+                    {orgSearchLoading && (
+                      <div style={{ padding: '12px 14px', fontSize: 13, color: T.textMuted }}>
+                        Searching...
+                      </div>
+                    )}
+
+                    {!orgSearchLoading && platformOwnerMatch && (
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={orgId === OWNER_SENTINEL}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => selectOrganization(OWNER_SENTINEL, PLATFORM_OWNER_LABEL)}
+                        style={{
+                          display: 'block', width: '100%', textAlign: 'left',
+                          padding: '11px 14px', border: 'none', background: orgId === OWNER_SENTINEL ? T.bgSection : 'transparent',
+                          cursor: 'pointer', fontSize: 13, color: T.text,
+                          borderBottom: suggestions.length ? `1px solid ${T.borderStrong}` : 'none',
+                        }}
+                      >
+                        <span style={{ fontWeight: 600 }}>{PLATFORM_OWNER_LABEL}</span>
+                      </button>
+                    )}
+
+                    {!orgSearchLoading && suggestions.map((org) => (
+                      <button
+                        key={org.id}
+                        type="button"
+                        role="option"
+                        aria-selected={orgId === org.id}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => selectOrganization(org.id, org.name)}
+                        style={{
+                          display: 'block', width: '100%', textAlign: 'left',
+                          padding: '11px 14px', border: 'none',
+                          background: orgId === org.id ? T.bgSection : 'transparent',
+                          cursor: 'pointer', fontSize: 13, color: T.text,
+                          borderBottom: `1px solid ${T.borderStrong}`,
+                        }}
+                      >
+                        <span style={{ fontWeight: 600 }}>{org.name}</span>
+                        {org.slug && (
+                          <span style={{ display: 'block', fontSize: 11, color: T.textMuted, marginTop: 2 }}>
+                            {org.slug}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+
+                    {showNoResults && (
+                      <div style={{ padding: '12px 14px', fontSize: 13, color: T.textMuted }}>
+                        No organisations match &ldquo;{orgQuery.trim()}&rdquo;
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {orgQuery.trim().length > 0 && orgQuery.trim().length < MIN_ORG_SEARCH && (
+                  <p style={{ fontSize: 11, color: T.textFaint, marginTop: 6 }}>
+                    Keep typing — enter at least {MIN_ORG_SEARCH} characters to search.
+                  </p>
+                )}
               </div>
             </div>
 

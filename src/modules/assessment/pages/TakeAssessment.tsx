@@ -8,6 +8,7 @@ import { TestInterface } from '../components/TestInterface';
 import { PostAssessmentForm } from '../components/PostAssessmentForm';
 import { savePostFormData } from '../services/sessionService';
 import type { AssessmentQuestion } from '../types';
+import { useDocumentTitle } from '../../../lib/seo';
 
 type Step = 'test' | 'post_form' | 'done';
 
@@ -24,6 +25,8 @@ export function TakeAssessment() {
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState<Step>('test');
   const [result, setResult] = useState<{ percentage: number; passed: boolean } | null>(null);
+
+  useDocumentTitle(title || 'Assessment');
 
   useEffect(() => {
     if (!assignmentId || !viewer?.id) return;

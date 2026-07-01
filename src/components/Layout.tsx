@@ -15,6 +15,7 @@ import { isBooksFeatureEnabled } from '../utils/books';
 import { isNavRouteEnabled } from '../utils/orgFeatures';
 import { getOrgLogoUrl } from '../utils/orgSettings';
 import { TestModeToggle } from '../modules/assessment/components/TestModeToggle';
+import { useDocumentTitle } from '../lib/seo';
 
 function useWindowWidth() {
   const [width, setWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 1200);
@@ -168,6 +169,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     || (location.pathname.startsWith('/owner/books') ? PAGE_TITLES['/owner/books'] : null)
     || (location.pathname.startsWith('/test') ? PAGE_TITLES[location.pathname] || { label: 'Tavrion Test', section: 'Admin' } : null)
     || { label: 'Tavrion', section: '' };
+  useDocumentTitle(currentPage.label);
   const booksNavEnabled = profile?.is_platform_owner || isBooksFeatureEnabled(organization?.features);
   const platformOwner = Boolean(profile?.is_platform_owner);
   const orgLogo = getOrgLogoUrl(organization);

@@ -1,7 +1,9 @@
 import { useLocation, Link } from 'react-router-dom';
 import { CheckCircle } from 'lucide-react';
+import { useDocumentTitle } from '../../../lib/seo';
 
 export function AssessmentResult() {
+  useDocumentTitle('Assessment Submitted');
   const location = useLocation();
   const result = location.state as { percentage?: number; passed?: boolean; showScore?: boolean } | null;
   const showScore = result?.showScore === true;

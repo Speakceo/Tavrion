@@ -80,6 +80,18 @@ function upsertLink(rel: string, href: string) {
   el.href = href;
 }
 
+export function formatDocumentTitle(pageTitle: string): string {
+  if (pageTitle.includes('|')) return pageTitle;
+  return `${pageTitle} | ${SITE_NAME}`;
+}
+
+/** Update the browser tab title when route content changes. */
+export function useDocumentTitle(pageTitle: string) {
+  useEffect(() => {
+    document.title = formatDocumentTitle(pageTitle);
+  }, [pageTitle]);
+}
+
 export function usePageSeo({
   title,
   description,

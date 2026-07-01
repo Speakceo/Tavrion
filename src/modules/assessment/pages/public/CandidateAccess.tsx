@@ -8,6 +8,7 @@ import { savePostFormData } from '../../services/sessionService';
 import { supabase } from '../../../../lib/supabase';
 import type { ResolvedPublicLink, CandidateInfo, AssessmentQuestion } from '../../types';
 import { ClipboardCheck, ArrowRight, Upload, Info } from 'lucide-react';
+import { useDocumentTitle } from '../../../../lib/seo';
 
 type Step = 'info' | 'permissions' | 'test' | 'post_form' | 'done';
 
@@ -55,6 +56,8 @@ export function CandidateAccess() {
 
   const scheduleWindows = (linkSettings.schedule_windows as ScheduleWindow[] | undefined) || [];
   const practiceMode = Boolean(linkSettings.practice_mode);
+
+  useDocumentTitle(resolved?.assessment_title || resolved?.title || 'Assessment');
 
   useEffect(() => {
     if (!linkCode) return;
