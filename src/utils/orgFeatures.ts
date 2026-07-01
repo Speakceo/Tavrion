@@ -17,6 +17,7 @@ export const ORG_FEATURE_DEFAULTS: Record<string, boolean> = {
   best_calls: true,
   leaderboard: false,
   email_nudges: false,
+  tavrion_test: false,
   scorm_upload: true,
   certificates: true,
   books: false,
@@ -48,7 +49,8 @@ export type NavFeatureKey =
   | 'ai_tutor'
   | 'mock_calls'
   | 'live_calls'
-  | 'email_nudges';
+  | 'email_nudges'
+  | 'tavrion_test';
 
 export const NAV_FEATURE_MAP: Record<string, NavFeatureKey | null> = {
   '/social': 'social',

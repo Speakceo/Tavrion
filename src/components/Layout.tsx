@@ -14,6 +14,7 @@ import {
 import { isBooksFeatureEnabled } from '../utils/books';
 import { isNavRouteEnabled } from '../utils/orgFeatures';
 import { getOrgLogoUrl } from '../utils/orgSettings';
+import { TestModeToggle } from '../modules/assessment/components/TestModeToggle';
 
 function useWindowWidth() {
   const [width, setWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 1200);
@@ -278,6 +279,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <TestModeToggle />
             {/* Activity */}
             <Link to="/social" style={{ padding: 7, background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: 7, color: '#808080', display: 'flex', alignItems: 'center', textDecoration: 'none', transition: 'all 0.12s' }}
               onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f5'; e.currentTarget.style.color = '#171717'; }}

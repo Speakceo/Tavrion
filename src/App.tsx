@@ -46,6 +46,15 @@ import { OwnerDashboard } from './pages/owner/Dashboard';
 import { OrgDetail } from './pages/owner/OrgDetail';
 import { OwnerBooks } from './pages/owner/Books';
 import { Books } from './pages/Books';
+import { TestDashboard } from './modules/assessment/pages/TestDashboard';
+import { AssessmentLibrary } from './modules/assessment/pages/AssessmentLibrary';
+import { AssessmentBuilder } from './modules/assessment/pages/AssessmentBuilder';
+import { QuestionBank } from './modules/assessment/pages/QuestionBank';
+import { TestAssignments } from './modules/assessment/pages/TestAssignments';
+import { TestAnalytics } from './modules/assessment/pages/TestAnalytics';
+import { TestReports } from './modules/assessment/pages/TestReports';
+import { TakeAssessment } from './modules/assessment/pages/TakeAssessment';
+import { AssessmentResult } from './modules/assessment/pages/AssessmentResult';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -429,6 +438,98 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['super_admin', 'admin', 'trainer']}>
                 <PolicyVersions />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Tavrion Test — Assessment & Hiring (admin header toggle) */}
+          <Route
+            path="/test"
+            element={
+              <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
+                <OrgFeatureGate feature="tavrion_test">
+                  <TestDashboard />
+                </OrgFeatureGate>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/test/library"
+            element={
+              <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
+                <OrgFeatureGate feature="tavrion_test">
+                  <AssessmentLibrary />
+                </OrgFeatureGate>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/test/library/:id/builder"
+            element={
+              <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
+                <OrgFeatureGate feature="tavrion_test">
+                  <AssessmentBuilder />
+                </OrgFeatureGate>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/test/questions"
+            element={
+              <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
+                <OrgFeatureGate feature="tavrion_test">
+                  <QuestionBank />
+                </OrgFeatureGate>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/test/assignments"
+            element={
+              <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
+                <OrgFeatureGate feature="tavrion_test">
+                  <TestAssignments />
+                </OrgFeatureGate>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/test/analytics"
+            element={
+              <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
+                <OrgFeatureGate feature="tavrion_test">
+                  <TestAnalytics />
+                </OrgFeatureGate>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/test/reports"
+            element={
+              <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
+                <OrgFeatureGate feature="tavrion_test">
+                  <TestReports />
+                </OrgFeatureGate>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/test/take/:assignmentId"
+            element={
+              <ProtectedRoute>
+                <OrgFeatureGate feature="tavrion_test">
+                  <TakeAssessment />
+                </OrgFeatureGate>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/test/result/:attemptId"
+            element={
+              <ProtectedRoute>
+                <OrgFeatureGate feature="tavrion_test">
+                  <AssessmentResult />
+                </OrgFeatureGate>
               </ProtectedRoute>
             }
           />
