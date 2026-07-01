@@ -4,12 +4,13 @@ import { TestLayout } from '../components/TestLayout';
 import { useAuth } from '../../../contexts/AuthContext';
 import type { OrgViewer } from '../../../utils/orgScope';
 import {
-  fetchAssessments, createAssessment, duplicateAssessment, updateAssessmentStatus,
+  fetchAssessments, createAssessment, duplicateAssessment, updateAssessmentStatus, deleteAssessment,
 } from '../services/assessmentService';
 import { fetchFolders, createFolder, fetchSkills, type AssessmentFolder } from '../services/platformService';
 import { supabase } from '../../../lib/supabase';
 import type { Assessment, AssessmentStatus } from '../types';
-import { Plus, Copy, Archive, Globe, Search, FolderOpen, Briefcase, Tag, FolderInput } from 'lucide-react';
+import { Plus, Copy, Archive, Globe, Search, FolderOpen, Briefcase, Tag, FolderInput, Trash2 } from 'lucide-react';
+import { confirmDelete } from '../utils/confirm';
 
 const STATUS_COLORS: Record<AssessmentStatus, string> = {
   draft: '#808080',
@@ -114,6 +115,20 @@ export function AssessmentLibrary() {
     try {
       await updateAssessmentStatus(viewer as OrgViewer & { id: string }, id, status);
       await load();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleDelete = async (a: Assessment) => {
+    if (!viewer?.id) return;
+    if (!confirmDelete(a.title)) return;
+    setBusy(a.id);
+    try {
+      await deleteAssessment(viewer as OrgViewer & { id: string }, a.id);
+      await load();
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Delete failed');
     } finally {
       setBusy(null);
     }
@@ -267,6 +282,15 @@ export function AssessmentLibrary() {
                 )}
                 <button onClick={() => handleDuplicate(a.id)} disabled={busy === a.id} className="lt-btn-secondary" style={{ padding: '5px 10px', fontSize: 11, display: 'flex', gap: 4, alignItems: 'center' }}>
                   <Copy size={12} /> Duplicate
+                </button>
+                <button
+                  onClick={() => handleDelete(a)}
+                  disabled={busy === a.id}
+                  className="lt-btn-secondary test-delete-btn"
+                  style={{ padding: '5px 10px', fontSize: 11, display: 'flex', gap: 4, alignItems: 'center' }}
+                  title="Delete permanently"
+                >
+                  <Trash2 size={12} /> Delete
                 </button>
               </div>
             </div>

@@ -151,6 +151,21 @@ export async function updateAssessmentStatus(
   await logAssessmentAudit(orgIdForInsert(viewer)!, viewer.id, 'status_change', 'assessment', id, { status });
 }
 
+export async function deleteAssessment(viewer: OrgViewer & { id: string }, id: string) {
+  const assessment = await fetchAssessmentById(id, viewer);
+  if (!assessment) throw new Error('Assessment not found');
+
+  const orgId = orgIdForInsert(viewer);
+  if (!orgId) throw new Error('Organization required');
+
+  const { error } = await supabase.from('assessments').delete().eq('id', id);
+  if (error) throw error;
+
+  await logAssessmentAudit(orgId, viewer.id, 'delete', 'assessment', id, {
+    title: assessment.title,
+  });
+}
+
 export async function fetchAssessmentWithSections(id: string, viewer?: OrgViewer | null) {
   const assessment = await fetchAssessmentById(id, viewer);
   if (!assessment) return null;

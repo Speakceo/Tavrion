@@ -7,6 +7,7 @@ import {
 } from '../services/sessionService';
 import { exportSelectedSessionsCsv } from '../services/exportService';
 import { summarizeCandidate } from '../services/aiService';
+import { confirmDelete } from '../utils/confirm';
 import type { SelectionStatus } from '../types';
 import {
   Search, Eye, Trash2, CheckCircle, Clock, AlertTriangle,
@@ -102,6 +103,7 @@ export function TestSessions() {
   const runBulk = async (action: 'shortlist' | 'reject' | 'delete' | 'export') => {
     const ids = [...selected];
     if (!ids.length) return;
+    if (action === 'delete' && !confirm(`Delete ${ids.length} session(s)? This cannot be undone.`)) return;
     setBulkBusy(true);
     try {
       if (action === 'shortlist') await bulkUpdateSelectionStatus(ids, 'shortlisted', viewer);
@@ -207,7 +209,7 @@ export function TestSessions() {
           )}
 
           {loading ? <p style={{ color: '#808080' }}>Loading...</p> : (
-            <div className="lt-card" style={{ overflow: 'auto' }}>
+            <div className="lt-card test-table-wrap">
               <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', minWidth: 760 }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid #f0f0f0', textAlign: 'left' }}>
@@ -271,7 +273,18 @@ export function TestSessions() {
                           >
                             <GitCompare size={12} />
                           </button>
-                          <button type="button" onClick={() => deleteSession(s.id, viewer).then(load)} className="lt-btn-secondary" style={{ padding: '4px 8px', color: '#c0392b' }}>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const name = s.candidate_name || s.candidate_email || 'this session';
+                              if (!confirmDelete(name)) return;
+                              await deleteSession(s.id, viewer);
+                              await load();
+                            }}
+                            className="lt-btn-secondary test-delete-btn"
+                            style={{ padding: '4px 8px' }}
+                            title="Delete session"
+                          >
                             <Trash2 size={12} />
                           </button>
                         </div>

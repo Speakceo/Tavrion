@@ -175,7 +175,7 @@ export function TestGrading() {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 280px) 1fr', gap: 16, alignItems: 'start' }}>
+      <div className="test-grading-grid">
         <div className="lt-card" style={{ padding: 0, overflow: 'hidden' }}>
           <div style={{ padding: '12px 14px', borderBottom: '1px solid #f0f0f0', fontSize: 12, fontWeight: 700, color: '#666' }}>
             Queue ({queue.length})

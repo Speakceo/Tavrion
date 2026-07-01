@@ -85,3 +85,10 @@ export async function fetchAssignmentById(id: string, viewer?: OrgViewer | null)
   if (error) throw error;
   return data as AssessmentAssignment | null;
 }
+
+export async function deleteAssignment(viewer: OrgViewer & { id: string }, id: string) {
+  let query = supabase.from('assessment_assignments').delete().eq('id', id);
+  query = applyOrgScope(query, viewer);
+  const { error } = await query;
+  if (error) throw error;
+}

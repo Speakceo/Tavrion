@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import { TestLayout } from '../components/TestLayout';
 import { useAuth } from '../../../contexts/AuthContext';
-import { fetchAssignments, createAssignment } from '../services/assignmentService';
+import { fetchAssignments, createAssignment, deleteAssignment } from '../services/assignmentService';
 import { fetchAssessments } from '../services/assessmentService';
 import { supabase } from '../../../lib/supabase';
+import type { OrgViewer } from '../../../utils/orgScope';
 import type { Assessment, AssessmentAssignment, AssigneeType } from '../types';
-import { Plus, Link2, Calendar, Play, Mail, Copy, Users } from 'lucide-react';
+import type { Assessment, AssessmentAssignment, AssigneeType } from '../types';
+import { Plus, Link2, Calendar, Play, Mail, Copy, Users, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { confirmDelete } from '../utils/confirm';
 
 type AssignmentTarget = {
   id: string;
@@ -238,6 +241,20 @@ export function TestAssignments() {
     setTimeout(() => setMessage(''), 2500);
   };
 
+  const handleDeleteAssignment = async (a: AssessmentAssignment) => {
+    if (!viewer?.id || !confirmDelete(a.title)) return;
+    setBusy(true);
+    try {
+      await deleteAssignment(viewer as OrgViewer & { id: string }, a.id);
+      setMessage('Assignment deleted.');
+      await load();
+    } catch (e: unknown) {
+      setMessage(e instanceof Error ? e.message : 'Delete failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <TestLayout>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
@@ -259,7 +276,7 @@ export function TestAssignments() {
       {showForm && (
         <div className="lt-card" style={{ padding: 20, marginBottom: 16 }}>
           <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Create assignment</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="test-form-grid">
             <label style={{ fontSize: 12 }}>
               Assessment
               <select className="lt-input" value={form.assessment_id} onChange={(e) => setForm({ ...form, assessment_id: e.target.value })} style={{ marginTop: 4 }}>
@@ -397,6 +414,15 @@ export function TestAssignments() {
                 <Link to={`/test/take/${a.id}`} className="lt-btn-secondary" style={{ padding: '5px 12px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}>
                   <Play size={11} /> Preview / take
                 </Link>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteAssignment(a)}
+                  disabled={busy}
+                  className="lt-btn-secondary test-delete-btn"
+                  style={{ padding: '5px 12px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                >
+                  <Trash2 size={11} /> Delete
+                </button>
               </div>
               {a.access_token && (
                 <div style={{ fontSize: 11, color: '#666', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>

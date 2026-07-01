@@ -6,9 +6,10 @@ import { fetchSkills, type AssessmentSkill } from '../services/platformService';
 import { QUESTION_TYPES } from '../constants';
 import type { AssessmentQuestion, QuestionType } from '../types';
 import type { OrgViewer } from '../../../utils/orgScope';
-import { Plus, Search, Archive, Sparkles, Pencil, ChevronRight, CheckCircle2, Upload, X, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Sparkles, Pencil, ChevronRight, CheckCircle2, Upload, X, AlertTriangle, Trash2 } from 'lucide-react';
 import { generateQuestions } from '../services/aiService';
 import { QuestionEditorModal } from '../components/QuestionEditorModal';
+import { confirmDelete } from '../utils/confirm';
 
 function parseCsvRow(line: string): string[] {
   const result: string[] = [];
@@ -266,8 +267,18 @@ export function QuestionBank() {
                     <button type="button" onClick={(e) => { e.stopPropagation(); openEdit(q); }} className="lt-btn-secondary" style={{ padding: '5px 10px', fontSize: 11, display: 'flex', gap: 4, alignItems: 'center' }}>
                       <Pencil size={12} /> Edit
                     </button>
-                    <button type="button" onClick={(e) => { e.stopPropagation(); archiveQuestion(q.id).then(load); }} className="lt-btn-secondary" style={{ padding: '5px 10px', fontSize: 11 }} title="Archive">
-                      <Archive size={12} />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!confirmDelete(q.title || 'this question')) return;
+                        archiveQuestion(q.id).then(load);
+                      }}
+                      className="lt-btn-secondary test-delete-btn"
+                      style={{ padding: '5px 10px', fontSize: 11, display: 'flex', gap: 4, alignItems: 'center' }}
+                      title="Archive question"
+                    >
+                      <Trash2 size={12} /> Delete
                     </button>
                     <ChevronRight size={14} color="#ccc" />
                   </div>

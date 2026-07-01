@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { TestLayout } from '../components/TestLayout';
 import { useAuth } from '../../../contexts/AuthContext';
-import { fetchReusableLinks, createReusableLink, buildPublicUrl } from '../services/linkService';
+import { fetchReusableLinks, createReusableLink, buildPublicUrl, deleteReusableLink, deactivateReusableLink } from '../services/linkService';
 import { fetchAssessments } from '../services/assessmentService';
 import type { Assessment, AssessmentReusableLink } from '../types';
-import { Plus, Copy, Link2, ExternalLink } from 'lucide-react';
+import type { OrgViewer } from '../../../utils/orgScope';
+import { Plus, Copy, Link2, ExternalLink, Trash2, Ban } from 'lucide-react';
+import { confirmDelete } from '../utils/confirm';
 
 export function TestLinks() {
   const { profile } = useAuth();
@@ -15,6 +17,8 @@ export function TestLinks() {
   const [form, setForm] = useState({ assessment_id: '', title: '', max_uses: '' });
   const [copied, setCopied] = useState('');
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [message, setMessage] = useState('');
 
   const load = async () => {
     if (!viewer) return;
@@ -55,6 +59,34 @@ export function TestLinks() {
     setTimeout(() => setCopied(''), 2000);
   };
 
+  const handleDeactivate = async (link: AssessmentReusableLink) => {
+    if (!viewer?.id || !confirm('Deactivate this link? Candidates will no longer be able to use it.')) return;
+    setBusy(link.id);
+    try {
+      await deactivateReusableLink(viewer as OrgViewer & { id: string }, link.id);
+      setMessage('Link deactivated.');
+      await load();
+    } catch (e: unknown) {
+      setMessage(e instanceof Error ? e.message : 'Failed to deactivate');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleDelete = async (link: AssessmentReusableLink) => {
+    if (!viewer?.id || !confirmDelete(link.title)) return;
+    setBusy(link.id);
+    try {
+      await deleteReusableLink(viewer as OrgViewer & { id: string }, link.id);
+      setMessage('Link deleted.');
+      await load();
+    } catch (e: unknown) {
+      setMessage(e instanceof Error ? e.message : 'Delete failed');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   return (
     <TestLayout>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
@@ -70,7 +102,7 @@ export function TestLinks() {
       {showForm && (
         <div className="lt-card" style={{ padding: 20, marginBottom: 16 }}>
           <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>New public link</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="test-form-grid">
             <label style={{ fontSize: 12 }}>
               Published assessment
               <select className="lt-input" value={form.assessment_id} onChange={(e) => setForm({ ...form, assessment_id: e.target.value })} style={{ marginTop: 4 }}>
@@ -94,6 +126,12 @@ export function TestLinks() {
         </div>
       )}
 
+      {message && (
+        <div className="lt-card" style={{ padding: 12, marginBottom: 16, fontSize: 12, color: message.toLowerCase().includes('fail') ? '#c0392b' : '#16a34a' }}>
+          {message}
+        </div>
+      )}
+
       {copied && (
         <div className="lt-card" style={{ padding: 12, marginBottom: 16, fontSize: 12, color: '#16a34a', display: 'flex', alignItems: 'center', gap: 8 }}>
           <Copy size={14} /> Link copied to clipboard
@@ -111,17 +149,30 @@ export function TestLinks() {
             <div key={l.id} className="lt-card" style={{ padding: '14px 18px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>{l.title}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {l.title}
+                    {!l.is_active && (
+                      <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 999, background: '#fef2f2', color: '#c0392b', fontWeight: 600 }}>Inactive</span>
+                    )}
+                  </div>
                   <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>{l.assessment?.title} · {l.uses_count} uses{l.max_uses ? ` / ${l.max_uses}` : ''}</div>
                   <div style={{ fontSize: 11, color: '#999', marginTop: 6, fontFamily: 'monospace' }}>{l.public_url}</div>
                 </div>
-                <div style={{ display: 'flex', gap: 6 }}>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   <button onClick={() => copyUrl(l.public_url!)} className="lt-btn-secondary" style={{ padding: '6px 12px', fontSize: 11, display: 'flex', gap: 4, alignItems: 'center' }}>
                     <Copy size={12} /> Copy
                   </button>
                   <a href={l.public_url} target="_blank" rel="noreferrer" className="lt-btn-secondary" style={{ padding: '6px 12px', fontSize: 11, display: 'flex', gap: 4, alignItems: 'center', textDecoration: 'none' }}>
                     <ExternalLink size={12} /> Preview
                   </a>
+                  {l.is_active && (
+                    <button type="button" onClick={() => handleDeactivate(l)} disabled={busy === l.id} className="lt-btn-secondary" style={{ padding: '6px 12px', fontSize: 11, display: 'flex', gap: 4, alignItems: 'center' }}>
+                      <Ban size={12} /> Deactivate
+                    </button>
+                  )}
+                  <button type="button" onClick={() => handleDelete(l)} disabled={busy === l.id} className="lt-btn-secondary test-delete-btn" style={{ padding: '6px 12px', fontSize: 11, display: 'flex', gap: 4, alignItems: 'center' }}>
+                    <Trash2 size={12} /> Delete
+                  </button>
                 </div>
               </div>
             </div>

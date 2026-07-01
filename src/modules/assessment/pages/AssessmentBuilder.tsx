@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { TestLayout } from '../components/TestLayout';
 import { useAuth } from '../../../contexts/AuthContext';
-import { fetchAssessmentWithSections } from '../services/assessmentService';
+import { fetchAssessmentWithSections, deleteAssessment } from '../services/assessmentService';
 import { fetchQuestions, fetchQuestionById } from '../services/questionService';
 import { createAssignment } from '../services/assignmentService';
 import {
@@ -19,6 +19,7 @@ import {
   ExternalLink, Save, History, Settings2, Shuffle,
 } from 'lucide-react';
 import { QuestionEditorModal } from '../components/QuestionEditorModal';
+import { confirmDelete } from '../utils/confirm';
 
 type BranchingRule = { if_skill_below: string; show_section: string; threshold: number };
 
@@ -254,6 +255,20 @@ export function AssessmentBuilder() {
     }
   };
 
+  const handleDeleteAssessment = async () => {
+    if (!viewer?.id || !id || !assessment) return;
+    if (!confirmDelete(assessment.title)) return;
+    setSaving(true);
+    try {
+      await deleteAssessment(viewer as OrgViewer & { id: string }, id);
+      window.location.href = '/test/library';
+    } catch (e: unknown) {
+      flash(e instanceof Error ? e.message : 'Delete failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const sectionQuestions = assessment?.sections?.flatMap((s) =>
     (s.assessment_section_questions || [])
       .slice()
@@ -298,6 +313,9 @@ export function AssessmentBuilder() {
           <button type="button" onClick={() => setShowVersions((v) => !v)} className="lt-btn-secondary" style={{ padding: '6px 12px', fontSize: 12, display: 'flex', gap: 6, alignItems: 'center' }}>
             <History size={13} /> Version history
           </button>
+          <button type="button" onClick={handleDeleteAssessment} disabled={saving} className="lt-btn-secondary test-delete-btn" style={{ padding: '6px 12px', fontSize: 12, display: 'flex', gap: 6, alignItems: 'center' }}>
+            <Trash2 size={13} /> Delete
+          </button>
         </div>
       </div>
 
@@ -305,7 +323,7 @@ export function AssessmentBuilder() {
         <div style={{ fontSize: 12, color: '#16a34a', marginBottom: 12 }}>{message}</div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px 280px', gap: 16, alignItems: 'start' }}>
+      <div className="test-builder-grid">
         <div>
           <input
             className="lt-input"
@@ -330,7 +348,7 @@ export function AssessmentBuilder() {
                 <Settings2 size={14} />
                 <h3 style={{ fontSize: 13, fontWeight: 700 }}>Section: {primarySection.title}</h3>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+              <div className="test-section-grid">
                 <label style={{ fontSize: 11 }}>
                   Section time (min)
                   <input

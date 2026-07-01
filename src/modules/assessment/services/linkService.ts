@@ -161,6 +161,35 @@ export async function incrementLinkUsage(linkId: string) {
     .eq('id', linkId);
 }
 
+export async function deactivateReusableLink(viewer: OrgViewer & { id: string }, linkId: string) {
+  let query = supabase
+    .from('assessment_reusable_links')
+    .update({ is_active: false })
+    .eq('id', linkId);
+  query = applyOrgScope(query, viewer);
+  const { error } = await query;
+  if (error) throw error;
+}
+
+export async function deleteReusableLink(viewer: OrgViewer & { id: string }, linkId: string) {
+  const { data: link } = await supabase
+    .from('assessment_reusable_links')
+    .select('id, assignment_id')
+    .eq('id', linkId)
+    .maybeSingle();
+
+  if (!link) throw new Error('Link not found');
+
+  let deleteQuery = supabase.from('assessment_reusable_links').delete().eq('id', linkId);
+  deleteQuery = applyOrgScope(deleteQuery, viewer);
+  const { error } = await deleteQuery;
+  if (error) throw error;
+
+  if (link.assignment_id) {
+    await supabase.from('assessment_assignments').delete().eq('id', link.assignment_id);
+  }
+}
+
 export async function startPublicAttempt(
   resolved: ResolvedPublicLink,
   candidate: CandidateInfo,
