@@ -4,8 +4,9 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { fetchAssessments } from '../services/assessmentService';
 import { fetchAttemptsForOrg } from '../services/attemptService';
 import { fetchAssignments } from '../services/assignmentService';
-import { BarChart3, ClipboardCheck, Users, TrendingUp, AlertCircle } from 'lucide-react';
+import { BarChart3, ClipboardCheck, Users, TrendingUp, ListTodo } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { pendingFeatureStats } from '../constants/pendingFeatures';
 
 export function TestDashboard() {
   const { profile } = useAuth();
@@ -38,9 +39,11 @@ export function TestDashboard() {
   const cards = [
     { label: 'Assessments', value: stats.assessments, sub: `${stats.published} published`, icon: ClipboardCheck, href: '/test/library' },
     { label: 'Assignments', value: stats.assignments, sub: 'Active campaigns', icon: Users, href: '/test/assignments' },
-    { label: 'Attempts', value: stats.attempts, sub: 'All time', icon: BarChart3, href: '/test/analytics' },
-    { label: 'Pass Rate', value: `${stats.passRate}%`, sub: 'Graded attempts', icon: TrendingUp, href: '/test/reports' },
+    { label: 'Attempts', value: stats.attempts, sub: 'All time', icon: BarChart3, href: '/test/sessions' },
+    { label: 'Pass Rate', value: `${stats.passRate}%`, sub: 'Graded attempts', icon: TrendingUp, href: '/test/analytics' },
   ];
+
+  const roadmap = pendingFeatureStats();
 
   return (
     <TestLayout>
@@ -76,13 +79,20 @@ export function TestDashboard() {
         </div>
       </div>
 
-      <div className="lt-card" style={{ padding: 20, marginTop: 16, display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-        <AlertCircle size={18} color="#808080" style={{ flexShrink: 0, marginTop: 2 }} />
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#171717' }}>Modular assessment engine</div>
-          <p style={{ fontSize: 12, color: '#666', marginTop: 4, lineHeight: 1.6 }}>
-            Anti-cheating, coding execution, video interviews, and AI insights are available. Connect edge functions for production-grade code run and AI generation.
-          </p>
+      <div className="lt-card" style={{ padding: 20, marginTop: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            <ListTodo size={18} color="#171717" style={{ flexShrink: 0, marginTop: 2 }} />
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#171717' }}>Pending features</div>
+              <p style={{ fontSize: 12, color: '#666', marginTop: 4, lineHeight: 1.6 }}>
+                {roadmap.total} items on the roadmap — {roadmap.high} high priority, {roadmap.inProgress} in progress, {roadmap.stubs} stubs ready to wire up.
+              </p>
+            </div>
+          </div>
+          <Link to="/test/roadmap" className="lt-btn-secondary" style={{ padding: '6px 14px', fontSize: 12, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+            View roadmap
+          </Link>
         </div>
       </div>
     </TestLayout>

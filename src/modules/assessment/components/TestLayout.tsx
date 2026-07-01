@@ -3,7 +3,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { useState, useEffect, useRef } from 'react';
 import {
   LayoutDashboard, Library, HelpCircle, Users, BarChart3, FileText,
-  LogOut, ChevronDown, Menu, X, ArrowLeftRight, ClipboardCheck, Link2, UserCheck,
+  LogOut, ChevronDown, Menu, X, ArrowLeftRight, ClipboardCheck, Link2, UserCheck, ListTodo,
 } from 'lucide-react';
 import { getOrgLogoUrl } from '../../../utils/orgSettings';
 
@@ -16,6 +16,7 @@ const TEST_NAV = [
   { name: 'Assignments', href: '/test/assignments', icon: Users },
   { name: 'Analytics', href: '/test/analytics', icon: BarChart3 },
   { name: 'Reports', href: '/test/reports', icon: FileText },
+  { name: 'Roadmap', href: '/test/roadmap', icon: ListTodo },
 ];
 
 const PAGE_TITLES: Record<string, string> = {
@@ -27,6 +28,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/test/assignments': 'Assignments',
   '/test/analytics': 'Analytics',
   '/test/reports': 'Reports',
+  '/test/roadmap': 'Roadmap',
 };
 
 export function TestLayout({ children }: { children: React.ReactNode }) {
