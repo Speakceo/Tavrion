@@ -6,7 +6,7 @@ import {
   Globe as Globe2, ArrowRight, CheckCircle, Users, BookOpen, TrendingUp, BarChart3,
   Brain, Phone, Shield, Video, Star, ChevronRight, Play, Award, MessageSquare,
   Activity, Zap, Building2, Layers, Target, GraduationCap, Headphones, Lock, Globe,
-  Check, Menu, X, Sparkles, Bot, Mail, Workflow, ChevronDown, Library,
+  Check, Menu, X, Sparkles, Bot, Mail, Workflow, ChevronDown, Library, ClipboardCheck,
 } from 'lucide-react';
 
 const T = {
@@ -31,7 +31,7 @@ const STATS = [
 const PIPELINE = [
   { step: 'Learn', desc: 'Assign courses, SCORM content, and AI-personalised paths to every learner worldwide.', accent: T.blue, icon: BookOpen },
   { step: 'Practice', desc: 'AI mock calls, live coaching sessions, and real-time feedback loops graded automatically.', accent: T.pink, icon: Phone },
-  { step: 'Measure', desc: 'Live dashboards with completion, scores, and ROI across every region in one view.', accent: T.red, icon: BarChart3 },
+  { step: 'Measure', desc: 'Live dashboards plus skills assessments — completion, scores, hiring signals, and ROI in one view.', accent: T.red, icon: BarChart3 },
 ];
 
 const FEATURES = [
@@ -44,6 +44,7 @@ const FEATURES = [
   { icon: Mail, title: 'Email Nudges', body: 'Automated reminders and drip campaigns that lift completion without manual chasing from managers.', accent: T.blue },
   { icon: Award, title: 'Certificates', body: 'Issue branded completion certificates with audit trails — ready for compliance and regulator reviews.', accent: T.pink },
   { icon: Workflow, title: 'Assignment Rules', body: 'Auto-assign courses by role, department, or region. Onboard new hires on day one, globally.', accent: T.red },
+  { icon: ClipboardCheck, title: 'Skills Assessments', body: 'Role-based tests with public candidate links, AI scoring, and manual grading — for hiring and certifications.', accent: T.blue },
 ];
 
 const PRODUCT_MODULES = [
@@ -54,6 +55,7 @@ const PRODUCT_MODULES = [
   { icon: Library, title: 'Books Library', body: 'PDF libraries with in-app reader — ideal for playbooks, policies, and product docs.', href: '/login', tag: 'Resources', accent: T.pink, span: 1 },
   { icon: Sparkles, title: 'DNA Studio', body: 'Extract brand DNA from any URL and generate on-brand social campaigns with AI.', href: '/dna-studio', tag: 'Marketing', accent: T.red, span: 1 },
   { icon: Bot, title: 'Tavrion Bot', body: 'Turn any website into a RAG-powered chatbot widget in minutes.', href: '/tavrion-bot', tag: 'Support', accent: T.blue, span: 1 },
+  { icon: ClipboardCheck, title: 'Tavrion Test', body: 'Role-based assessments with public candidate links, AI scoring, and manual grading — for hiring, certifications, and skills benchmarks.', href: '/login', tag: 'Hiring', accent: T.red, span: 2 },
   { icon: BarChart3, title: 'Analytics Hub', body: 'Completion, scores, leaderboards, and course reports — one dashboard for every org.', href: '/login', tag: 'Insights', accent: T.pink, span: 2 },
 ];
 
@@ -70,6 +72,7 @@ const COMPARE_ROWS = [
   { label: 'Automated email nudges', tavrion: true, legacy: false },
   { label: 'Department-level assignment rules', tavrion: true, legacy: false },
   { label: 'Real-time global analytics', tavrion: true, legacy: false },
+  { label: 'Built-in hiring & skills assessments', tavrion: true, legacy: false },
   { label: 'SSO / SAML (Enterprise)', tavrion: true, legacy: true },
 ];
 
@@ -91,6 +94,10 @@ const FAQS = [
     a: 'Learners run simulated sales or support calls. Tavrion\'s AI analyses transcripts for objection handling, tone, product knowledge, and call structure — then surfaces coaching feedback and manager dashboards.',
   },
   {
+    q: 'Can we run hiring or certification tests?',
+    a: 'Yes. Tavrion Test lets you build or use role-based assessment templates, share public candidate links (no login required), auto-score responses with AI, and review results in a manual grading queue — ideal for hiring, certifications, and skills benchmarks.',
+  },
+  {
     q: 'Is there a free plan?',
     a: 'Yes. The Starter plan is free for up to 5 learners and includes core LMS features, SCORM import, and basic analytics. Growth and Enterprise plans add AI coaching, mock calls, SSO, and dedicated support.',
   },
@@ -103,8 +110,8 @@ const FAQS = [
 const SOLUTIONS = [
   {
     icon: GraduationCap, title: 'Sales Enablement', accent: T.blue,
-    body: 'Ramp reps faster with AI mock calls, product certifications, and pitch scoring. Proven to increase close rates by 23%.',
-    tags: ['Mock Calls', 'Certifications', 'Leaderboards'],
+    body: 'Ramp reps faster with AI mock calls, product certifications, pitch scoring, and role-based skills tests. Proven to increase close rates by 23%.',
+    tags: ['Mock Calls', 'Certifications', 'Assessments'],
   },
   {
     icon: Target, title: 'Compliance Training', accent: T.pink,
@@ -113,8 +120,8 @@ const SOLUTIONS = [
   },
   {
     icon: Layers, title: 'Onboarding at Scale', accent: T.red,
-    body: 'Consistent global onboarding across 150+ countries. Localised content, role-specific paths, and progress tracking.',
-    tags: ['Role Paths', 'Multi-language', 'Progress Tracking'],
+    body: 'Consistent global onboarding across 150+ countries. Localised content, role-specific paths, progress tracking, and pre-hire assessments.',
+    tags: ['Role Paths', 'Assessments', 'Progress Tracking'],
   },
   {
     icon: Headphones, title: 'Customer Success', accent: T.blue,
@@ -154,7 +161,7 @@ const PRICING_PLANS = [
     name: 'Growth', price: '$12', period: '/user/month',
     description: 'For growing teams that need more power.',
     accent: T.blue, highlight: true,
-    features: ['Up to 500 learners', 'Unlimited courses', 'AI Tutor + Mock Calls', 'Advanced analytics', 'Email nudges', 'Priority support', 'Custom branding'],
+    features: ['Up to 500 learners', 'Unlimited courses', 'AI Tutor + Mock Calls', 'Tavrion Test assessments', 'Advanced analytics', 'Email nudges', 'Priority support', 'Custom branding'],
     cta: 'Start 14-day trial',
   },
   {
@@ -240,6 +247,7 @@ export function LandingPage() {
         'AI Mock Call Training',
         'SCORM 1.2 and 2004',
         'Live Call Coaching',
+        'Tavrion Test Skills Assessments',
         'Multi-organisation LMS',
         'Email Nudges',
         'Learning Analytics',
