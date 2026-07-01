@@ -9,7 +9,7 @@ import {
   Video, Users as TeamIcon, FolderLock, Sparkles, BookOpen, Clock, CheckCircle,
   ChevronRight, MessageSquare, Phone, LogOut, Settings, Upload, Bell,
   ListChecks, Headphones, User, ChevronDown, Activity, Building2, Mail, Menu, X,
-  Award, Target, FileText, Library,
+  Award, Target, FileText, Library, ClipboardCheck,
 } from 'lucide-react';
 import { isBooksFeatureEnabled } from '../utils/books';
 import { isNavRouteEnabled } from '../utils/orgFeatures';
@@ -54,6 +54,8 @@ const PAGE_TITLES: Record<string, { label: string; section: string }> = {
   '/admin/course-tracking': { label: 'Course Tracking', section: 'Admin' },
   '/admin/analytics': { label: 'Analytics', section: 'Admin' },
   '/admin/email-nudges': { label: 'Email Nudges', section: 'Admin' },
+  '/test': { label: 'Tavrion Test', section: 'Admin' },
+  '/test/library': { label: 'Assessment Library', section: 'Tavrion Test' },
   '/admin/assignment-rules': { label: 'Assignment Rules', section: 'Admin' },
   '/admin/policy-versions': { label: 'Policy Versions', section: 'Admin' },
   '/owner': { label: 'Platform Overview', section: 'Owner Portal' },
@@ -164,6 +166,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const currentPage = PAGE_TITLES[location.pathname]
     || (location.pathname.startsWith('/books') ? PAGE_TITLES['/books'] : null)
     || (location.pathname.startsWith('/owner/books') ? PAGE_TITLES['/owner/books'] : null)
+    || (location.pathname.startsWith('/test') ? PAGE_TITLES[location.pathname] || { label: 'Tavrion Test', section: 'Admin' } : null)
     || { label: 'Tavrion', section: '' };
   const booksNavEnabled = profile?.is_platform_owner || isBooksFeatureEnabled(organization?.features);
   const platformOwner = Boolean(profile?.is_platform_owner);
@@ -204,6 +207,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { name: 'Course Tracking', href: '/admin/course-tracking', icon: ListChecks, roles: ['super_admin', 'admin', 'trainer'] },
     { name: 'Analytics', href: '/admin/analytics', icon: BarChart3, roles: ['super_admin', 'admin'] },
     { name: 'Email Nudges', href: '/admin/email-nudges', icon: Mail, roles: ['super_admin', 'admin'] },
+    { name: 'Tavrion Test', href: '/test', icon: ClipboardCheck, roles: ['super_admin', 'admin', 'trainer'] },
     { name: 'Assignment Rules', href: '/admin/assignment-rules', icon: Target, roles: ['super_admin', 'admin', 'trainer'] },
     { name: 'Policy Versions', href: '/admin/policy-versions', icon: FileText, roles: ['super_admin', 'admin', 'trainer'] },
   ];

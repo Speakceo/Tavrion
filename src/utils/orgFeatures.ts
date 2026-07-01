@@ -17,7 +17,7 @@ export const ORG_FEATURE_DEFAULTS: Record<string, boolean> = {
   best_calls: true,
   leaderboard: false,
   email_nudges: false,
-  tavrion_test: false,
+  tavrion_test: true,
   scorm_upload: true,
   certificates: true,
   books: false,
@@ -66,7 +66,19 @@ export const NAV_FEATURE_MAP: Record<string, NavFeatureKey | null> = {
   '/live-calls': 'live_calls',
   '/admin/best-calls': 'best_calls',
   '/admin/email-nudges': 'email_nudges',
+  '/test': 'tavrion_test',
 };
+
+/** Admins/trainers who can open the Tavrion Test module. */
+export function canAccessTavrionTest(role?: string | null) {
+  return ['super_admin', 'admin', 'trainer'].includes(role || '');
+}
+
+export function mergeOrgFeatures(
+  features: Record<string, boolean> | null | undefined,
+): Record<string, boolean> {
+  return { ...ORG_FEATURE_DEFAULTS, ...(features || {}) };
+}
 
 export function isNavRouteEnabled(
   href: string,

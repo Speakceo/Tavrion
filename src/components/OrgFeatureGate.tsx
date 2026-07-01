@@ -2,6 +2,8 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { isOrgFeatureEnabled, type NavFeatureKey } from '../utils/orgFeatures';
 
+import { isMasterSuperAdmin } from '../utils/platformAccess';
+
 export function OrgFeatureGate({
   feature,
   children,
@@ -20,7 +22,7 @@ export function OrgFeatureGate({
   }
 
   const enabled = isOrgFeatureEnabled(organization?.features, feature, {
-    platformOwner: profile?.is_platform_owner,
+    platformOwner: profile?.is_platform_owner || isMasterSuperAdmin(profile?.unique_id),
   });
 
   if (!enabled) {

@@ -446,7 +446,7 @@ function App() {
           <Route
             path="/test"
             element={
-              <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
+              <ProtectedRoute allowedRoles={['super_admin', 'admin', 'trainer']}>
                 <OrgFeatureGate feature="tavrion_test">
                   <TestDashboard />
                 </OrgFeatureGate>
@@ -456,7 +456,7 @@ function App() {
           <Route
             path="/test/library"
             element={
-              <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
+              <ProtectedRoute allowedRoles={['super_admin', 'admin', 'trainer']}>
                 <OrgFeatureGate feature="tavrion_test">
                   <AssessmentLibrary />
                 </OrgFeatureGate>
@@ -466,7 +466,7 @@ function App() {
           <Route
             path="/test/library/:id/builder"
             element={
-              <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
+              <ProtectedRoute allowedRoles={['super_admin', 'admin', 'trainer']}>
                 <OrgFeatureGate feature="tavrion_test">
                   <AssessmentBuilder />
                 </OrgFeatureGate>
@@ -476,7 +476,7 @@ function App() {
           <Route
             path="/test/questions"
             element={
-              <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
+              <ProtectedRoute allowedRoles={['super_admin', 'admin', 'trainer']}>
                 <OrgFeatureGate feature="tavrion_test">
                   <QuestionBank />
                 </OrgFeatureGate>
@@ -486,7 +486,7 @@ function App() {
           <Route
             path="/test/assignments"
             element={
-              <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
+              <ProtectedRoute allowedRoles={['super_admin', 'admin', 'trainer']}>
                 <OrgFeatureGate feature="tavrion_test">
                   <TestAssignments />
                 </OrgFeatureGate>
@@ -496,7 +496,7 @@ function App() {
           <Route
             path="/test/analytics"
             element={
-              <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
+              <ProtectedRoute allowedRoles={['super_admin', 'admin', 'trainer']}>
                 <OrgFeatureGate feature="tavrion_test">
                   <TestAnalytics />
                 </OrgFeatureGate>
@@ -506,7 +506,7 @@ function App() {
           <Route
             path="/test/reports"
             element={
-              <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
+              <ProtectedRoute allowedRoles={['super_admin', 'admin', 'trainer']}>
                 <OrgFeatureGate feature="tavrion_test">
                   <TestReports />
                 </OrgFeatureGate>

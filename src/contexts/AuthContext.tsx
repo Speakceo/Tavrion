@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { UserProfile, Organization } from '../types';
 import { isMasterSuperAdmin } from '../utils/platformAccess';
+import { mergeOrgFeatures } from '../utils/orgFeatures';
 
 function isPlatformOwnerAccount(profile?: { is_platform_owner?: boolean; unique_id?: string | null } | null) {
   return Boolean(profile?.is_platform_owner || isMasterSuperAdmin(profile?.unique_id));
@@ -77,7 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .select('*')
             .eq('id', data.organization_id)
             .maybeSingle();
-          setOrganization(orgData);
+          setOrganization(orgData ? { ...orgData, features: mergeOrgFeatures(orgData.features) } : null);
         } else {
           setOrganization(null);
         }
@@ -107,7 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setOrganization(null);
           return;
         }
-        setOrganization(orgData);
+        setOrganization({ ...orgData, features: mergeOrgFeatures(orgData.features) });
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
@@ -179,7 +180,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .select('*')
             .eq('id', data.organization_id)
             .maybeSingle();
-          setOrganization(orgData);
+          setOrganization(orgData ? { ...orgData, features: mergeOrgFeatures(orgData.features) } : null);
         } else {
           setOrganization(null);
         }
@@ -209,7 +210,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setOrganization(null);
           return { error: { message: 'This organisation has been deactivated. Contact your administrator.' }, profile: null };
         }
-        setOrganization(orgData);
+        setOrganization({ ...orgData, features: mergeOrgFeatures(orgData.features) });
       } else {
         setOrganization(null);
       }

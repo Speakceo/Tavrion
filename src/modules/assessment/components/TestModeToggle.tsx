@@ -1,17 +1,18 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ClipboardCheck } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
-import { isOrgFeatureEnabled } from '../../../utils/orgFeatures';
+import { canAccessTavrionTest, isOrgFeatureEnabled } from '../../../utils/orgFeatures';
+import { isMasterSuperAdmin } from '../../../utils/platformAccess';
 
-/** Header toggle — admins only, when org has tavrion_test enabled. */
+/** Header toggle — admins/trainers, when org has tavrion_test enabled. */
 export function TestModeToggle() {
   const { profile, organization } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const isAdmin = ['super_admin', 'admin'].includes(profile?.role || '');
+  const isAdmin = canAccessTavrionTest(profile?.role);
   const enabled = isOrgFeatureEnabled(organization?.features, 'tavrion_test', {
-    platformOwner: profile?.is_platform_owner,
+    platformOwner: profile?.is_platform_owner || isMasterSuperAdmin(profile?.unique_id),
   });
 
   if (!isAdmin || !enabled) return null;
