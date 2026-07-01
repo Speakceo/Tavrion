@@ -68,34 +68,51 @@ export async function generateAssessmentBrief(jobDescription: string) {
 }
 
 export async function summarizeCandidate(attemptId: string) {
+  const { data: analytics } = await supabase
+    .from('assessment_session_analytics')
+    .select('ai_summary, strengths, weaknesses, recommendation, overall_score')
+    .eq('attempt_id', attemptId)
+    .maybeSingle();
+
+  if (analytics?.ai_summary) {
+    return {
+      attemptId,
+      summary: analytics.ai_summary,
+      strengths: analytics.strengths || [],
+      gaps: analytics.weaknesses || [],
+      recommendation: analytics.recommendation,
+      overall_score: analytics.overall_score,
+    };
+  }
+
   try {
-    const { data, error } = await supabase.functions.invoke('assessment-score-response', {
-      body: { action: 'summarize_candidate', attemptId },
-    });
-    if (!error && data?.summary) return data;
+    const { invokeCalculateOverallScore } = await import('./mediaService');
+    const result = await invokeCalculateOverallScore(attemptId);
+    return {
+      attemptId,
+      summary: result.ai_summary || `Overall score: ${result.overall_score}%`,
+      strengths: result.strengths || [],
+      gaps: result.weaknesses || [],
+      recommendation: result.recommendation,
+      overall_score: result.overall_score,
+    };
   } catch {
     // fall through
   }
 
-  try {
-    const content = await invokeOpenRouterChat([
-      {
-        role: 'user',
-        content: `Summarize assessment attempt ${attemptId}. Return JSON: {"attemptId":"${attemptId}","summary":"...","strengths":["..."],"gaps":["..."]}`,
-      },
-    ]);
-    const parsed = parseJsonFromText(content);
-    if (parsed) return { attemptId, ...parsed };
-  } catch {
-    // fall through
-  }
+  const { data: attempt } = await supabase
+    .from('assessment_attempts')
+    .select('final_score, passed, candidate_name')
+    .eq('id', attemptId)
+    .maybeSingle();
 
   return {
     attemptId,
-    summary: 'Candidate demonstrated solid fundamentals with room for growth in advanced topics.',
-    strengths: ['Logical reasoning', 'Time management'],
-    gaps: ['Depth in system design'],
-    note: 'AI fallback',
+    summary: attempt
+      ? `${attempt.candidate_name || 'Candidate'} scored ${attempt.final_score ?? '—'}% (${attempt.passed ? 'passed' : 'pending review'}).`
+      : 'No summary available yet.',
+    strengths: [] as string[],
+    gaps: [] as string[],
   };
 }
 

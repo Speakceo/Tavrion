@@ -52,7 +52,6 @@ export function CandidateAccess() {
   const [assignmentId, setAssignmentId] = useState<string | null>(null);
   const [questions, setQuestions] = useState<AssessmentQuestion[]>([]);
   const [timeLimit, setTimeLimit] = useState<number | null>(null);
-  const [score, setScore] = useState<{ percentage: number; passed: boolean } | null>(null);
 
   const scheduleWindows = (linkSettings.schedule_windows as ScheduleWindow[] | undefined) || [];
   const practiceMode = Boolean(linkSettings.practice_mode);
@@ -188,7 +187,6 @@ export function CandidateAccess() {
         practiceMode={practiceMode}
         showPostForm={resolved?.post_form_enabled}
         onComplete={(r) => {
-          setScore({ percentage: r.percentage, passed: r.passed });
           setStep(r.showPostForm ? 'post_form' : 'done');
         }}
       />
@@ -213,8 +211,9 @@ export function CandidateAccess() {
         <div className="lt-card" style={{ padding: 40, textAlign: 'center', maxWidth: 440, width: '100%' }}>
           <ClipboardCheck size={40} color="#16a34a" style={{ margin: '0 auto 16px' }} />
           <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Thank you!</h1>
-          {score && <p style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>{score.percentage}%</p>}
-          <p style={{ fontSize: 14, color: '#666' }}>Your assessment has been submitted. Our team will review your results.</p>
+          <p style={{ fontSize: 14, color: '#666', lineHeight: 1.6 }}>
+            Your assessment has been submitted. Our team will review your responses and contact you about next steps.
+          </p>
         </div>
       </div>
     );

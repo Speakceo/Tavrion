@@ -2,6 +2,7 @@ import { supabase } from '../../../lib/supabase';
 import { applyOrgScope } from '../../../utils/orgScope';
 import type { OrgViewer } from '../../../utils/orgScope';
 import type { AssessmentAttempt, SelectionStatus, SessionAnalytics } from '../types';
+import { normalizeQuestion } from './questionService';
 
 export type SessionRow = AssessmentAttempt & {
   violation_count?: number;
@@ -85,11 +86,24 @@ export async function fetchSessionDetail(attemptId: string, viewer?: OrgViewer |
   if (!data) return null;
 
   const [{ data: responses }, { data: violations }] = await Promise.all([
-    supabase.from('assessment_responses').select('*, question:assessment_questions(*)').eq('attempt_id', attemptId),
+    supabase.from('assessment_responses').select(`
+      *,
+      question:assessment_questions (
+        *,
+        assessment_question_options (*)
+      )
+    `).eq('attempt_id', attemptId),
     supabase.from('assessment_violations').select('*').eq('attempt_id', attemptId).order('created_at'),
   ]);
 
-  return { ...data, responses: responses || [], violations: violations || [] };
+  const normalizedResponses = (responses || []).map((r: {
+    question?: Parameters<typeof normalizeQuestion>[0];
+  }) => ({
+    ...r,
+    question: r.question ? normalizeQuestion(r.question) : r.question,
+  }));
+
+  return { ...data, responses: normalizedResponses, violations: violations || [] };
 }
 
 export async function updateSelectionStatus(

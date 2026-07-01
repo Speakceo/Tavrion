@@ -2,6 +2,7 @@ import { supabase } from '../../../lib/supabase';
 import { applyOrgScope, orgIdForInsert } from '../../../utils/orgScope';
 import type { OrgViewer } from '../../../utils/orgScope';
 import type { AssessmentResponse } from '../types';
+import { normalizeQuestion } from './questionService';
 
 const MANUAL_GRADE_TYPES = ['long_answer', 'video_response', 'audio_response'];
 
@@ -57,7 +58,13 @@ export async function fetchGradingQueue(viewer: OrgViewer | null | undefined) {
 
   const { data: responses, error: respErr } = await supabase
     .from('assessment_responses')
-    .select('*, question:assessment_questions(id, title, question_type, prompt)')
+    .select(`
+      *,
+      question:assessment_questions (
+        id, title, question_type, prompt,
+        assessment_question_options (id, option_text, is_correct)
+      )
+    `)
     .in('attempt_id', attemptIds)
     .is('final_score', null);
 
@@ -68,16 +75,17 @@ export async function fetchGradingQueue(viewer: OrgViewer | null | undefined) {
       MANUAL_GRADE_TYPES.includes(r.question?.question_type || ''),
     )
     .map((r: AssessmentResponse & {
-      question?: { title?: string; question_type?: string; prompt?: string };
+      question?: Parameters<typeof normalizeQuestion>[0];
     }) => {
       const attempt = attemptMap.get(r.attempt_id);
+      const question = r.question ? normalizeQuestion(r.question) : undefined;
       return {
         attempt_id: r.attempt_id,
         response_id: r.id,
         question_id: r.question_id,
-        question_title: r.question?.title,
-        question_prompt: r.question?.prompt,
-        question_type: r.question?.question_type,
+        question_title: question?.title,
+        question_prompt: question?.prompt,
+        question_type: question?.question_type,
         assignment_title: (attempt?.assignment as { title?: string } | undefined)?.title,
         candidate_name: attempt?.candidate_name,
         candidate_email: attempt?.candidate_email,

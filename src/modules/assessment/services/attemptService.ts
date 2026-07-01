@@ -4,6 +4,10 @@ import type { OrgViewer } from '../../../utils/orgScope';
 import type { AssessmentAttempt, AssessmentQuestion, AssessmentResponse } from '../types';
 import { fetchAssessmentWithSections } from './assessmentService';
 import { scoreResponse, calculateAttemptScore } from '../utils/scoring';
+import { sanitizeAnswerForStorage, enrichAnswerWithLabels } from '../utils/answerDisplay';
+import { invokeCalculateOverallScore } from './mediaService';
+
+const MANUAL_GRADE_TYPES = new Set(['long_answer', 'video_response', 'audio_response']);
 
 export async function startAttempt(
   viewer: OrgViewer & { id: string },
@@ -44,12 +48,18 @@ export async function saveResponse(
   questionId: string,
   answer: Record<string, unknown>,
   isFlagged = false,
+  question?: AssessmentQuestion,
 ) {
+  let payload = sanitizeAnswerForStorage(answer);
+  if (question) {
+    payload = enrichAnswerWithLabels(question, payload);
+  }
+
   const { error } = await supabase.from('assessment_responses').upsert(
     {
       attempt_id: attemptId,
       question_id: questionId,
-      answer,
+      answer: payload,
       is_flagged: isFlagged,
       answered_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -68,25 +78,49 @@ export async function fetchAttemptResponses(attemptId: string) {
   return (data || []) as AssessmentResponse[];
 }
 
-import { invokeCalculateOverallScore } from './mediaService';
+async function scoreAndPersistResponses(
+  attemptId: string,
+  questions: AssessmentQuestion[],
+  responseMap: Map<string, AssessmentResponse>,
+  negativeMarking: boolean,
+) {
+  const results = [];
+
+  for (const q of questions) {
+    const resp = responseMap.get(q.id);
+    const answer = resp?.answer || {};
+    const scored = scoreResponse(q, answer, { negativeMarking });
+    results.push(scored);
+
+    const needsManual = MANUAL_GRADE_TYPES.has(q.question_type)
+      || scored.details === 'Requires manual grading'
+      || scored.details === 'Manual grading required';
+
+    const questionPct = scored.maxScore > 0
+      ? Math.round((scored.autoScore / scored.maxScore) * 100)
+      : 0;
+
+    await supabase.from('assessment_responses').upsert(
+      {
+        attempt_id: attemptId,
+        question_id: q.id,
+        answer: enrichAnswerWithLabels(q, sanitizeAnswerForStorage(answer)),
+        auto_score: questionPct,
+        final_score: needsManual ? null : questionPct,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'attempt_id,question_id' },
+    );
+  }
+
+  return results;
+}
 
 export async function submitAttempt(
   attemptId: string,
   assignmentId: string,
   passingScore = 70,
 ) {
-  try {
-    const aiResult = await invokeCalculateOverallScore(attemptId);
-    return {
-      percentage: aiResult.overall_score ?? 0,
-      passed: aiResult.passed ?? false,
-      results: [] as ReturnType<typeof scoreResponse>[],
-      ai_summary: aiResult.ai_summary,
-    };
-  } catch {
-    // Fall through to client-side scoring
-  }
-
   const { data: assignment } = await supabase
     .from('assessment_assignments')
     .select('assessment_id, passing_score')
@@ -108,11 +142,8 @@ export async function submitAttempt(
     }
   }
 
-  const results = questions.map((q) => {
-    const resp = responseMap.get(q.id);
-    const scored = scoreResponse(q, resp?.answer || {});
-    return scored;
-  });
+  const negativeMarking = Boolean((assessment.settings as Record<string, unknown>)?.negative_marking);
+  const results = await scoreAndPersistResponses(attemptId, questions, responseMap, negativeMarking);
 
   const passThreshold = assignment.passing_score ?? assessment.passing_score ?? passingScore;
   const { percentage, passed } = calculateAttemptScore(results, passThreshold);
@@ -125,7 +156,20 @@ export async function submitAttempt(
     passed,
   }).eq('id', attemptId);
 
-  return { percentage, passed, results };
+  let ai_summary: string | undefined;
+  try {
+    const aiResult = await invokeCalculateOverallScore(attemptId);
+    return {
+      percentage: aiResult.overall_score ?? percentage,
+      passed: aiResult.passed ?? passed,
+      results,
+      ai_summary: aiResult.ai_summary,
+    };
+  } catch {
+    // AI summary optional — client scores already persisted
+  }
+
+  return { percentage, passed, results, ai_summary };
 }
 
 export async function fetchAttemptsForOrg(viewer: OrgViewer | null | undefined) {

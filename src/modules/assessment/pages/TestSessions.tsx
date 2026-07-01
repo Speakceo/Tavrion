@@ -13,6 +13,7 @@ import {
   Search, Eye, Trash2, CheckCircle, Clock, AlertTriangle,
   Users, Monitor, GitCompare, Download, Sparkles, Video,
 } from 'lucide-react';
+import { formatAnswerForDisplay } from '../utils/answerDisplay';
 
 const SELECTION_OPTIONS: SelectionStatus[] = ['pending', 'shortlisted', 'selected', 'rejected', 'on_hold'];
 
@@ -461,9 +462,16 @@ export function TestSessions() {
                     </div>
                   )}
                   {!mediaUrl && (
-                    <div style={{ color: '#666' }}>{JSON.stringify(r.answer).slice(0, 160)}{JSON.stringify(r.answer).length > 160 ? '...' : ''}</div>
+                    <div style={{ color: '#333', lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                      {formatAnswerForDisplay(r.question, r.answer as Record<string, unknown>)}
+                    </div>
                   )}
-                  {r.final_score != null && <div style={{ marginTop: 4, color: '#16a34a' }}>Score: {r.final_score}</div>}
+                  {(r.auto_score != null || r.final_score != null) && (
+                    <div style={{ marginTop: 6, fontSize: 11, color: '#666' }}>
+                      Score: {r.final_score ?? r.auto_score}%
+                      {r.grader_notes && !r.grader_notes.startsWith('{') ? ` · ${r.grader_notes}` : ''}
+                    </div>
+                  )}
                 </div>
               );
             })}

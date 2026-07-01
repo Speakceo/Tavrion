@@ -9,12 +9,7 @@ import {
 } from '../services/gradingService';
 import { ClipboardCheck, Sparkles, ChevronRight, User, Star } from 'lucide-react';
 
-function formatAnswer(answer: Record<string, unknown>, questionType?: string): string {
-  if (typeof answer.text === 'string') return answer.text;
-  if (typeof answer.url === 'string') return answer.url;
-  if (typeof answer.media_url === 'string') return answer.media_url;
-  return JSON.stringify(answer, null, 2);
-}
+import { formatAnswerForDisplay } from '../utils/answerDisplay';
 
 export function TestGrading() {
   const { profile } = useAuth();
@@ -111,7 +106,7 @@ export function TestGrading() {
     if (!selected) return;
     setBusy(true);
     try {
-      const answerText = formatAnswer(selected.answer, selected.question_type);
+      const answerText = formatAnswerForDisplay(undefined, selected.answer);
       const mediaUrl = ['video_response', 'audio_response'].includes(selected.question_type || '')
         && (answerText.startsWith('http') || answerText.startsWith('/'))
         ? answerText
@@ -126,9 +121,18 @@ export function TestGrading() {
         rubric: rubric || undefined,
       });
 
-      if (result.score != null) setScore(result.score);
-      if (result.feedback) setGraderNotes(JSON.stringify(result.feedback, null, 2));
-      flash(`AI score: ${result.score ?? '—'}%`);
+      const aiScore = result.score ?? (result.feedback as { overall_score?: number })?.overall_score;
+      if (aiScore != null) setScore(aiScore);
+      if (result.feedback) {
+        const fb = result.feedback as { feedback?: string[]; strengths?: string[]; improvements?: string[] };
+        const lines = [
+          ...(fb.feedback || []),
+          fb.strengths?.length ? `Strengths: ${fb.strengths.join(', ')}` : '',
+          fb.improvements?.length ? `Improve: ${fb.improvements.join(', ')}` : '',
+        ].filter(Boolean);
+        setGraderNotes(lines.join('\n') || JSON.stringify(result.feedback, null, 2));
+      }
+      flash(`AI score: ${aiScore ?? '—'}%`);
       await load();
     } catch (e: unknown) {
       flash(e instanceof Error ? e.message : 'AI scoring failed', true);
@@ -157,7 +161,7 @@ export function TestGrading() {
     }
   };
 
-  const answerText = selected ? formatAnswer(selected.answer, selected.question_type) : '';
+  const answerText = selected ? formatAnswerForDisplay(undefined, selected.answer) : '';
   const isMedia = selected && ['video_response', 'audio_response'].includes(selected.question_type || '');
 
   return (

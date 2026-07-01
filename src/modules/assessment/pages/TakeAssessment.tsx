@@ -81,8 +81,12 @@ export function TakeAssessment() {
       timeLimitMinutes={timeLimit}
       showPostForm={false}
       onComplete={(r) => {
-        setResult({ percentage: r.percentage, passed: r.passed });
-        navigate(`/test/result/${r.attemptId}`, { state: { percentage: r.percentage, passed: r.passed } });
+        if (r.showPostForm) {
+          setResult({ percentage: r.percentage, passed: r.passed });
+          setStep('post_form');
+        } else {
+          navigate(`/test/result/${r.attemptId}`, { state: { showScore: false } });
+        }
       }}
     />
   );

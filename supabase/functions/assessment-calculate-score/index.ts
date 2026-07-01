@@ -26,14 +26,16 @@ Deno.serve(async (req: Request) => {
       .select('final_score, auto_score, question:assessment_questions(weight, question_type)')
       .eq('attempt_id', attemptId);
 
-    let earned = 0;
-    let total = 0;
+    let weightedSum = 0;
+    let weightTotal = 0;
     (responses || []).forEach((r: { final_score?: number; auto_score?: number; question?: { weight?: number } }) => {
-      earned += Number(r.final_score ?? r.auto_score ?? 0);
-      total += Number(r.question?.weight ?? 1) * 10;
+      const w = Number(r.question?.weight ?? 1);
+      const pct = Number(r.final_score ?? r.auto_score ?? 0);
+      weightedSum += pct * w;
+      weightTotal += w;
     });
 
-    const overall_score = total > 0 ? Math.round((earned / total) * 100) : 0;
+    const overall_score = weightTotal > 0 ? Math.round(weightedSum / weightTotal) : 0;
 
     const { data: attempt } = await supabase
       .from('assessment_attempts')

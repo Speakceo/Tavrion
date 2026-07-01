@@ -41,6 +41,8 @@ type Props = {
   practiceMode?: boolean;
   onComplete: (result: TestCompleteResult) => void;
   showPostForm?: boolean;
+  /** When false, candidates see a thank-you screen without scores (default for hiring). */
+  showScoreToCandidate?: boolean;
 };
 
 const MOBILE_CSS = `
@@ -83,6 +85,7 @@ export function TestInterface({
   practiceMode = false,
   onComplete,
   showPostForm = false,
+  showScoreToCandidate = false,
 }: Props) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, Record<string, unknown>>>({});
@@ -128,13 +131,16 @@ export function TestInterface({
     try {
       for (const q of activeQuestions) {
         const ans = answers[q.id];
-        if (ans?.blob) {
+        if (!ans) continue;
+        if (ans.blob) {
           const ext = ans.media_type === 'video' ? 'webm' : 'webm';
           const url = await uploadAssessmentMedia(attemptId, q.id, ans.blob as Blob, ext);
           const cleaned = { ...ans, media_url: url };
           delete cleaned.blob;
           delete cleaned.preview_url;
-          await saveResponse(attemptId, q.id, cleaned, flagged.has(q.id));
+          await saveResponse(attemptId, q.id, cleaned, flagged.has(q.id), q);
+        } else {
+          await saveResponse(attemptId, q.id, ans, flagged.has(q.id), q);
         }
       }
 
@@ -222,8 +228,9 @@ export function TestInterface({
   const current = activeQuestions[currentIndex];
 
   const persistAnswer = async (questionId: string, answer: Record<string, unknown>, isFlagged = false) => {
+    const q = questions.find((x) => x.id === questionId);
     setAnswers((prev) => ({ ...prev, [questionId]: answer }));
-    await saveResponse(attemptId, questionId, answer, isFlagged);
+    await saveResponse(attemptId, questionId, answer, isFlagged, q);
   };
 
   const toggleFlag = async () => {
@@ -232,7 +239,7 @@ export function TestInterface({
     if (next.has(current.id)) next.delete(current.id);
     else next.add(current.id);
     setFlagged(next);
-    await saveResponse(attemptId, current.id, answers[current.id] || {}, next.has(current.id));
+    await saveResponse(attemptId, current.id, answers[current.id] || {}, next.has(current.id), current);
   };
 
   const handleSubmit = async () => {
@@ -253,12 +260,12 @@ export function TestInterface({
               <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Practice complete</h2>
               <p style={{ fontSize: 14, color: '#666', marginBottom: 20 }}>Your responses were not submitted for scoring.</p>
             </>
-          ) : (
+          ) : showScoreToCandidate ? (
             <>
               <Award size={40} color={resultScreen.passed ? '#16a34a' : '#808080'} style={{ margin: '0 auto 16px' }} />
               <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>{resultScreen.passed ? 'Congratulations!' : 'Assessment submitted'}</h2>
               <p style={{ fontSize: 32, fontWeight: 700, marginBottom: 8 }}>{resultScreen.percentage}%</p>
-              <p style={{ fontSize: 14, color: resultScreen.passed ? '#16a34a' : '#c0392b', marginBottom: 16 }}>
+              <p style={{ fontSize: 14, color: resultScreen.passed ? '#16a34a' : '#666', marginBottom: 16 }}>
                 {resultScreen.passed ? 'You passed!' : 'Below passing threshold'}
               </p>
               {resultScreen.passed && resultScreen.certificateUrl && (
@@ -266,6 +273,14 @@ export function TestInterface({
                   View certificate
                 </a>
               )}
+            </>
+          ) : (
+            <>
+              <Award size={40} color="#16a34a" style={{ margin: '0 auto 16px' }} />
+              <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Thank you!</h2>
+              <p style={{ fontSize: 14, color: '#666', lineHeight: 1.6, marginBottom: 16 }}>
+                Your responses have been submitted successfully. Our team will review your assessment and contact you about next steps.
+              </p>
             </>
           )}
           <button type="button" onClick={() => onComplete(resultScreen)} className="lt-btn-secondary" style={{ padding: '10px 20px' }}>
