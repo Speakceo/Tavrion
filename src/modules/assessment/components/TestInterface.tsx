@@ -1,12 +1,13 @@
-import { useEffect, useState, useCallback } from 'react';
-import { Flag, ChevronLeft, ChevronRight, Maximize2, Clock } from 'lucide-react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { Flag, ChevronLeft, ChevronRight, Maximize2, Clock, Award, Info } from 'lucide-react';
 import type { AssessmentQuestion } from '../types';
-import { saveResponse, submitAttempt } from '../services/attemptService';
+import { saveResponse } from '../services/attemptService';
 import { uploadAssessmentMedia } from '../services/mediaService';
 import { useIntegrityMonitor } from '../hooks/useIntegrityMonitor';
 import { ProctoringMonitor } from './ProctoringMonitor';
 import {
   MCQQuestion, WritingQuestion, ListeningQuestion, MediaRecordQuestion,
+  CodingQuestion, ExcelQuestion,
 } from './questions/QuestionRenderers';
 
 export type TestCompleteResult = {
@@ -14,6 +15,20 @@ export type TestCompleteResult = {
   passed: boolean;
   attemptId: string;
   showPostForm?: boolean;
+  certificateUrl?: string;
+  practiceMode?: boolean;
+};
+
+type SectionMeta = {
+  id: string;
+  title: string;
+  time_limit_minutes?: number | null;
+  questionIds: string[];
+};
+
+type BranchRule = {
+  when: { question_id: string; answer: string | string[] };
+  skip_question_ids?: string[];
 };
 
 type Props = {
@@ -22,9 +37,41 @@ type Props = {
   questions: AssessmentQuestion[];
   title: string;
   timeLimitMinutes?: number | null;
+  sections?: SectionMeta[];
+  practiceMode?: boolean;
   onComplete: (result: TestCompleteResult) => void;
   showPostForm?: boolean;
 };
+
+const MOBILE_CSS = `
+@media (max-width: 640px) {
+  .test-interface-grid { grid-template-columns: 1fr !important; }
+  .test-interface-aside { order: -1; }
+  .test-interface-header { padding: 10px 14px !important; flex-wrap: wrap; gap: 8px; }
+  .test-interface-main { padding: 16px 14px !important; }
+  .test-interface-nav { flex-wrap: wrap; gap: 8px; }
+  .test-interface-nav button { flex: 1; min-width: 100px; justify-content: center; }
+}
+`;
+
+function buildSkippedSet(questions: AssessmentQuestion[], answers: Record<string, Record<string, unknown>>): Set<string> {
+  const skipped = new Set<string>();
+  for (const q of questions) {
+    const rules = (q.metadata?.branch_rules as BranchRule[] | undefined) || [];
+    for (const rule of rules) {
+      const ans = answers[rule.when.question_id];
+      if (!ans) continue;
+      const selected = ans.selected;
+      const match = Array.isArray(rule.when.answer)
+        ? (Array.isArray(selected) ? rule.when.answer.some((a) => (selected as string[]).includes(a)) : rule.when.answer.includes(String(selected)))
+        : String(selected) === rule.when.answer;
+      if (match && rule.skip_question_ids) {
+        rule.skip_question_ids.forEach((id) => skipped.add(id));
+      }
+    }
+  }
+  return skipped;
+}
 
 export function TestInterface({
   attemptId,
@@ -32,6 +79,8 @@ export function TestInterface({
   questions,
   title,
   timeLimitMinutes,
+  sections,
+  practiceMode = false,
   onComplete,
   showPostForm = false,
 }: Props) {
@@ -41,17 +90,91 @@ export function TestInterface({
   const [submitting, setSubmitting] = useState(false);
   const [reviewMode, setReviewMode] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(timeLimitMinutes ? timeLimitMinutes * 60 : null);
-  const [violationCount, setViolationCount] = useState(0);
+  const [sectionTimeLeft, setSectionTimeLeft] = useState<number | null>(null);
+  const [resultScreen, setResultScreen] = useState<TestCompleteResult | null>(null);
+  const sectionAdvancedRef = useRef(false);
+
+  const skippedIds = useMemo(() => buildSkippedSet(questions, answers), [questions, answers]);
+  const activeQuestions = useMemo(
+    () => questions.filter((q) => !skippedIds.has(q.id)),
+    [questions, skippedIds],
+  );
+
+  const sectionMeta = useMemo(() => {
+    if (sections?.length) return sections;
+    const bySection = new Map<string, SectionMeta>();
+    for (const q of activeQuestions) {
+      const sid = String(q.metadata?.section_id ?? 'default');
+      const existing = bySection.get(sid) || {
+        id: sid,
+        title: String(q.metadata?.section_title ?? 'Section'),
+        time_limit_minutes: q.metadata?.section_time_limit_minutes as number | null | undefined,
+        questionIds: [],
+      };
+      existing.questionIds.push(q.id);
+      bySection.set(sid, existing);
+    }
+    return [...bySection.values()];
+  }, [sections, activeQuestions]);
+
+  const currentSection = useMemo(() => {
+    const current = activeQuestions[currentIndex];
+    if (!current) return sectionMeta[0];
+    return sectionMeta.find((s) => s.questionIds.includes(current.id)) || sectionMeta[0];
+  }, [activeQuestions, currentIndex, sectionMeta]);
+
+  const doSubmit = useCallback(async () => {
+    setSubmitting(true);
+    try {
+      for (const q of activeQuestions) {
+        const ans = answers[q.id];
+        if (ans?.blob) {
+          const ext = ans.media_type === 'video' ? 'webm' : 'webm';
+          const url = await uploadAssessmentMedia(attemptId, q.id, ans.blob as Blob, ext);
+          const cleaned = { ...ans, media_url: url };
+          delete cleaned.blob;
+          delete cleaned.preview_url;
+          await saveResponse(attemptId, q.id, cleaned, flagged.has(q.id));
+        }
+      }
+
+      if (practiceMode) {
+        const mockResult: TestCompleteResult = {
+          percentage: 0,
+          passed: false,
+          attemptId,
+          showPostForm: false,
+          practiceMode: true,
+        };
+        setResultScreen(mockResult);
+        return;
+      }
+
+      const { submitAttempt } = await import('../services/attemptService');
+      const result = await submitAttempt(attemptId, assignmentId);
+      const completeResult: TestCompleteResult = {
+        percentage: result.percentage,
+        passed: result.passed,
+        attemptId,
+        showPostForm,
+        certificateUrl: result.passed ? `/certificates?attempt=${attemptId}` : undefined,
+        practiceMode: false,
+      };
+      setResultScreen(completeResult);
+    } finally {
+      setSubmitting(false);
+    }
+  }, [activeQuestions, answers, flagged, attemptId, assignmentId, practiceMode, showPostForm]);
 
   const handleAutoSubmit = useCallback(async () => {
-    if (submitting) return;
+    if (submitting || resultScreen) return;
     await doSubmit();
-  }, [submitting, attemptId, assignmentId]);
+  }, [submitting, resultScreen, doSubmit]);
 
-  const { violationCount: _v } = useIntegrityMonitor(attemptId, handleAutoSubmit);
+  const { violationCount } = useIntegrityMonitor(attemptId, practiceMode ? undefined : handleAutoSubmit);
 
   useEffect(() => {
-    if (timeLeft == null || timeLeft <= 0) return;
+    if (timeLeft == null || timeLeft <= 0 || practiceMode) return;
     const t = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev == null || prev <= 1) {
@@ -62,26 +185,45 @@ export function TestInterface({
       });
     }, 1000);
     return () => clearInterval(t);
-  }, [timeLeft, handleAutoSubmit]);
+  }, [timeLeft, handleAutoSubmit, practiceMode]);
 
-  const current = questions[currentIndex];
+  useEffect(() => {
+    if (!currentSection?.time_limit_minutes) {
+      setSectionTimeLeft(null);
+      return;
+    }
+    setSectionTimeLeft(currentSection.time_limit_minutes * 60);
+    sectionAdvancedRef.current = false;
+  }, [currentSection?.id]);
+
+  useEffect(() => {
+    if (sectionTimeLeft == null || sectionTimeLeft <= 0 || practiceMode) return;
+    const t = setInterval(() => {
+      setSectionTimeLeft((prev) => {
+        if (prev == null || prev <= 1) {
+          if (!sectionAdvancedRef.current) {
+            sectionAdvancedRef.current = true;
+            const lastInSection = currentSection?.questionIds[currentSection.questionIds.length - 1];
+            const lastIdx = activeQuestions.findIndex((q) => q.id === lastInSection);
+            if (lastIdx >= 0 && lastIdx < activeQuestions.length - 1) {
+              setCurrentIndex(lastIdx + 1);
+            } else if (lastIdx === activeQuestions.length - 1) {
+              setReviewMode(true);
+            }
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(t);
+  }, [sectionTimeLeft, practiceMode, currentSection, activeQuestions]);
+
+  const current = activeQuestions[currentIndex];
 
   const persistAnswer = async (questionId: string, answer: Record<string, unknown>, isFlagged = false) => {
     setAnswers((prev) => ({ ...prev, [questionId]: answer }));
     await saveResponse(attemptId, questionId, answer, isFlagged);
-  };
-
-  const uploadMediaIfNeeded = async (questionId: string, answer: Record<string, unknown>) => {
-    if (answer.blob instanceof Blob) {
-      const ext = answer.media_type === 'video' ? 'webm' : 'webm';
-      const url = await uploadAssessmentMedia(attemptId, questionId, answer.blob as Blob, ext);
-      const cleaned = { ...answer, media_url: url };
-      delete cleaned.blob;
-      delete cleaned.preview_url;
-      await persistAnswer(questionId, cleaned);
-      return cleaned;
-    }
-    return answer;
   };
 
   const toggleFlag = async () => {
@@ -93,25 +235,6 @@ export function TestInterface({
     await saveResponse(attemptId, current.id, answers[current.id] || {}, next.has(current.id));
   };
 
-  const doSubmit = async () => {
-    setSubmitting(true);
-    try {
-      for (const q of questions) {
-        const ans = answers[q.id];
-        if (ans?.blob) await uploadMediaIfNeeded(q.id, ans);
-      }
-      const result = await submitAttempt(attemptId, assignmentId);
-      onComplete({
-        percentage: result.percentage,
-        passed: result.passed,
-        attemptId,
-        showPostForm,
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const handleSubmit = async () => {
     if (!reviewMode) {
       setReviewMode(true);
@@ -119,6 +242,39 @@ export function TestInterface({
     }
     await doSubmit();
   };
+
+  if (resultScreen) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#fafafa', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div className="lt-card" style={{ padding: 40, textAlign: 'center', maxWidth: 440, width: '100%' }}>
+          {resultScreen.practiceMode ? (
+            <>
+              <Info size={40} color="#d97706" style={{ margin: '0 auto 16px' }} />
+              <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Practice complete</h2>
+              <p style={{ fontSize: 14, color: '#666', marginBottom: 20 }}>Your responses were not submitted for scoring.</p>
+            </>
+          ) : (
+            <>
+              <Award size={40} color={resultScreen.passed ? '#16a34a' : '#808080'} style={{ margin: '0 auto 16px' }} />
+              <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>{resultScreen.passed ? 'Congratulations!' : 'Assessment submitted'}</h2>
+              <p style={{ fontSize: 32, fontWeight: 700, marginBottom: 8 }}>{resultScreen.percentage}%</p>
+              <p style={{ fontSize: 14, color: resultScreen.passed ? '#16a34a' : '#c0392b', marginBottom: 16 }}>
+                {resultScreen.passed ? 'You passed!' : 'Below passing threshold'}
+              </p>
+              {resultScreen.passed && resultScreen.certificateUrl && (
+                <a href={resultScreen.certificateUrl} className="lt-btn-primary" style={{ display: 'inline-block', padding: '10px 20px', marginBottom: 16, textDecoration: 'none' }}>
+                  View certificate
+                </a>
+              )}
+            </>
+          )}
+          <button type="button" onClick={() => onComplete(resultScreen)} className="lt-btn-secondary" style={{ padding: '10px 20px' }}>
+            Continue
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!current) {
     return <p style={{ padding: 40, textAlign: 'center', color: '#666' }}>No questions in this assessment.</p>;
@@ -130,7 +286,7 @@ export function TestInterface({
     const val = answers[current.id] || {};
     const onChange = (a: Record<string, unknown>) => persistAnswer(current.id, a);
 
-    if (['multiple_choice', 'multiple_select', 'true_false', 'situational_judgment'].includes(current.question_type)) {
+    if (['multiple_choice', 'multiple_select', 'true_false', 'situational_judgment', 'personality', 'cognitive'].includes(current.question_type)) {
       return <MCQQuestion question={current} value={val} onChange={onChange} />;
     }
     if (['short_answer', 'long_answer'].includes(current.question_type)) {
@@ -146,29 +302,37 @@ export function TestInterface({
       return <MediaRecordQuestion question={current} value={val} onChange={onChange} mode="video" />;
     }
     if (current.question_type === 'coding' || current.question_type === 'sql') {
-      return (
-        <textarea
-          className="lt-input"
-          rows={12}
-          value={String(val.code ?? '')}
-          onChange={(e) => onChange({ code: e.target.value, language: current.metadata?.language || 'javascript' })}
-          style={{ fontFamily: 'monospace', fontSize: 13 }}
-          placeholder="// Your code here..."
-        />
-      );
+      return <CodingQuestion question={current} value={val} onChange={onChange} />;
+    }
+    if (current.question_type === 'excel') {
+      return <ExcelQuestion question={current} value={val} onChange={onChange} />;
     }
     return <WritingQuestion question={current} value={val} onChange={onChange} />;
   };
 
   return (
     <div style={{ minHeight: '100vh', background: '#fafafa', fontFamily: 'system-ui, sans-serif' }}>
-      <header style={{ background: '#fff', borderBottom: '1px solid #eee', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 10 }}>
+      <style>{MOBILE_CSS}</style>
+      {practiceMode && (
+        <div style={{ background: '#fef3c7', borderBottom: '1px solid #fcd34d', padding: '8px 20px', fontSize: 12, color: '#92400e', textAlign: 'center' }}>
+          Practice mode — responses will not be scored or submitted.
+        </div>
+      )}
+      <header className="test-interface-header" style={{ background: '#fff', borderBottom: '1px solid #eee', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 10 }}>
         <div>
           <div style={{ fontSize: 14, fontWeight: 700 }}>{title}</div>
-          <div style={{ fontSize: 11, color: '#999' }}>Question {currentIndex + 1} of {questions.length}</div>
+          <div style={{ fontSize: 11, color: '#999' }}>
+            {currentSection?.title && <span>{currentSection.title} · </span>}
+            Question {currentIndex + 1} of {activeQuestions.length}
+          </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {timeLeft != null && (
+          {sectionTimeLeft != null && (
+            <span style={{ fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, color: sectionTimeLeft < 60 ? '#d97706' : '#666' }}>
+              <Clock size={13} /> Section {formatTime(sectionTimeLeft)}
+            </span>
+          )}
+          {timeLeft != null && !practiceMode && (
             <span style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4, color: timeLeft < 60 ? '#c0392b' : '#171717' }}>
               <Clock size={14} /> {formatTime(timeLeft)}
             </span>
@@ -180,26 +344,26 @@ export function TestInterface({
       </header>
 
       <div style={{ height: 4, background: '#f0f0f0' }}>
-        <div style={{ height: '100%', width: `${((currentIndex + 1) / questions.length) * 100}%`, background: '#171717', transition: 'width 0.2s' }} />
+        <div style={{ height: '100%', width: `${((currentIndex + 1) / activeQuestions.length) * 100}%`, background: '#171717', transition: 'width 0.2s' }} />
       </div>
 
-      <div style={{ maxWidth: 960, margin: '0 auto', padding: '24px 20px', display: 'grid', gridTemplateColumns: '1fr 220px', gap: 20 }}>
-        <main>
+      <div className="test-interface-grid" style={{ maxWidth: 960, margin: '0 auto', padding: '24px 20px', display: 'grid', gridTemplateColumns: '1fr 220px', gap: 20 }}>
+        <main className="test-interface-main">
           {reviewMode ? (
             <div>
               <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Review before submit</h2>
-              {questions.map((q, i) => (
-                <div key={q.id} style={{ padding: '12px 0', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between' }}>
+              {activeQuestions.map((q, i) => (
+                <div key={q.id} style={{ padding: '12px 0', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                   <span style={{ fontSize: 13 }}>{i + 1}. {q.prompt.slice(0, 80)}</span>
-                  <span style={{ fontSize: 11, color: answers[q.id] ? '#16a34a' : '#c0392b' }}>
+                  <span style={{ fontSize: 11, color: answers[q.id] ? '#16a34a' : '#c0392b', flexShrink: 0 }}>
                     {answers[q.id] ? 'Answered' : 'Unanswered'}{flagged.has(q.id) ? ' · Flagged' : ''}
                   </span>
                 </div>
               ))}
-              <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <div className="test-interface-nav" style={{ display: 'flex', gap: 10, marginTop: 20 }}>
                 <button type="button" onClick={() => setReviewMode(false)} className="lt-btn-secondary" style={{ padding: '10px 18px' }}>Back</button>
                 <button type="button" onClick={handleSubmit} disabled={submitting} className="lt-btn-primary" style={{ padding: '10px 18px' }}>
-                  {submitting ? 'Submitting...' : 'Submit assessment'}
+                  {submitting ? 'Submitting...' : practiceMode ? 'Finish practice' : 'Submit assessment'}
                 </button>
               </div>
             </div>
@@ -210,14 +374,14 @@ export function TestInterface({
                 <p style={{ fontSize: 15, lineHeight: 1.6, marginBottom: 20 }}>{current.prompt}</p>
                 {renderQuestion()}
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="test-interface-nav" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <button type="button" onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))} disabled={currentIndex === 0} className="lt-btn-secondary" style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 4 }}>
                   <ChevronLeft size={14} /> Previous
                 </button>
                 <button type="button" onClick={toggleFlag} style={{ padding: '8px 12px', background: 'none', border: '1px solid #e5e5e5', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, color: flagged.has(current.id) ? '#c0392b' : '#666' }}>
                   <Flag size={14} /> {flagged.has(current.id) ? 'Flagged' : 'Flag'}
                 </button>
-                {currentIndex < questions.length - 1 ? (
+                {currentIndex < activeQuestions.length - 1 ? (
                   <button type="button" onClick={() => setCurrentIndex((i) => i + 1)} className="lt-btn-primary" style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 4 }}>
                     Next <ChevronRight size={14} />
                   </button>
@@ -228,8 +392,8 @@ export function TestInterface({
             </>
           )}
         </main>
-        <aside>
-          <ProctoringMonitor attemptId={attemptId} violationCount={violationCount} />
+        <aside className="test-interface-aside">
+          {!practiceMode && <ProctoringMonitor attemptId={attemptId} violationCount={violationCount} />}
         </aside>
       </div>
     </div>

@@ -117,6 +117,66 @@ export async function deleteSession(attemptId: string, viewer?: OrgViewer | null
   if (error) throw error;
 }
 
+export async function bulkUpdateSelectionStatus(
+  attemptIds: string[],
+  status: SelectionStatus,
+  viewer?: OrgViewer | null,
+) {
+  if (!attemptIds.length) return;
+  let query = supabase
+    .from('assessment_attempts')
+    .update({ selection_status: status })
+    .in('id', attemptIds);
+  if (!viewer?.is_platform_owner && viewer?.organization_id) {
+    query = query.eq('organization_id', viewer.organization_id);
+  }
+  const { error } = await query;
+  if (error) throw error;
+}
+
+export async function bulkDeleteSessions(attemptIds: string[], viewer?: OrgViewer | null) {
+  if (!attemptIds.length) return;
+  let query = supabase.from('assessment_attempts').delete().in('id', attemptIds);
+  if (!viewer?.is_platform_owner && viewer?.organization_id) {
+    query = query.eq('organization_id', viewer.organization_id);
+  }
+  const { error } = await query;
+  if (error) throw error;
+}
+
+export async function updateSessionTranscript(
+  attemptId: string,
+  responseId: string,
+  transcript: string,
+  viewer?: OrgViewer | null,
+) {
+  let attemptQuery = supabase.from('assessment_attempts').select('id').eq('id', attemptId);
+  if (!viewer?.is_platform_owner && viewer?.organization_id) {
+    attemptQuery = attemptQuery.eq('organization_id', viewer.organization_id);
+  }
+  const { data: attempt } = await attemptQuery.maybeSingle();
+  if (!attempt) throw new Error('Session not found');
+
+  const { data: existing } = await supabase
+    .from('assessment_video_responses')
+    .select('id')
+    .eq('response_id', responseId)
+    .maybeSingle();
+
+  if (existing?.id) {
+    const { error } = await supabase
+      .from('assessment_video_responses')
+      .update({ transcript })
+      .eq('id', existing.id);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase
+      .from('assessment_video_responses')
+      .insert({ response_id: responseId, transcript });
+    if (error) throw error;
+  }
+}
+
 export async function savePostFormData(attemptId: string, formData: Record<string, unknown>) {
   const { error } = await supabase
     .from('assessment_attempts')

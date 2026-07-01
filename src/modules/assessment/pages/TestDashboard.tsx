@@ -76,7 +76,8 @@ export function TestDashboard() {
           <Link to="/test/questions" className="lt-btn-secondary" style={{ padding: '8px 16px', fontSize: 13, textDecoration: 'none' }}>Add questions</Link>
           <Link to="/test/templates" className="lt-btn-secondary" style={{ padding: '8px 16px', fontSize: 13, textDecoration: 'none' }}>Role templates</Link>
           <Link to="/test/sessions" className="lt-btn-secondary" style={{ padding: '8px 16px', fontSize: 13, textDecoration: 'none' }}>View sessions</Link>
-          <Link to="/test/links" className="lt-btn-secondary" style={{ padding: '8px 16px', fontSize: 13, textDecoration: 'none' }}>Public links</Link>
+          <Link to="/test/platform" className="lt-btn-secondary" style={{ padding: '8px 16px', fontSize: 13, textDecoration: 'none' }}>Platform</Link>
+          <Link to="/test/grading" className="lt-btn-secondary" style={{ padding: '8px 16px', fontSize: 13, textDecoration: 'none' }}>Grading</Link>
         </div>
       </div>
 
@@ -85,14 +86,14 @@ export function TestDashboard() {
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
             <ListTodo size={18} color="#171717" style={{ flexShrink: 0, marginTop: 2 }} />
             <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#171717' }}>Pending features</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#171717' }}>Full feature catalog</div>
               <p style={{ fontSize: 12, color: '#666', marginTop: 4, lineHeight: 1.6 }}>
-                {roadmap.total} items on the roadmap — {roadmap.high} high priority, {roadmap.inProgress} in progress, {roadmap.stubs} stubs ready to wire up.
+                {roadmap.live} of {roadmap.total} capabilities live — integrations, proctoring, AI scoring, exports, and more.
               </p>
             </div>
           </div>
           <Link to="/test/roadmap" className="lt-btn-secondary" style={{ padding: '6px 14px', fontSize: 12, textDecoration: 'none', whiteSpace: 'nowrap' }}>
-            View roadmap
+            View catalog
           </Link>
         </div>
       </div>

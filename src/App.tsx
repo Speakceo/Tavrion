@@ -60,6 +60,8 @@ import { AssessmentResult } from './modules/assessment/pages/AssessmentResult';
 import { CandidateAccess } from './modules/assessment/pages/public/CandidateAccess';
 import { PendingFeatures } from './modules/assessment/pages/PendingFeatures';
 import { RoleTemplates } from './modules/assessment/pages/RoleTemplates';
+import { TestPlatform } from './modules/assessment/pages/TestPlatform';
+import { TestGrading } from './modules/assessment/pages/TestGrading';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -557,6 +559,26 @@ function App() {
               <ProtectedRoute allowedRoles={['super_admin', 'admin', 'trainer']}>
                 <OrgFeatureGate feature="tavrion_test">
                   <PendingFeatures />
+                </OrgFeatureGate>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/test/platform"
+            element={
+              <ProtectedRoute allowedRoles={['super_admin', 'admin', 'trainer']}>
+                <OrgFeatureGate feature="tavrion_test">
+                  <TestPlatform />
+                </OrgFeatureGate>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/test/grading"
+            element={
+              <ProtectedRoute allowedRoles={['super_admin', 'admin', 'trainer']}>
+                <OrgFeatureGate feature="tavrion_test">
+                  <TestGrading />
                 </OrgFeatureGate>
               </ProtectedRoute>
             }

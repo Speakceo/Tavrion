@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   LayoutDashboard, Library, HelpCircle, Users, BarChart3, FileText,
   LogOut, ChevronDown, Menu, X, ArrowLeftRight, ClipboardCheck, Link2, UserCheck, ListTodo, Briefcase,
+  Settings, PenLine,
 } from 'lucide-react';
 import { getOrgLogoUrl } from '../../../utils/orgSettings';
 
@@ -14,6 +15,8 @@ const TEST_NAV = [
   { name: 'Question Bank', href: '/test/questions', icon: HelpCircle },
   { name: 'Public Links', href: '/test/links', icon: Link2 },
   { name: 'Role templates', href: '/test/templates', icon: Briefcase },
+  { name: 'Grading', href: '/test/grading', icon: PenLine },
+  { name: 'Platform', href: '/test/platform', icon: Settings },
   { name: 'Assignments', href: '/test/assignments', icon: Users },
   { name: 'Analytics', href: '/test/analytics', icon: BarChart3 },
   { name: 'Reports', href: '/test/reports', icon: FileText },
@@ -27,10 +30,12 @@ const PAGE_TITLES: Record<string, string> = {
   '/test/questions': 'Question Bank',
   '/test/links': 'Public Links',
   '/test/templates': 'Role Templates',
+  '/test/grading': 'Manual Grading',
+  '/test/platform': 'Platform Settings',
   '/test/assignments': 'Assignments',
   '/test/analytics': 'Analytics',
   '/test/reports': 'Reports',
-  '/test/roadmap': 'Roadmap',
+  '/test/roadmap': 'Feature Catalog',
 };
 
 export function TestLayout({ children }: { children: React.ReactNode }) {

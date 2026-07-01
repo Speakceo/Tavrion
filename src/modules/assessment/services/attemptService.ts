@@ -68,7 +68,6 @@ export async function fetchAttemptResponses(attemptId: string) {
   return (data || []) as AssessmentResponse[];
 }
 
-import { scoreResponse, calculateAttemptScore } from '../utils/scoring';
 import { invokeCalculateOverallScore } from './mediaService';
 
 export async function submitAttempt(

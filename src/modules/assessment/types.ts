@@ -130,7 +130,9 @@ export interface AssessmentSection {
   instructions: string;
   sort_order: number;
   time_limit_minutes?: number | null;
+  question_pool_size?: number | null;
   weight: number;
+  shuffle_questions?: boolean;
   questions?: AssessmentSectionQuestion[];
   assessment_section_questions?: AssessmentSectionQuestion[];
 }
