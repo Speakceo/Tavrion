@@ -130,7 +130,7 @@ export function TestInterface({
     const val = answers[current.id] || {};
     const onChange = (a: Record<string, unknown>) => persistAnswer(current.id, a);
 
-    if (['multiple_choice', 'multiple_select', 'true_false'].includes(current.question_type)) {
+    if (['multiple_choice', 'multiple_select', 'true_false', 'situational_judgment'].includes(current.question_type)) {
       return <MCQQuestion question={current} value={val} onChange={onChange} />;
     }
     if (['short_answer', 'long_answer'].includes(current.question_type)) {

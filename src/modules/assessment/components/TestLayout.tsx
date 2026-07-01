@@ -3,7 +3,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { useState, useEffect, useRef } from 'react';
 import {
   LayoutDashboard, Library, HelpCircle, Users, BarChart3, FileText,
-  LogOut, ChevronDown, Menu, X, ArrowLeftRight, ClipboardCheck, Link2, UserCheck, ListTodo,
+  LogOut, ChevronDown, Menu, X, ArrowLeftRight, ClipboardCheck, Link2, UserCheck, ListTodo, Briefcase,
 } from 'lucide-react';
 import { getOrgLogoUrl } from '../../../utils/orgSettings';
 
@@ -13,6 +13,7 @@ const TEST_NAV = [
   { name: 'Assessment Library', href: '/test/library', icon: Library },
   { name: 'Question Bank', href: '/test/questions', icon: HelpCircle },
   { name: 'Public Links', href: '/test/links', icon: Link2 },
+  { name: 'Role templates', href: '/test/templates', icon: Briefcase },
   { name: 'Assignments', href: '/test/assignments', icon: Users },
   { name: 'Analytics', href: '/test/analytics', icon: BarChart3 },
   { name: 'Reports', href: '/test/reports', icon: FileText },
@@ -25,6 +26,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/test/library': 'Assessment Library',
   '/test/questions': 'Question Bank',
   '/test/links': 'Public Links',
+  '/test/templates': 'Role Templates',
   '/test/assignments': 'Assignments',
   '/test/analytics': 'Analytics',
   '/test/reports': 'Reports',

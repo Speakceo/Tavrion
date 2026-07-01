@@ -59,6 +59,7 @@ import { TakeAssessment } from './modules/assessment/pages/TakeAssessment';
 import { AssessmentResult } from './modules/assessment/pages/AssessmentResult';
 import { CandidateAccess } from './modules/assessment/pages/public/CandidateAccess';
 import { PendingFeatures } from './modules/assessment/pages/PendingFeatures';
+import { RoleTemplates } from './modules/assessment/pages/RoleTemplates';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -536,6 +537,16 @@ function App() {
               <ProtectedRoute allowedRoles={['super_admin', 'admin', 'trainer']}>
                 <OrgFeatureGate feature="tavrion_test">
                   <TestReports />
+                </OrgFeatureGate>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/test/templates"
+            element={
+              <ProtectedRoute allowedRoles={['super_admin', 'admin', 'trainer']}>
+                <OrgFeatureGate feature="tavrion_test">
+                  <RoleTemplates />
                 </OrgFeatureGate>
               </ProtectedRoute>
             }

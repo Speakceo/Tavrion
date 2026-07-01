@@ -75,6 +75,7 @@ export function PendingFeatures() {
             'MCQ / writing / audio / video',
             'Post-assessment form',
             'Analytics & reports (basic)',
+            'Role templates (7 roles)',
           ].map((item) => (
             <span
               key={item}

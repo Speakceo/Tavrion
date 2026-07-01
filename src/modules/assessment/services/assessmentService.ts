@@ -1,7 +1,7 @@
 import { supabase } from '../../../lib/supabase';
 import { applyOrgScope, orgIdForInsert } from '../../../utils/orgScope';
 import type { OrgViewer } from '../../../utils/orgScope';
-import type { Assessment, AssessmentQuestion, AssessmentStatus } from './types';
+import type { Assessment, AssessmentStatus } from '../types';
 
 export async function logAssessmentAudit(
   orgId: string,

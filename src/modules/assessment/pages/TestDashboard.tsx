@@ -74,6 +74,7 @@ export function TestDashboard() {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
           <Link to="/test/library" className="lt-btn-primary" style={{ padding: '8px 16px', fontSize: 13, textDecoration: 'none' }}>Create assessment</Link>
           <Link to="/test/questions" className="lt-btn-secondary" style={{ padding: '8px 16px', fontSize: 13, textDecoration: 'none' }}>Add questions</Link>
+          <Link to="/test/templates" className="lt-btn-secondary" style={{ padding: '8px 16px', fontSize: 13, textDecoration: 'none' }}>Role templates</Link>
           <Link to="/test/sessions" className="lt-btn-secondary" style={{ padding: '8px 16px', fontSize: 13, textDecoration: 'none' }}>View sessions</Link>
           <Link to="/test/links" className="lt-btn-secondary" style={{ padding: '8px 16px', fontSize: 13, textDecoration: 'none' }}>Public links</Link>
         </div>

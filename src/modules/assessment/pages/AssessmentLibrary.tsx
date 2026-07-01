@@ -7,7 +7,7 @@ import {
   fetchAssessments, createAssessment, duplicateAssessment, updateAssessmentStatus,
 } from '../services/assessmentService';
 import type { Assessment, AssessmentStatus } from '../types';
-import { Plus, Copy, Archive, Globe, Search, FolderOpen } from 'lucide-react';
+import { Plus, Copy, Archive, Globe, Search, FolderOpen, Briefcase } from 'lucide-react';
 
 const STATUS_COLORS: Record<AssessmentStatus, string> = {
   draft: '#808080',
@@ -83,14 +83,19 @@ export function AssessmentLibrary() {
           <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em' }}>Assessment Library</h1>
           <p style={{ fontSize: 13, color: '#666', marginTop: 4 }}>Create, version, publish, and organize assessments.</p>
         </div>
-        <button
-          onClick={handleCreate}
-          disabled={busy === 'create'}
-          className="lt-btn-primary"
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', fontSize: 13 }}
-        >
-          <Plus size={14} /> New assessment
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            onClick={handleCreate}
+            disabled={busy === 'create'}
+            className="lt-btn-primary"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', fontSize: 13 }}
+          >
+            <Plus size={14} /> New assessment
+          </button>
+          <Link to="/test/templates" className="lt-btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', fontSize: 13, textDecoration: 'none' }}>
+            <Briefcase size={14} /> Role templates
+          </Link>
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>

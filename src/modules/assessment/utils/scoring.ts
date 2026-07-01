@@ -15,7 +15,7 @@ export function scoreResponse(
   const weight = question.weight || 1;
   const type = question.question_type;
 
-  if (type === 'listening' || type === 'multiple_choice' || type === 'true_false') {
+  if (type === 'listening' || type === 'multiple_choice' || type === 'true_false' || type === 'situational_judgment') {
     const selected = String(response?.selected ?? '');
     const correct = question.options?.find((o) => o.is_correct);
     const isCorrect = correct && selected === correct.id;
