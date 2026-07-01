@@ -5,9 +5,10 @@ import { Layout } from '../components/Layout';
 import { Send, Bot, User } from 'lucide-react';
 import { ChatMessage } from '../types';
 import { OpenAIService } from '../services/openai';
+import { getAiTutorContext } from '../utils/orgSettings';
 
 export function AITutor() {
-  const { profile } = useAuth();
+  const { profile, organization } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -69,7 +70,7 @@ export function AITutor() {
       const assistantResponse = await openai.chatTutor({
         userMessage,
         userRole: profile.role || 'employee',
-        context: 'Amberstudent LMS training system'
+        context: getAiTutorContext(organization),
       });
 
       await supabase.from('ai_chat_history').insert({

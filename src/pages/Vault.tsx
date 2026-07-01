@@ -3,6 +3,7 @@ import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { FolderLock, Plus, FileText, Image as ImageIcon, Download, Trash2, MapPin, X, Eye } from 'lucide-react';
+import { applyOrgScope, orgIdForInsert } from '../utils/orgScope';
 
 const UK_CITIES = [
   'General Info',
@@ -77,6 +78,8 @@ export function Vault() {
         query = query.eq('uk_city', selectedCity);
       }
 
+      query = applyOrgScope(query, profile);
+
       const { data, error } = await query;
 
       if (error) throw error;
@@ -134,6 +137,7 @@ export function Vault() {
 
       const { error } = await supabase.from('vault_items').insert({
         user_id: profile?.id,
+        organization_id: orgIdForInsert(profile),
         title: newItem.title,
         description: newItem.description,
         content_type: newItem.content_type,

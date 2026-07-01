@@ -26,7 +26,9 @@ const T = {
   shadowCard: 'rgba(0,0,0,0.08) 0px 0px 0px 1px, rgba(0,0,0,0.04) 0px 2px 4px',
 };
 
-function CertificatePrint({ cert, userName }: { cert: CertificateRecord; userName: string }) {
+import { getCertificateBranding } from '../utils/orgSettings';
+
+function CertificatePrint({ cert, userName, branding }: { cert: CertificateRecord; userName: string; branding?: ReturnType<typeof getCertificateBranding> }) {
   const courseTitle = cert.course_title || cert.course?.title || 'Course';
   const issuedDate = new Date(cert.issued_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
   const expiryDate = cert.expiry_date ? new Date(cert.expiry_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : null;
@@ -41,12 +43,14 @@ function CertificatePrint({ cert, userName }: { cert: CertificateRecord; userNam
       issuedDate={issuedDate}
       certNum={certNum}
       expiryDate={expiryDate}
+      branding={branding}
     />
   );
 }
 
 export function Certificates() {
-  const { profile } = useAuth();
+  const { profile, organization } = useAuth();
+  const certBranding = getCertificateBranding(organization);
   const [certs, setCerts] = useState<CertificateRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -211,7 +215,7 @@ export function Certificates() {
               </div>
               <div style={{ padding: 24, overflowX: 'auto' }}>
                 <div ref={printRef}>
-                  <CertificatePrint cert={selected} userName={profile?.full_name || ''} />
+                  <CertificatePrint cert={selected} userName={profile?.full_name || ''} branding={certBranding} />
                 </div>
               </div>
             </div>

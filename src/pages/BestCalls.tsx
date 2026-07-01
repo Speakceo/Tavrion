@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase';
 import { Layout } from '../components/Layout';
 import { Play, ThumbsUp, MessageCircle, Send, User } from 'lucide-react';
 import { applyOrgScope, orgIdForInsert } from '../utils/orgScope';
+import { fetchOrgBestCallCategories, categoryLabel } from '../utils/bestCallCategories';
+import type { BestCallCategoryRow } from '../data/defaultBestCallCategories';
 
 interface BestCall {
   id: string;
@@ -37,18 +39,9 @@ interface Comment {
   };
 }
 
-const CATEGORIES = [
-  { value: 'all', label: 'All Categories' },
-  { value: 'objection_handling', label: 'Objection Handling' },
-  { value: 'urgency', label: 'Urgency' },
-  { value: 'rapport_building', label: 'Rapport Building' },
-  { value: 'closing', label: 'Closing' },
-  { value: 'discovery', label: 'Discovery' },
-  { value: 'follow_up', label: 'Follow Up' },
-];
-
 export function BestCalls() {
   const { profile } = useAuth();
+  const [categories, setCategories] = useState<BestCallCategoryRow[]>([]);
   const [calls, setCalls] = useState<CallWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -57,8 +50,18 @@ export function BestCalls() {
   const [submittingComment, setSubmittingComment] = useState(false);
 
   useEffect(() => {
+    if (!profile?.organization_id) return;
+    fetchOrgBestCallCategories(profile.organization_id).then(setCategories).catch(console.error);
+  }, [profile?.organization_id]);
+
+  useEffect(() => {
     loadCalls();
   }, [profile]);
+
+  const filterCategories = [
+    { value: 'all', label: 'All Categories' },
+    ...categories.map((c) => ({ value: c.category_key, label: c.label })),
+  ];
 
   const loadCalls = async () => {
     if (!profile) return;
@@ -175,9 +178,7 @@ export function BestCalls() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const getCategoryLabel = (category: string) => {
-    return CATEGORIES.find(c => c.value === category)?.label || category;
-  };
+  const getCategoryLabel = (category: string) => categoryLabel(categories, category);
 
   const filteredCalls = selectedCategory === 'all'
     ? calls
@@ -193,7 +194,7 @@ export function BestCalls() {
 
         <div className="mb-6">
           <div className="flex flex-wrap gap-2">
-            {CATEGORIES.map(cat => (
+            {filterCategories.map(cat => (
               <button
                 key={cat.value}
                 onClick={() => setSelectedCategory(cat.value)}

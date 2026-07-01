@@ -34,11 +34,15 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { scenarioType, transcript } = await req.json();
+    const { scenarioType, transcript, evaluationRubric } = await req.json();
 
     const OPENAI_API_KEY = await getSecret('openai_api_key');
 
-    const systemPrompt = `You are an expert sales trainer for Amberstudent evaluating a mock call performance.
+    const rubricBlock = evaluationRubric?.trim()
+      ? `\n\nOrganisation-specific evaluation criteria:\n${evaluationRubric.trim()}`
+      : '';
+
+    const systemPrompt = `You are an expert sales trainer evaluating a mock call performance.
 
 Evaluate based on:
 1. RAPPORT BUILDING: Did they build trust and connection?
@@ -46,6 +50,7 @@ Evaluate based on:
 3. OBJECTION HANDLING: How well did they address objections?
 4. PRODUCT KNOWLEDGE: Did they demonstrate good knowledge?
 5. CLOSING: Did they try to move the conversation forward?
+${rubricBlock}
 
 Be constructive and specific with feedback.`;
 

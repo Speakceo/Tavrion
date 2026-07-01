@@ -31,8 +31,10 @@ export interface ZipPdfPreview {
   tooLarge: boolean;
 }
 
+import { isOrgFeatureEnabled } from './orgFeatures';
+
 export function isBooksFeatureEnabled(features?: Record<string, boolean> | null) {
-  return Boolean(features?.books);
+  return isOrgFeatureEnabled(features, 'books');
 }
 
 export function getBookFileUrl(filePath: string) {

@@ -11,23 +11,17 @@ import { ORG_ASSIGNABLE_ROLES, sanitizeUserRole, isMasterSuperAdmin } from '../.
 import {
   fetchOrgMockScenarios, saveMockScenario, resetOrgMockScenarios, ensureOrgMockScenarios, getScenarioIcon,
 } from '../../utils/mockCallScenarios';
+import {
+  fetchOrgBestCallCategories, saveBestCallCategory, resetOrgBestCallCategories, ensureOrgBestCallCategories,
+} from '../../utils/bestCallCategories';
 import type { MockScenarioRow } from '../../data/defaultMockScenarios';
+import type { BestCallCategoryRow } from '../../data/defaultBestCallCategories';
+import { ORG_FEATURE_DEFAULTS } from '../../utils/orgFeatures';
+import type { OrgSettings } from '../../utils/orgSettings';
 
-const DEFAULT_FEATURES = {
-  ai_tutor: false,
-  mock_calls: false,
-  live_calls: false,
-  polls: false,
-  social_feed: false,
-  vault: false,
-  leaderboard: false,
-  email_nudges: false,
-  scorm_upload: false,
-  certificates: false,
-  books: false,
-};
+const DEFAULT_FEATURES = { ...ORG_FEATURE_DEFAULTS };
 
-type Tab = 'settings' | 'users' | 'scenarios';
+type Tab = 'settings' | 'users' | 'scenarios' | 'customize';
 
 export function OrgDetail() {
   const { orgId: orgIdParam } = useParams<{ orgId: string }>();
@@ -69,6 +63,12 @@ export function OrgDetail() {
   const [scenarioDraft, setScenarioDraft] = useState<Partial<MockScenarioRow>>({});
   const [scenarioMsg, setScenarioMsg] = useState('');
 
+  const [bestCallCategories, setBestCallCategories] = useState<BestCallCategoryRow[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [categoryDraft, setCategoryDraft] = useState<Partial<BestCallCategoryRow>>({});
+  const [customizeMsg, setCustomizeMsg] = useState('');
+
   useEffect(() => {
     if (isNew) {
       setLoading(false);
@@ -81,7 +81,30 @@ export function OrgDetail() {
   useEffect(() => {
     if (!isNew && orgId && tab === 'users') fetchOrgUsers(orgId);
     if (!isNew && orgId && tab === 'scenarios') loadMockScenarios(orgId);
+    if (!isNew && orgId && tab === 'customize') loadBestCallCategories(orgId);
   }, [tab, orgId, isNew]);
+
+  const settings = (org.settings || {}) as OrgSettings;
+
+  const updateSetting = (key: keyof OrgSettings, value: string) => {
+    setOrg((prev) => ({
+      ...prev,
+      settings: { ...(prev.settings || {}), [key]: value },
+    }));
+  };
+
+  const loadBestCallCategories = async (id: string) => {
+    setCategoriesLoading(true);
+    setCustomizeMsg('');
+    try {
+      const rows = await fetchOrgBestCallCategories(id);
+      setBestCallCategories(rows);
+    } catch (err: any) {
+      setCustomizeMsg(err.message || 'Failed to load categories');
+    } finally {
+      setCategoriesLoading(false);
+    }
+  };
 
   const loadMockScenarios = async (id: string) => {
     setScenariosLoading(true);
@@ -150,6 +173,7 @@ export function OrgDetail() {
         }).select().single();
         if (err) throw err;
         await ensureOrgMockScenarios(data.id);
+        await ensureOrgBestCallCategories(data.id);
         setSuccess('Organization created!');
         setTimeout(() => navigate(`/owner/organizations/${data.id}`), 1200);
       } else {
@@ -287,6 +311,37 @@ export function OrgDetail() {
     }
   };
 
+  const saveCategoryEdit = async () => {
+    if (!orgId || !categoryDraft.category_key || !categoryDraft.label) return;
+    setCustomizeMsg('');
+    try {
+      await saveBestCallCategory(orgId, {
+        id: categoryDraft.id,
+        category_key: categoryDraft.category_key,
+        label: categoryDraft.label,
+        is_active: categoryDraft.is_active ?? true,
+      });
+      setEditingCategoryId(null);
+      setCustomizeMsg('Category saved.');
+      await loadBestCallCategories(orgId);
+    } catch (err: any) {
+      setCustomizeMsg(err.message || 'Failed to save category');
+    }
+  };
+
+  const handleResetCategories = async () => {
+    if (!orgId || !confirm('Reset best call categories to defaults?')) return;
+    setCustomizeMsg('');
+    try {
+      await resetOrgBestCallCategories(orgId);
+      setEditingCategoryId(null);
+      setCustomizeMsg('Categories reset to defaults.');
+      await loadBestCallCategories(orgId);
+    } catch (err: any) {
+      setCustomizeMsg(err.message || 'Failed to reset categories');
+    }
+  };
+
   const filteredUsers = users.filter(u =>
     u.full_name.toLowerCase().includes(userSearch.toLowerCase()) ||
     u.unique_id?.toLowerCase().includes(userSearch.toLowerCase()) ||
@@ -342,10 +397,10 @@ export function OrgDetail() {
         {/* Tabs (existing orgs only) */}
         {!isNew && (
           <div style={{ display: 'flex', gap: 4, marginBottom: 20 }}>
-            {(['settings', 'users', 'scenarios'] as Tab[]).map(t => (
+            {(['settings', 'customize', 'scenarios', 'users'] as Tab[]).map(t => (
               <button key={t} onClick={() => setTab(t)}
                 style={{ padding: '7px 16px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: tab === t ? 600 : 500, background: tab === t ? '#171717' : '#fff', color: tab === t ? '#fff' : '#4d4d4d', boxShadow: tab === t ? 'none' : 'rgba(0,0,0,0.08) 0px 0px 0px 1px', transition: 'all 0.12s', textTransform: 'capitalize' }}>
-                {t === 'users' ? `Users (${users.length || '...'})` : t === 'scenarios' ? 'Mock Scenarios' : 'Settings'}
+                {t === 'users' ? `Users (${users.length || '...'})` : t === 'scenarios' ? 'Mock Scenarios' : t === 'customize' ? 'Customize' : 'Settings'}
               </button>
             ))}
           </div>
@@ -600,6 +655,102 @@ export function OrgDetail() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── CUSTOMIZE TAB ── */}
+        {!isNew && tab === 'customize' && (
+          <div>
+            {customizeMsg && (
+              <div style={{
+                background: customizeMsg.includes('Failed') ? '#fff5f5' : '#f0faf0',
+                boxShadow: customizeMsg.includes('Failed') ? '#ff5b4f50 0px 0px 0px 1px' : '#1a7f1a50 0px 0px 0px 1px',
+                borderRadius: 8, padding: '10px 14px', fontSize: 13,
+                color: customizeMsg.includes('Failed') ? '#c0392b' : '#1a7f1a', marginBottom: 16,
+              }}>
+                {customizeMsg}
+              </div>
+            )}
+
+            <div className="lt-card" style={{ padding: '24px', marginBottom: 16 }}>
+              <h2 style={{ fontSize: 14, fontWeight: 700, color: '#171717', marginBottom: 16 }}>Branding</h2>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                {[
+                  { label: 'Logo URL', key: 'logo_url' as const, placeholder: 'https://...' },
+                  { label: 'Primary colour', key: 'primary_color' as const, placeholder: '#171717' },
+                  { label: 'Certificate issuer name', key: 'certificate_issuer' as const, placeholder: org.name || 'Organisation name' },
+                  { label: 'Certificate signatory', key: 'certificate_signatory' as const, placeholder: 'Training Director' },
+                ].map((f) => (
+                  <div key={f.key}>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#666', marginBottom: 6, textTransform: 'uppercase' }}>{f.label}</label>
+                    <input className="lt-input" style={{ width: '100%', padding: '9px 12px', boxSizing: 'border-box' }}
+                      value={settings[f.key] || ''} onChange={(e) => updateSetting(f.key, e.target.value)} placeholder={f.placeholder} />
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 14 }}>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#666', marginBottom: 6, textTransform: 'uppercase' }}>Certificate footer</label>
+                <input className="lt-input" style={{ width: '100%', padding: '9px 12px', boxSizing: 'border-box' }}
+                  value={settings.certificate_footer || ''} onChange={(e) => updateSetting('certificate_footer', e.target.value)} placeholder="Enterprise Learning Platform" />
+              </div>
+              <p style={{ fontSize: 12, color: '#808080', marginTop: 12 }}>Logo appears in the sidebar and on certificates. Save organisation settings to apply.</p>
+            </div>
+
+            <div className="lt-card" style={{ padding: '24px', marginBottom: 16 }}>
+              <h2 style={{ fontSize: 14, fontWeight: 700, color: '#171717', marginBottom: 16 }}>AI & Training</h2>
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#666', marginBottom: 6, textTransform: 'uppercase' }}>AI Tutor context</label>
+                <textarea className="lt-input" rows={4} style={{ width: '100%', padding: '9px 12px', boxSizing: 'border-box', resize: 'vertical' }}
+                  value={settings.ai_context || ''} onChange={(e) => updateSetting('ai_context', e.target.value)}
+                  placeholder="Describe your company, products, and how the AI tutor should help learners..." />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#666', marginBottom: 6, textTransform: 'uppercase' }}>Mock call evaluation rubric</label>
+                <textarea className="lt-input" rows={5} style={{ width: '100%', padding: '9px 12px', boxSizing: 'border-box', resize: 'vertical' }}
+                  value={settings.evaluation_rubric || ''} onChange={(e) => updateSetting('evaluation_rubric', e.target.value)}
+                  placeholder="e.g. Must mention deposit policy, score empathy highly, penalise going off-topic..." />
+              </div>
+            </div>
+
+            <div className="lt-card" style={{ padding: '24px', marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h2 style={{ fontSize: 14, fontWeight: 700, color: '#171717' }}>Best Calls categories</h2>
+                <button type="button" onClick={handleResetCategories} className="lt-btn-secondary" style={{ padding: '6px 12px', fontSize: 12 }}>Reset defaults</button>
+              </div>
+              {categoriesLoading ? (
+                <p style={{ color: '#808080', fontSize: 13 }}>Loading...</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {bestCallCategories.map((c) => (
+                    <div key={c.id} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                      {editingCategoryId === c.id ? (
+                        <>
+                          <input className="lt-input" style={{ flex: 1, padding: '8px 10px' }} value={categoryDraft.label || ''}
+                            onChange={(e) => setCategoryDraft({ ...categoryDraft, label: e.target.value })} />
+                          <button type="button" className="lt-btn-primary" style={{ padding: '8px 12px' }} onClick={saveCategoryEdit}>Save</button>
+                          <button type="button" className="lt-btn-secondary" style={{ padding: '8px 12px' }}
+                            onClick={() => { setEditingCategoryId(null); setCategoryDraft({}); }}>Cancel</button>
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{c.label}</span>
+                          <span style={{ fontSize: 11, color: '#999', fontFamily: 'monospace' }}>{c.category_key}</span>
+                          <button type="button" className="lt-btn-secondary" style={{ padding: '6px 10px', fontSize: 12 }}
+                            onClick={() => { setEditingCategoryId(c.id); setCategoryDraft({ ...c }); }}>Edit</button>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button type="button" className="lt-btn-primary" style={{ padding: '9px 18px' }} disabled={saving}
+                onClick={(e) => handleSave(e as unknown as React.FormEvent)}>
+                {saving ? 'Saving...' : 'Save customisation'}
+              </button>
+            </div>
           </div>
         )}
 

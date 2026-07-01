@@ -6,6 +6,7 @@ import { Radio, Mic, PhoneOff, TrendingUp, Award, Clock, AlertCircle, Sparkles, 
 import { openaiService } from '../services/openai';
 import { fetchOrgMockScenarios, getScenarioIcon } from '../utils/mockCallScenarios';
 import { applyOrgScope, orgIdForInsert } from '../utils/orgScope';
+import { getEvaluationRubric } from '../utils/orgSettings';
 import type { MockScenarioRow } from '../data/defaultMockScenarios';
 
 interface Message {
@@ -27,7 +28,7 @@ interface LiveCallSession {
 }
 
 export function LiveCalls() {
-  const { profile } = useAuth();
+  const { profile, organization } = useAuth();
   const [orgScenarios, setOrgScenarios] = useState<MockScenarioRow[]>([]);
   const [sessions, setSessions] = useState<LiveCallSession[]>([]);
   const [selectedScenario, setSelectedScenario] = useState<string | null>(null);
@@ -380,6 +381,7 @@ export function LiveCalls() {
     return openaiService.evaluateMockCall({
       scenarioType: selectedScenario!,
       transcript: transcript.map((msg) => ({ role: msg.role, message: msg.message })),
+      evaluationRubric: getEvaluationRubric(organization),
     });
   };
 

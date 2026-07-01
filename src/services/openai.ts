@@ -114,6 +114,7 @@ export class OpenAIService {
   async evaluateMockCall(params: {
     scenarioType: string;
     transcript: { role: string; message: string }[];
+    evaluationRubric?: string;
   }): Promise<{ score: number; feedback: string; strengths: string[]; improvements: string[] }> {
     const response = await fetch(`${SUPABASE_URL}/functions/v1/mock-call-evaluate`, {
       method: 'POST',
@@ -123,7 +124,8 @@ export class OpenAIService {
       },
       body: JSON.stringify({
         scenarioType: params.scenarioType,
-        transcript: params.transcript
+        transcript: params.transcript,
+        evaluationRubric: params.evaluationRubric,
       })
     });
 

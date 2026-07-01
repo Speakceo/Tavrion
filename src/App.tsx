@@ -5,6 +5,7 @@ import { pingSupabaseKeepalive } from './lib/supabaseKeepalive';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { PagePasswordGate } from './components/PagePasswordGate';
 import { BooksFeatureRoute } from './components/BooksFeatureRoute';
+import { OrgFeatureGate } from './components/OrgFeatureGate';
 import { LandingPage } from './pages/LandingPage';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
@@ -131,7 +132,9 @@ function App() {
             path="/ai-tutor"
             element={
               <ProtectedRoute>
-                <AITutor />
+                <OrgFeatureGate feature="ai_tutor">
+                  <AITutor />
+                </OrgFeatureGate>
               </ProtectedRoute>
             }
           />
@@ -140,7 +143,9 @@ function App() {
             path="/mock-calls"
             element={
               <ProtectedRoute>
-                <MockCalls />
+                <OrgFeatureGate feature="mock_calls">
+                  <MockCalls />
+                </OrgFeatureGate>
               </ProtectedRoute>
             }
           />
@@ -154,7 +159,9 @@ function App() {
             path="/live-calls"
             element={
               <ProtectedRoute>
-                <LiveCalls />
+                <OrgFeatureGate feature="live_calls">
+                  <LiveCalls />
+                </OrgFeatureGate>
               </ProtectedRoute>
             }
           />
@@ -189,7 +196,9 @@ function App() {
             path="/social"
             element={
               <ProtectedRoute>
-                <Social />
+                <OrgFeatureGate feature="social">
+                  <Social />
+                </OrgFeatureGate>
               </ProtectedRoute>
             }
           />
@@ -198,7 +207,9 @@ function App() {
             path="/polls"
             element={
               <ProtectedRoute>
-                <Polls />
+                <OrgFeatureGate feature="polls">
+                  <Polls />
+                </OrgFeatureGate>
               </ProtectedRoute>
             }
           />
@@ -207,7 +218,9 @@ function App() {
             path="/events"
             element={
               <ProtectedRoute>
-                <Events />
+                <OrgFeatureGate feature="events">
+                  <Events />
+                </OrgFeatureGate>
               </ProtectedRoute>
             }
           />
@@ -225,7 +238,9 @@ function App() {
             path="/shots"
             element={
               <ProtectedRoute>
-                <Shots />
+                <OrgFeatureGate feature="shots">
+                  <Shots />
+                </OrgFeatureGate>
               </ProtectedRoute>
             }
           />
@@ -243,7 +258,9 @@ function App() {
             path="/vault"
             element={
               <ProtectedRoute>
-                <Vault />
+                <OrgFeatureGate feature="vault">
+                  <Vault />
+                </OrgFeatureGate>
               </ProtectedRoute>
             }
           />
@@ -279,7 +296,9 @@ function App() {
             path="/best-calls"
             element={
               <ProtectedRoute>
-                <BestCalls />
+                <OrgFeatureGate feature="best_calls">
+                  <BestCalls />
+                </OrgFeatureGate>
               </ProtectedRoute>
             }
           />
@@ -378,7 +397,9 @@ function App() {
             path="/admin/best-calls"
             element={
               <ProtectedRoute allowedRoles={['super_admin', 'admin', 'trainer']}>
-                <AdminBestCalls />
+                <OrgFeatureGate feature="best_calls">
+                  <AdminBestCalls />
+                </OrgFeatureGate>
               </ProtectedRoute>
             }
           />
@@ -387,7 +408,9 @@ function App() {
             path="/admin/email-nudges"
             element={
               <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
-                <EmailNudges />
+                <OrgFeatureGate feature="email_nudges">
+                  <EmailNudges />
+                </OrgFeatureGate>
               </ProtectedRoute>
             }
           />
@@ -414,7 +437,9 @@ function App() {
             path="/certificates"
             element={
               <ProtectedRoute>
-                <Certificates />
+                <OrgFeatureGate feature="certificates">
+                  <Certificates />
+                </OrgFeatureGate>
               </ProtectedRoute>
             }
           />

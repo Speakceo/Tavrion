@@ -8,6 +8,7 @@ import type { MockCallSession } from '../types';
 
 import { fetchOrgMockScenarios, getScenarioIcon } from '../utils/mockCallScenarios';
 import { orgIdForInsert } from '../utils/orgScope';
+import { getEvaluationRubric } from '../utils/orgSettings';
 import type { MockScenarioRow } from '../data/defaultMockScenarios';
 
 type ScenarioKey = string;
@@ -19,7 +20,7 @@ interface Message {
 }
 
 export function MockCalls() {
-  const { profile } = useAuth();
+  const { profile, organization } = useAuth();
   const [orgScenarios, setOrgScenarios] = useState<MockScenarioRow[]>([]);
   const [sessions, setSessions] = useState<MockCallSession[]>([]);
   const [selectedScenario, setSelectedScenario] = useState<ScenarioKey | null>(null);
@@ -213,7 +214,8 @@ export function MockCalls() {
     try {
       const result = await openaiService.evaluateMockCall({
         scenarioType: selectedScenario!,
-        transcript: messages
+        transcript: messages,
+        evaluationRubric: getEvaluationRubric(organization),
       });
 
       setEvaluation(result);

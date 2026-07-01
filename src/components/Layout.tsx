@@ -12,6 +12,8 @@ import {
   Award, Target, FileText, Library,
 } from 'lucide-react';
 import { isBooksFeatureEnabled } from '../utils/books';
+import { isNavRouteEnabled } from '../utils/orgFeatures';
+import { getOrgLogoUrl } from '../utils/orgSettings';
 
 function useWindowWidth() {
   const [width, setWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 1200);
@@ -163,8 +165,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
     || (location.pathname.startsWith('/owner/books') ? PAGE_TITLES['/owner/books'] : null)
     || { label: 'Tavrion', section: '' };
   const booksNavEnabled = profile?.is_platform_owner || isBooksFeatureEnabled(organization?.features);
+  const platformOwner = Boolean(profile?.is_platform_owner);
+  const orgLogo = getOrgLogoUrl(organization);
+  const filterByFeature = <T extends { href: string }>(items: T[]) =>
+    items.filter((item) => isNavRouteEnabled(item.href, organization?.features, { platformOwner }));
 
-  const userNavigation = [
+  const userNavigation = filterByFeature([
     { name: 'Home', href: '/dashboard', icon: Home },
     { name: 'Social', href: '/social', icon: Share2 },
     { name: 'Polls', href: '/polls', icon: BarChart3 },
@@ -180,13 +186,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { name: 'Recent Learning', href: '/recent-learning', icon: Clock },
     { name: 'Completed Learning', href: '/completed-learning', icon: CheckCircle },
     { name: 'My Certificates', href: '/certificates', icon: Award },
-  ];
+  ]);
 
-  const aiTools = [
+  const aiTools = filterByFeature([
     { name: 'AI Tutor', href: '/ai-tutor', icon: MessageSquare },
     { name: 'Mock Calls', href: '/mock-calls', icon: Phone },
     { name: 'Live Calls', href: '/live-calls', icon: Phone },
-  ];
+  ]);
 
   const adminNavigation = [
     { name: 'Manage Users', href: '/admin/users', icon: UsersIcon, roles: ['super_admin', 'admin'] },
@@ -201,7 +207,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { name: 'Policy Versions', href: '/admin/policy-versions', icon: FileText, roles: ['super_admin', 'admin', 'trainer'] },
   ];
 
-  const filteredAdminNav = adminNavigation.filter(item => item.roles.includes(profile?.role || ''));
+  const filteredAdminNav = filterByFeature(
+    adminNavigation.filter((item) => item.roles.includes(profile?.role || '')),
+  );
   const isAdmin = ['super_admin', 'admin', 'trainer'].includes(profile?.role || '');
   const mobileNavExtra = isMobile && currentPage.section ? 44 : 0;
   const navOffset = 52 + mobileNavExtra;
@@ -246,10 +254,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </button>
             )}
             <Link to="/dashboard" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
-              <div style={{ width: 28, height: 28, background: '#171717', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Globe2 size={13} color="white" />
-              </div>
-              <span className="hidden sm:inline" style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.04em', color: '#171717' }}>Tavrion</span>
+              {orgLogo ? (
+                <img src={orgLogo} alt="" style={{ width: 28, height: 28, borderRadius: 8, objectFit: 'cover' }} />
+              ) : (
+                <div style={{ width: 28, height: 28, background: '#171717', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Globe2 size={13} color="white" />
+                </div>
+              )}
+              <span className="hidden sm:inline" style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.04em', color: '#171717' }}>
+                {organization?.name || 'Tavrion'}
+              </span>
             </Link>
 
             {/* Breadcrumb — desktop only */}

@@ -3,6 +3,7 @@ import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { BarChart3, Plus, Check, Trash2 } from 'lucide-react';
+import { applyOrgScope, orgIdForInsert } from '../utils/orgScope';
 
 interface Poll {
   id: string;
@@ -48,10 +49,14 @@ export function Polls() {
     try {
       setLoading(true);
 
-      const { data: pollsData, error: pollsError } = await supabase
+      let query = supabase
         .from('polls')
         .select('*')
         .order('created_at', { ascending: false });
+
+      query = applyOrgScope(query, profile);
+
+      const { data: pollsData, error: pollsError } = await query;
 
       if (pollsError) throw pollsError;
 
@@ -105,6 +110,7 @@ export function Polls() {
           allow_multiple: newPoll.allow_multiple,
           anonymous: newPoll.anonymous,
           created_by: profile?.id,
+          organization_id: orgIdForInsert(profile),
         })
         .select()
         .single();

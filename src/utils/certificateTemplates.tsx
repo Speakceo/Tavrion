@@ -6,21 +6,43 @@ export const CERTIFICATE_TEMPLATES: { id: CertificateTemplateId; label: string; 
   { id: 'executive', label: 'Executive Dark', description: 'Premium dark certificate for leadership programs' },
 ];
 
+export type CertificateBranding = {
+  issuer?: string;
+  signatory?: string;
+  footer?: string;
+  logoUrl?: string;
+  primaryColor?: string;
+};
+
 type CertProps = {
   userName: string;
   courseTitle: string;
   issuedDate: string;
   certNum: string;
   expiryDate?: string | null;
+  branding?: CertificateBranding;
 };
 
-export function CertificateLayout({ template, ...props }: CertProps & { template: CertificateTemplateId }) {
-  if (template === 'modern') return <ModernCertificate {...props} />;
-  if (template === 'executive') return <ExecutiveCertificate {...props} />;
-  return <ClassicCertificate {...props} />;
+export function CertificateLayout({ template, branding, ...props }: CertProps & { template: CertificateTemplateId }) {
+  const merged = { ...props, branding };
+  if (template === 'modern') return <ModernCertificate {...merged} />;
+  if (template === 'executive') return <ExecutiveCertificate {...merged} />;
+  return <ClassicCertificate {...merged} />;
 }
 
-function ClassicCertificate({ userName, courseTitle, issuedDate, certNum, expiryDate }: CertProps) {
+function CertHeader({ branding }: { branding?: CertificateBranding }) {
+  if (branding?.logoUrl) {
+    return (
+      <img src={branding.logoUrl} alt="" style={{ height: 40, objectFit: 'contain', margin: '0 auto 20px', display: 'block' }} />
+    );
+  }
+  return null;
+}
+
+function ClassicCertificate({ userName, courseTitle, issuedDate, certNum, expiryDate, branding }: CertProps) {
+  const issuer = branding?.issuer || 'Tavrion';
+  const footer = branding?.footer || 'Enterprise Learning Platform';
+  const signatory = branding?.signatory || 'Training Director';
   return (
     <div style={{
       width: 800, minHeight: 560, background: '#fff', border: '8px solid #1a1a1a',
@@ -28,8 +50,9 @@ function ClassicCertificate({ userName, courseTitle, issuedDate, certNum, expiry
       fontFamily: 'Georgia, "Times New Roman", serif', boxSizing: 'border-box', position: 'relative',
     }}>
       <div style={{ textAlign: 'center' }}>
+        <CertHeader branding={branding} />
         <div style={{ fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#666', marginBottom: 24, fontFamily: 'Inter, sans-serif' }}>
-          Tavrion · Enterprise Learning Platform
+          {issuer} · {footer}
         </div>
         <div style={{ fontSize: 13, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#c9a84c', marginBottom: 10, fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
           Certificate of Completion
@@ -45,26 +68,30 @@ function ClassicCertificate({ userName, courseTitle, issuedDate, certNum, expiry
             <div style={{ fontSize: 11, color: '#666', fontFamily: 'Inter, sans-serif' }}>{issuedDate}</div>
           </div>
           <div style={{ borderTop: '1px solid #1a1a1a', width: 160, paddingTop: 6, marginTop: 32 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, fontFamily: 'Inter, sans-serif' }}>Certificate No.</div>
-            <div style={{ fontSize: 11, color: '#666', fontFamily: 'Inter, sans-serif' }}>{certNum}</div>
+            <div style={{ fontSize: 12, fontWeight: 600, fontFamily: 'Inter, sans-serif' }}>{signatory}</div>
+            <div style={{ fontSize: 11, color: '#666', fontFamily: 'Inter, sans-serif' }}>Authorised Signatory</div>
           </div>
         </div>
         {expiryDate && <div style={{ marginTop: 16, fontSize: 11, color: '#999', fontFamily: 'Inter, sans-serif' }}>Valid until: {expiryDate}</div>}
+        <div style={{ marginTop: 12, fontSize: 11, color: '#999', fontFamily: 'Inter, sans-serif' }}>Certificate No. {certNum}</div>
       </div>
     </div>
   );
 }
 
-function ModernCertificate({ userName, courseTitle, issuedDate, certNum }: CertProps) {
+function ModernCertificate({ userName, courseTitle, issuedDate, certNum, branding }: CertProps) {
+  const issuer = branding?.issuer || 'Tavrion';
+  const accent = branding?.primaryColor || '#0a72ef';
   return (
     <div style={{
       width: 800, minHeight: 560, background: 'linear-gradient(135deg, #f8fbff 0%, #ffffff 55%, #f0f7ff 100%)',
       borderRadius: 16, padding: '48px 56px', boxSizing: 'border-box',
       border: '1px solid #dbeafe', fontFamily: 'Inter, system-ui, sans-serif', position: 'relative', overflow: 'hidden',
     }}>
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 8, background: 'linear-gradient(90deg, #0a72ef, #3b82f6)' }} />
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 8, background: accent }} />
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: '#0a72ef', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 20 }}>Tavrion</div>
+        <CertHeader branding={branding} />
+        <div style={{ fontSize: 12, fontWeight: 700, color: accent, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 20 }}>{issuer}</div>
         <div style={{ fontSize: 28, fontWeight: 800, color: '#171717', letterSpacing: '-0.03em', marginBottom: 8 }}>Certificate of Achievement</div>
         <div style={{ fontSize: 14, color: '#666', marginBottom: 28 }}>Awarded to</div>
         <div style={{ fontSize: 34, fontWeight: 700, color: '#171717', marginBottom: 12 }}>{userName}</div>
@@ -80,14 +107,16 @@ function ModernCertificate({ userName, courseTitle, issuedDate, certNum }: CertP
   );
 }
 
-function ExecutiveCertificate({ userName, courseTitle, issuedDate, certNum }: CertProps) {
+function ExecutiveCertificate({ userName, courseTitle, issuedDate, certNum, branding }: CertProps) {
+  const issuer = branding?.issuer || 'Tavrion';
   return (
     <div style={{
       width: 800, minHeight: 560, background: '#111827', color: '#f9fafb',
       borderRadius: 12, padding: '48px 56px', boxSizing: 'border-box', fontFamily: 'Inter, system-ui, sans-serif',
     }}>
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#9ca3af', marginBottom: 18 }}>Tavrion Executive Program</div>
+        <CertHeader branding={branding} />
+        <div style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#9ca3af', marginBottom: 18 }}>{issuer} Executive Program</div>
         <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.03em', marginBottom: 24 }}>Certificate of Completion</div>
         <div style={{ fontSize: 14, color: '#d1d5db', marginBottom: 10 }}>Presented to</div>
         <div style={{ fontSize: 36, fontWeight: 700, color: '#fff', marginBottom: 12 }}>{userName}</div>

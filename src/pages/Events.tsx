@@ -3,6 +3,7 @@ import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Calendar, MapPin, Users, Plus, Check, X, Trash2 } from 'lucide-react';
+import { applyOrgScope, orgIdForInsert } from '../utils/orgScope';
 
 interface Event {
   id: string;
@@ -44,11 +45,15 @@ export function Events() {
     try {
       setLoading(true);
 
-      const { data: eventsData, error: eventsError } = await supabase
+      let query = supabase
         .from('events')
         .select('*')
         .gte('event_date', new Date().toISOString())
         .order('event_date', { ascending: true });
+
+      query = applyOrgScope(query, profile);
+
+      const { data: eventsData, error: eventsError } = await query;
 
       if (eventsError) throw eventsError;
 
@@ -85,6 +90,7 @@ export function Events() {
       const { error } = await supabase.from('events').insert({
         ...newEvent,
         created_by: profile?.id,
+        organization_id: orgIdForInsert(profile),
       });
 
       if (error) throw error;

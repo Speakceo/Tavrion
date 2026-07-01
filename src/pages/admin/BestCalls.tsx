@@ -4,6 +4,8 @@ import { supabase } from '../../lib/supabase';
 import { Layout } from '../../components/Layout';
 import { Upload, Trash2, Play, Pause, ThumbsUp, MessageCircle, Search, Filter, Plus, X } from 'lucide-react';
 import { applyOrgScope, orgIdForInsert } from '../../utils/orgScope';
+import { fetchOrgBestCallCategories, categoryLabel } from '../../utils/bestCallCategories';
+import type { BestCallCategoryRow } from '../../data/defaultBestCallCategories';
 
 interface BestCall {
   id: string;
@@ -24,17 +26,9 @@ interface BestCall {
   comments_count?: number;
 }
 
-const CATEGORIES = [
-  { value: 'objection_handling', label: 'Objection Handling' },
-  { value: 'urgency', label: 'Urgency' },
-  { value: 'rapport_building', label: 'Rapport Building' },
-  { value: 'closing', label: 'Closing' },
-  { value: 'discovery', label: 'Discovery' },
-  { value: 'follow_up', label: 'Follow Up' },
-];
-
 export function BestCalls() {
   const { profile } = useAuth();
+  const [categories, setCategories] = useState<BestCallCategoryRow[]>([]);
   const [calls, setCalls] = useState<BestCall[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -52,8 +46,23 @@ export function BestCalls() {
   });
 
   useEffect(() => {
+    if (!profile?.organization_id) return;
+    fetchOrgBestCallCategories(profile.organization_id).then((rows) => {
+      setCategories(rows);
+      if (rows[0]) {
+        setUploadForm((prev) => ({ ...prev, category: prev.category || rows[0].category_key }));
+      }
+    }).catch(console.error);
+  }, [profile?.organization_id]);
+
+  useEffect(() => {
     loadCalls();
   }, [profile]);
+
+  const filterCategories = [
+    { value: 'all', label: 'All Categories' },
+    ...categories.map((c) => ({ value: c.category_key, label: c.label })),
+  ];
 
   const loadCalls = async () => {
     try {
@@ -193,9 +202,7 @@ export function BestCalls() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const getCategoryLabel = (category: string) => {
-    return CATEGORIES.find(c => c.value === category)?.label || category;
-  };
+  const getCategoryLabel = (category: string) => categoryLabel(categories, category);
 
   const filteredCalls = calls.filter(call => {
     const matchesSearch = call.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -204,9 +211,10 @@ export function BestCalls() {
     return matchesSearch && matchesCategory;
   });
 
-  const callsByCategory = CATEGORIES.map(cat => ({
-    ...cat,
-    calls: filteredCalls.filter(call => call.category === cat.value),
+  const callsByCategory = categories.map(cat => ({
+    value: cat.category_key,
+    label: cat.label,
+    calls: filteredCalls.filter(call => call.category === cat.category_key),
   }));
 
   return (
@@ -248,7 +256,7 @@ export function BestCalls() {
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="all">All Categories</option>
-              {CATEGORIES.map(cat => (
+              {filterCategories.map(cat => (
                 <option key={cat.value} value={cat.value}>{cat.label}</option>
               ))}
             </select>
@@ -381,8 +389,8 @@ export function BestCalls() {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                   >
-                    {CATEGORIES.map(cat => (
-                      <option key={cat.value} value={cat.value}>{cat.label}</option>
+                    {categories.map(cat => (
+                      <option key={cat.category_key} value={cat.category_key}>{cat.label}</option>
                     ))}
                   </select>
                 </div>
