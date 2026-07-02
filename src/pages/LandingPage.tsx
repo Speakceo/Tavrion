@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { animate, onScroll } from 'animejs';
 import { Reveal } from '../components/LandingReveal';
 import { SEO, usePageSeo, injectJsonLd, removeJsonLd, SITE_URL } from '../lib/seo';
 import {
@@ -268,6 +269,39 @@ export function LandingPage() {
   useEffect(() => {
     const t = setInterval(() => setActiveTesti(p => (p + 1) % TESTIMONIALS.length), 4800);
     return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    animate('[data-scroll-fade]', {
+      translateY: [22, 0],
+      opacity: [0, 1],
+      duration: 650,
+      autoplay: onScroll({}),
+    });
+
+    animate('.lp-product-card', {
+      translateY: [28, 0],
+      opacity: [0, 1],
+      delay: (_, i) => i * 70,
+      duration: 760,
+      autoplay: onScroll({}),
+    });
+
+    animate('.lp-feature-card', {
+      translateY: [24, 0],
+      opacity: [0, 1],
+      delay: (_, i) => (i % 3) * 90,
+      duration: 680,
+      autoplay: onScroll({}),
+    });
+
+    animate('.lp-solution-card', {
+      translateY: [20, 0],
+      opacity: [0, 1],
+      delay: (_, i) => i * 80,
+      duration: 700,
+      autoplay: onScroll({}),
+    });
   }, []);
 
   // Lock body scroll when mobile nav is open
@@ -599,7 +633,7 @@ export function LandingPage() {
       <section id="product" style={{ padding: isMobile ? '60px 20px' : '96px 24px', background: T.bgSubtle, scrollMarginTop: 60 }}>
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
           <Reveal>
-          <div style={{ textAlign: 'center', marginBottom: 52 }}>
+          <div data-scroll-fade style={{ textAlign: 'center', marginBottom: 52 }}>
             <p style={{ fontSize: 11, fontWeight: 700, color: T.textFaint, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 14 }}>Product Suite</p>
             <h2 style={{ fontSize: isMobile ? 28 : 'clamp(28px,4vw,40px)', fontWeight: 700, letterSpacing: '-0.04em', color: T.text, marginBottom: 14 }}>
               One platform. Every workflow.
@@ -642,12 +676,12 @@ export function LandingPage() {
                 height: '100%',
               };
               const card = isExternal ? (
-                <a href={mod.href} className="lp-card-lift" style={cardStyle}
+                <a href={mod.href} className="lp-card-lift lp-product-card" style={cardStyle}
                   onMouseEnter={e => (e.currentTarget.style.boxShadow = T.shadowHover)}
                   onMouseLeave={e => (e.currentTarget.style.boxShadow = T.shadowCard)}
                 >{inner}</a>
               ) : (
-                <Link to={mod.href} className="lp-card-lift" style={cardStyle}
+                <Link to={mod.href} className="lp-card-lift lp-product-card" style={cardStyle}
                   onMouseEnter={e => (e.currentTarget.style.boxShadow = T.shadowHover)}
                   onMouseLeave={e => (e.currentTarget.style.boxShadow = T.shadowCard)}
                 >{inner}</Link>
@@ -669,7 +703,7 @@ export function LandingPage() {
       {/* ── PLATFORM ── */}
       <section id="platform" style={{ borderTop: `1px solid ${T.borderDark}`, borderBottom: `1px solid ${T.borderDark}`, padding: isMobile ? '60px 20px' : '80px 24px', background: T.bg, scrollMarginTop: 60 }}>
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: 52 }}>
+          <div data-scroll-fade style={{ textAlign: 'center', marginBottom: 52 }}>
             <p style={{ fontSize: 11, fontWeight: 700, color: T.textFaint, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 14 }}>The Platform</p>
             <h2 style={{ fontSize: isMobile ? 28 : 'clamp(28px,4vw,40px)', fontWeight: 700, letterSpacing: '-0.04em', color: T.text, marginBottom: 14 }}>
               Ship training programs 10× faster
@@ -705,7 +739,7 @@ export function LandingPage() {
             {FEATURES.map((feat, i) => (
               <Reveal key={feat.title} delay={(i % 3) * 60}>
               <div
-                className="lp-card-lift"
+                className="lp-card-lift lp-feature-card"
                 style={{ ...cardBase, padding: isMobile ? 20 : 28, cursor: 'pointer' }}
                 onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.boxShadow = T.shadowHover}
                 onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.boxShadow = T.shadowCard}
@@ -728,7 +762,7 @@ export function LandingPage() {
       {/* ── SOLUTIONS ── */}
       <section id="solutions" style={{ padding: isMobile ? '60px 20px' : '96px 24px', background: T.bgSubtle, scrollMarginTop: 60 }}>
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: 52 }}>
+          <div data-scroll-fade style={{ textAlign: 'center', marginBottom: 52 }}>
             <p style={{ fontSize: 11, fontWeight: 700, color: T.textFaint, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 14 }}>Solutions</p>
             <h2 style={{ fontSize: isMobile ? 28 : 'clamp(28px,4vw,40px)', fontWeight: 700, letterSpacing: '-0.04em', color: T.text, marginBottom: 14 }}>
               Built for every team
@@ -742,6 +776,7 @@ export function LandingPage() {
             {SOLUTIONS.map(sol => (
               <div
                 key={sol.title}
+                className="lp-solution-card"
                 style={{ background: T.bg, borderRadius: 12, padding: isMobile ? 20 : 28, boxShadow: T.shadowCard, transition: 'box-shadow 0.2s', cursor: 'pointer' }}
                 onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.boxShadow = T.shadowHover}
                 onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.boxShadow = T.shadowCard}
@@ -924,7 +959,7 @@ export function LandingPage() {
       {/* ── TESTIMONIALS ── */}
       <section style={{ padding: isMobile ? '60px 20px' : '96px 24px', background: T.bgSubtle, borderTop: `1px solid ${T.borderStrong}` }}>
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: 40 }}>
+          <div data-scroll-fade style={{ textAlign: 'center', marginBottom: 40 }}>
             <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginBottom: 14 }}>
               {[...Array(5)].map((_, i) => (
                 <Star key={i} size={15} style={{ color: '#f59e0b', fill: '#f59e0b' }} />
@@ -1009,7 +1044,7 @@ export function LandingPage() {
       {/* ── PRICING ── */}
       <section id="pricing" style={{ padding: isMobile ? '60px 20px' : '96px 24px', background: T.bg, scrollMarginTop: 60 }}>
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: 52 }}>
+          <div data-scroll-fade style={{ textAlign: 'center', marginBottom: 52 }}>
             <p style={{ fontSize: 11, fontWeight: 700, color: T.textFaint, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 14 }}>Pricing</p>
             <h2 style={{ fontSize: isMobile ? 28 : 'clamp(28px,4vw,40px)', fontWeight: 700, letterSpacing: '-0.04em', color: T.text, marginBottom: 14 }}>
               Simple, transparent pricing
