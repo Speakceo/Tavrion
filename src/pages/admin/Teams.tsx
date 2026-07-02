@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Layout } from '../../components/Layout';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { applyOrgUserScope } from '../../utils/orgUsers';
 import { Users, Plus, Trash2, X } from 'lucide-react';
 
 interface Team {
@@ -20,7 +21,8 @@ interface TeamMember {
   user: {
     full_name: string;
     email: string;
-  };
+    is_active?: boolean;
+  } | null;
 }
 
 interface User {
@@ -51,23 +53,47 @@ export function Teams() {
     }
   }, [profile]);
 
+  const orgUserIds = async (): Promise<Set<string>> => {
+    let query = applyOrgUserScope(
+      supabase.from('user_profiles').select('id').eq('is_active', true),
+      profile,
+    );
+    const { data } = await query;
+    return new Set((data || []).map((u) => u.id));
+  };
+
   const loadTeams = async () => {
     try {
       setLoading(true);
-      const { data: teamsData, error } = await supabase
+      const activeUserIds = await orgUserIds();
+
+      let teamsQuery = supabase
         .from('teams')
         .select('*')
         .order('created_at', { ascending: false });
 
+      if (profile?.organization_id && !profile.is_platform_owner) {
+        const ids = [...activeUserIds];
+        if (ids.length === 0) {
+          setTeams([]);
+          setLoading(false);
+          return;
+        }
+        teamsQuery = teamsQuery.in('created_by', ids);
+      }
+
+      const { data: teamsData, error } = await teamsQuery;
+
       if (error) throw error;
 
       const teamsWithCounts = await Promise.all((teamsData || []).map(async (team) => {
-        const { count } = await supabase
+        const { data: members } = await supabase
           .from('team_members')
-          .select('id', { count: 'exact', head: true })
+          .select('id, user_id')
           .eq('team_id', team.id);
 
-        return { ...team, member_count: count || 0 };
+        const activeCount = (members || []).filter((m) => activeUserIds.has(m.user_id)).length;
+        return { ...team, member_count: activeCount };
       }));
 
       setTeams(teamsWithCounts);
@@ -98,20 +124,34 @@ export function Teams() {
         .from('team_members')
         .select(`
           *,
-          user:user_profiles(full_name, email)
+          user:user_profiles(full_name, email, is_active)
         `)
         .eq('team_id', teamId);
 
       if (error) throw error;
 
-      const members = (data || []).map((member: any) => ({
-        ...member,
-        user: Array.isArray(member.user) ? member.user[0] : member.user,
-      }));
+      const members = (data || [])
+        .map((member: TeamMember & { user: TeamMember['user'] | TeamMember['user'][] }) => ({
+          ...member,
+          user: Array.isArray(member.user) ? member.user[0] : member.user,
+        }))
+        .filter((member) => member.user?.is_active !== false);
+
+      const staleIds = (data || [])
+        .filter((member: { id: string; user: TeamMember['user'] | TeamMember['user'][] | null }) => {
+          const user = Array.isArray(member.user) ? member.user[0] : member.user;
+          return !user || user.is_active === false;
+        })
+        .map((member: { id: string }) => member.id);
+
+      if (staleIds.length > 0) {
+        await supabase.from('team_members').delete().in('id', staleIds);
+      }
 
       setTeamMembers(members);
     } catch (error) {
       console.error('Error loading team members:', error);
+      setTeamMembers([]);
     }
   };
 
@@ -199,11 +239,17 @@ export function Teams() {
 
   const openMembersModal = (team: Team) => {
     setSelectedTeam(team);
-    loadTeamMembers(team.id);
+    setTeamMembers([]);
+    setSelectedUserId('');
     setShowMembersModal(true);
+    loadTeamMembers(team.id);
   };
 
-  if (profile?.role !== 'admin') {
+  const availableUsers = users.filter(
+    (user) => !teamMembers.some((member) => member.user_id === user.id),
+  );
+
+  if (!profile || !['super_admin', 'admin'].includes(profile.role)) {
     return (
       <Layout>
         <div style={{ textAlign: 'center', padding: '48px 20px', color: '#666666' }}>
@@ -310,7 +356,9 @@ export function Teams() {
                     <select value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)}
                       className="lt-input" style={{ flex: 1, padding: '8px 10px' }}>
                       <option value="">Select a user...</option>
-                      {users.map((user) => <option key={user.id} value={user.id}>{user.full_name} ({user.email})</option>)}
+                      {availableUsers.map((user) => (
+                        <option key={user.id} value={user.id}>{user.full_name} ({user.email})</option>
+                      ))}
                     </select>
                     <button onClick={handleAddMember} disabled={!selectedUserId} className="lt-btn-primary"
                       style={{ padding: '8px 14px' }}>Add</button>

@@ -99,6 +99,9 @@ export function AdminUsers() {
   const toggleUserStatus = async (userId: string, currentStatus: boolean, user?: UserProfile) => {
     if (isProtectedUser(user)) return;
     await supabase.from('user_profiles').update({ is_active: !currentStatus }).eq('id', userId);
+    if (currentStatus) {
+      await supabase.from('team_members').delete().eq('user_id', userId);
+    }
     fetchUsers();
   };
 
@@ -143,6 +146,7 @@ export function AdminUsers() {
   const handleDeleteUser = async (userId: string, userName: string, user?: UserProfile) => {
     if (isProtectedUser(user)) return;
     if (!confirm(`Delete "${userName}" permanently? This cannot be undone.`)) return;
+    await supabase.from('team_members').delete().eq('user_id', userId);
     const { error } = await supabase.from('user_profiles').delete().eq('id', userId);
     if (error) { alert('Failed to delete user. Please try again.'); return; }
     fetchUsers();
