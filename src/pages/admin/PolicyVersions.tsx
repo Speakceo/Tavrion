@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { Layout } from '../../components/Layout';
+import { applyOrgUserScope } from '../../utils/orgUsers';
 import { Plus, CheckCircle, Clock, AlertTriangle, ChevronDown, ChevronUp, X, FileText, Users } from 'lucide-react';
 
 interface PolicyVersion {
@@ -60,16 +61,20 @@ export function PolicyVersions() {
   });
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => { if (profile) loadAll(); }, [profile]);
 
   async function loadAll() {
     setLoading(true);
+    const usersQuery = applyOrgUserScope(
+      supabase.from('user_profiles').select('id', { count: 'exact', head: true }).eq('is_active', true).eq('role', 'employee'),
+      profile,
+    );
     const [verRes, courseRes, usersRes] = await Promise.all([
       supabase.from('course_policy_versions')
         .select('*, course:courses(title)')
         .order('created_at', { ascending: false }),
       supabase.from('courses').select('id, title, is_mandatory, version').eq('status', 'published').order('title'),
-      supabase.from('user_profiles').select('id', { count: 'exact', head: true }).eq('is_active', true).eq('role', 'employee'),
+      usersQuery,
     ]);
     const rawVersions = verRes.data || [];
     // Fetch acknowledgment counts
