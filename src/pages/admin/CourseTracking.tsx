@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Layout } from '../../components/Layout';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
+import { applyOrgUserScope } from '../../utils/orgUsers';
 import { Filter, Search, Download, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 
 interface TeamMember {
@@ -44,6 +46,7 @@ interface EnrollmentTracking {
 }
 
 export function CourseTracking() {
+  const { profile } = useAuth();
   const [enrollments, setEnrollments] = useState<EnrollmentTracking[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -55,19 +58,52 @@ export function CourseTracking() {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (profile) loadData();
+  }, [profile]);
 
   const loadData = async () => {
+    if (!profile) return;
+
     try {
       setLoading(true);
 
+      const { data: orgUsers } = await applyOrgUserScope(
+        supabase.from('user_profiles').select('id'),
+        profile,
+      );
+      const orgUserIds = new Set((orgUsers || []).map((u) => u.id));
+      const emptyId = '00000000-0000-0000-0000-000000000000';
+      const userIdFilter = orgUserIds.size > 0 ? [...orgUserIds] : [emptyId];
+
+      let teamsQuery = supabase
+        .from('teams')
+        .select('id, name, team_members(user_id, user:user_profiles(full_name, email, department))');
+
+      if (profile.organization_id && !profile.is_platform_owner) {
+        teamsQuery = teamsQuery.in('created_by', userIdFilter);
+      }
+
+      let enrollmentsQuery = supabase
+        .from('user_course_enrollments')
+        .select('*')
+        .order('enrolled_at', { ascending: false });
+
+      let uploadedAssignmentsQuery = supabase
+        .from('uploaded_course_assignments')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (profile.organization_id && !profile.is_platform_owner) {
+        enrollmentsQuery = enrollmentsQuery.in('user_id', userIdFilter);
+        uploadedAssignmentsQuery = uploadedAssignmentsQuery.in('user_id', userIdFilter);
+      }
+
       const [teamsRes, coursesRes, uploadedCoursesRes, enrollmentsRes, uploadedAssignmentsRes] = await Promise.all([
-        supabase.from('teams').select('id, name, team_members(user_id, user:user_profiles(full_name, email, department))'),
+        teamsQuery,
         supabase.from('courses').select('id, title').eq('status', 'published').order('title'),
         supabase.from('uploaded_courses').select('id, title').order('title'),
-        supabase.from('user_course_enrollments').select('*').order('enrolled_at', { ascending: false }),
-        supabase.from('uploaded_course_assignments').select('*').order('created_at', { ascending: false }),
+        enrollmentsQuery,
+        uploadedAssignmentsQuery,
       ]);
 
       if (teamsRes.error) throw teamsRes.error;
@@ -84,8 +120,11 @@ export function CourseTracking() {
       ];
       setCourses(allCourses);
 
+      const scopedEnrollments = (enrollmentsRes.data || []).filter((e) => orgUserIds.has(e.user_id));
+      const scopedAssignments = (uploadedAssignmentsRes.data || []).filter((a) => orgUserIds.has(a.user_id));
+
       const regularEnrollments = await Promise.all(
-        (enrollmentsRes.data || []).map(async (enrollment) => {
+        scopedEnrollments.map(async (enrollment) => {
           const [userRes, courseRes, lessonsRes, progressRes] = await Promise.all([
             supabase.from('user_profiles').select('full_name, email, department').eq('id', enrollment.user_id).maybeSingle(),
             supabase.from('courses').select('title').eq('id', enrollment.course_id).maybeSingle(),
@@ -128,7 +167,7 @@ export function CourseTracking() {
       );
 
       const uploadedEnrollments = await Promise.all(
-        (uploadedAssignmentsRes.data || []).map(async (assignment) => {
+        scopedAssignments.map(async (assignment) => {
           const [userRes, courseRes] = await Promise.all([
             supabase.from('user_profiles').select('full_name, email, department').eq('id', assignment.user_id).maybeSingle(),
             supabase.from('uploaded_courses').select('title').eq('id', assignment.course_id).maybeSingle(),

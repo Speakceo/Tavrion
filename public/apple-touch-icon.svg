@@ -1,8 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" fill="none">
-  <rect width="180" height="180" rx="40" fill="#171717"/>
-  <circle cx="90" cy="90" r="52" stroke="white" stroke-width="8" fill="none"/>
-  <ellipse cx="90" cy="90" rx="22" ry="52" stroke="white" stroke-width="8" fill="none"/>
-  <line x1="38" y1="90" x2="142" y2="90" stroke="white" stroke-width="8"/>
-  <line x1="46" y1="62" x2="134" y2="62" stroke="white" stroke-width="6"/>
-  <line x1="46" y1="118" x2="134" y2="118" stroke="white" stroke-width="6"/>
+  <defs>
+    <linearGradient id="g" x1="20" y1="20" x2="160" y2="160" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0a72ef"/>
+      <stop offset="1" stop-color="#de1d8d"/>
+    </linearGradient>
+  </defs>
+  <rect width="180" height="180" rx="40" fill="url(#g)"/>
+  <path d="M50 58h80v18H102v72H78V76H50V58z" fill="#fff"/>
+  <path d="M121 62a48 48 0 0 1 16 36" stroke="#fff" stroke-width="9" stroke-linecap="round" fill="none" opacity="0.9"/>
+  <circle cx="134" cy="108" r="8" fill="#fff" opacity="0.95"/>
 </svg>

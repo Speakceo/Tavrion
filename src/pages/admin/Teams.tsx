@@ -106,10 +106,10 @@ export function Teams() {
 
   const loadUsers = async () => {
     try {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('id, full_name, email')
-        .order('full_name');
+      const { data, error } = await applyOrgUserScope(
+        supabase.from('user_profiles').select('id, full_name, email').eq('is_active', true).order('full_name'),
+        profile,
+      );
 
       if (error) throw error;
       setUsers(data || []);

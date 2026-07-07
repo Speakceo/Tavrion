@@ -4,8 +4,9 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useLearnerCourses } from '../hooks/useLearnerCourses';
 import { subscribeLearnerCourses } from '../utils/learnerCourses';
+import { TavrionMark } from './TavrionLogo';
 import {
-  Globe as Globe2, Home, Users as UsersIcon, BarChart3, Share2, Calendar, Bookmark,
+  Home, Users as UsersIcon, BarChart3, Share2, Calendar, Bookmark,
   Video, Users as TeamIcon, FolderLock, Sparkles, BookOpen, Clock, CheckCircle,
   ChevronRight, MessageSquare, Phone, LogOut, Settings, Upload, Bell,
   ListChecks, Headphones, User, ChevronDown, Activity, Building2, Mail, Menu, X,
@@ -264,9 +265,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               {orgLogo ? (
                 <img src={orgLogo} alt="" style={{ width: 28, height: 28, borderRadius: 8, objectFit: 'cover' }} />
               ) : (
-                <div style={{ width: 28, height: 28, background: '#171717', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Globe2 size={13} color="white" />
-                </div>
+                <TavrionMark size={28} />
               )}
               <span className="hidden sm:inline" style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.04em', color: '#171717' }}>
                 {organization?.name || 'Tavrion'}

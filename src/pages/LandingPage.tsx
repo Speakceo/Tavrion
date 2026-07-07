@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { animate, onScroll } from 'animejs';
 import { Reveal } from '../components/LandingReveal';
+import { TavrionLogo, BRAND } from '../components/TavrionLogo';
 import { SEO, usePageSeo, injectJsonLd, removeJsonLd, SITE_URL } from '../lib/seo';
 import {
   Globe as Globe2, ArrowRight, CheckCircle, Users, BookOpen, TrendingUp, BarChart3,
@@ -180,7 +181,14 @@ const TESTIMONIALS = [
   { quote: 'Finally a platform built for genuine global scale. Real-time analytics across every region — one view.', name: 'Priya Sharma', role: 'Chief People Officer, TechScale', avatar: 'PS' },
 ];
 
-const LOGOS = ['Meridian', 'NovaPay', 'AtlasOps', 'TechScale', 'GlobalBank', 'Stellar'];
+const LOGOS = [
+  { name: 'Meridian', color: BRAND.blue },
+  { name: 'NovaPay', color: BRAND.pink },
+  { name: 'AtlasOps', color: BRAND.coral },
+  { name: 'TechScale', color: BRAND.blue },
+  { name: 'GlobalBank', color: BRAND.pink },
+  { name: 'Stellar', color: BRAND.coral },
+];
 
 const NAV_ITEMS = [
   { label: 'Product', id: 'product' },
@@ -345,13 +353,8 @@ export function LandingPage() {
         overflowY: 'auto',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
-          <Link to="/" onClick={() => setMobileNavOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
-            <div style={{ width: 28, height: 28, background: T.text, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Globe2 size={13} color="white" />
-            </div>
-            <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.04em', color: T.text }}>
-              Tav<span style={{ color: T.blue }}>rion</span>
-            </span>
+          <Link to="/" onClick={() => setMobileNavOpen(false)} style={{ textDecoration: 'none' }}>
+            <TavrionLogo size="sm" />
           </Link>
           <button onClick={() => setMobileNavOpen(false)} style={{ padding: 6, background: T.bgSection, border: 'none', borderRadius: 7, cursor: 'pointer', color: T.textMuted }}>
             <X size={16} />
@@ -399,13 +402,8 @@ export function LandingPage() {
         transition: 'all 0.3s',
       }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 20px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
-            <div style={{ width: 32, height: 32, background: T.text, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Globe2 size={16} color="white" />
-            </div>
-            <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.04em', color: T.text }}>
-              Tav<span style={{ color: T.blue }}>rion</span>
-            </span>
+          <Link to="/" style={{ textDecoration: 'none' }}>
+            <TavrionLogo size="md" />
           </Link>
 
           {/* Desktop nav */}
@@ -461,11 +459,21 @@ export function LandingPage() {
       <main id="main-content">
       {/* ── HERO ── */}
       <section style={{ paddingTop: isMobile ? 96 : 140, paddingBottom: isMobile ? 60 : 100, textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
-        <div style={{
-          position: 'absolute', top: -80, left: '50%', transform: 'translateX(-50%)',
-          width: 900, height: 500, pointerEvents: 'none',
-          background: 'radial-gradient(ellipse 70% 60% at 50% 40%, rgba(10,114,239,0.06) 0%, rgba(222,29,141,0.04) 40%, transparent 70%)',
-        }} />
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+          <div style={{
+            position: 'absolute', top: '-12%', left: '50%', transform: 'translateX(-50%)',
+            width: 'min(920px, 120vw)', height: 520,
+            background: `radial-gradient(ellipse 65% 55% at 50% 42%, ${BRAND.blue}14 0%, ${BRAND.pink}0a 45%, transparent 72%)`,
+          }} />
+          <div style={{
+            position: 'absolute', top: '8%', right: '-8%', width: 280, height: 280, borderRadius: '50%',
+            background: `radial-gradient(circle, ${BRAND.pink}12 0%, transparent 70%)`,
+          }} />
+          <div style={{
+            position: 'absolute', top: '18%', left: '-6%', width: 240, height: 240, borderRadius: '50%',
+            background: `radial-gradient(circle, ${BRAND.blue}10 0%, transparent 70%)`,
+          }} />
+        </div>
 
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 20px', position: 'relative', zIndex: 1 }}>
           <div className="lp-hero-in" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 24, flexWrap: 'wrap', justifyContent: 'center', animationDelay: '0ms' }}>
@@ -484,7 +492,12 @@ export function LandingPage() {
             animationDelay: '80ms',
           }}>
             The enterprise LMS<br />
-            <span style={{ color: T.textMuted }}>your global teams actually use.</span>
+            <span style={{
+              background: BRAND.gradient,
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+            }}>your global teams actually use.</span>
           </h1>
 
           <p className="lp-hero-in" style={{
@@ -602,12 +615,20 @@ export function LandingPage() {
       <section style={{ borderTop: `1px solid ${T.borderStrong}`, borderBottom: `1px solid ${T.borderStrong}`, padding: '20px 0' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 20px', textAlign: 'center' }}>
           <p style={{ fontSize: 11, fontWeight: 600, color: T.textFaint, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 16 }}>Trusted by global enterprises</p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: isMobile ? 24 : 48 }}>
-            {LOGOS.map(name => (
-              <span key={name} style={{ fontSize: isMobile ? 12 : 14, fontWeight: 700, color: T.borderStrong, letterSpacing: '-0.02em', transition: 'color 0.15s', cursor: 'default' }}
-                onMouseEnter={e => (e.currentTarget.style.color = T.textBody)}
-                onMouseLeave={e => (e.currentTarget.style.color = T.borderStrong)}
-              >{name}</span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: isMobile ? 20 : 36, alignItems: 'center' }}>
+            {LOGOS.map(({ name, color }) => (
+              <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 10, opacity: 0.72, transition: 'opacity 0.15s' }}
+                onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                onMouseLeave={e => (e.currentTarget.style.opacity = '0.72')}
+              >
+                <div style={{
+                  width: 34, height: 34, borderRadius: 10, flexShrink: 0,
+                  background: `${color}12`, boxShadow: `${color}35 0px 0px 0px 1px`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 12, fontWeight: 800, color, letterSpacing: '-0.03em',
+                }}>{name.slice(0, 1)}</div>
+                <span style={{ fontSize: isMobile ? 12 : 14, fontWeight: 700, color: T.textBody, letterSpacing: '-0.02em' }}>{name}</span>
+              </div>
             ))}
           </div>
         </div>
@@ -1172,14 +1193,7 @@ export function LandingPage() {
       {/* ── FOOTER ── */}
       <footer style={{ borderTop: `1px solid ${T.borderStrong}`, padding: isMobile ? '28px 20px' : '40px 24px' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 26, height: 26, background: T.text, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Globe2 size={12} color="white" />
-            </div>
-            <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: '-0.04em', color: T.text }}>
-              Tav<span style={{ color: T.blue }}>rion</span>
-            </span>
-          </div>
+          <TavrionLogo size="sm" />
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? 16 : 24 }}>
             <button type="button" onClick={() => scrollTo('product')} style={{ fontSize: 12, color: T.textFaint, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Product</button>
             <button type="button" onClick={() => scrollTo('platform')} style={{ fontSize: 12, color: T.textFaint, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Platform</button>

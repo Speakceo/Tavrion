@@ -3,7 +3,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { SEO, usePageSeo } from '../lib/seo';
-import { Globe as Globe2, ArrowRight, Eye, EyeOff, Shield, Users, BarChart3, Zap, Building2, X } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, Shield, Users, BarChart3, Zap, Building2, X } from 'lucide-react';
+import { TavrionLogo } from '../components/TavrionLogo';
 
 const T = {
   bg: '#ffffff',
@@ -187,11 +188,8 @@ export function Login() {
         <div style={{ position: 'absolute', top: '30%', left: '30%', width: 320, height: 320, background: `radial-gradient(ellipse, ${T.blue}18 0%, transparent 70%)`, pointerEvents: 'none' }} />
 
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%', padding: '48px 52px' }}>
-          <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-            <div style={{ width: 36, height: 36, background: T.text, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Globe2 size={16} color="white" />
-            </div>
-            <span style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.04em', color: T.text }}>Tavrion</span>
+          <Link to="/" style={{ textDecoration: 'none' }}>
+            <TavrionLogo size="lg" />
           </Link>
 
           <div style={{ marginTop: 'auto', marginBottom: 52 }}>
@@ -236,11 +234,8 @@ export function Login() {
 
       {/* ── RIGHT FORM PANEL ── */}
       <div className="login-form-panel">
-        <Link to="/" className="login-mobile-logo">
-          <div style={{ width: 32, height: 32, background: T.text, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Globe2 size={14} color="white" />
-          </div>
-          <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.04em', color: T.text }}>Tavrion</span>
+        <Link to="/" className="login-mobile-logo" style={{ textDecoration: 'none' }}>
+          <TavrionLogo size="md" />
         </Link>
 
         <div className="login-mobile-proof">
