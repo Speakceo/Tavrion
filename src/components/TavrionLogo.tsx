@@ -11,18 +11,17 @@ const SIZES: Record<LogoSize, { mark: number; word: number; gap: number }> = {
 };
 
 export const BRAND = {
-  blue: '#0a72ef',
-  pink: '#de1d8d',
-  coral: '#ff5b4f',
   ink: '#171717',
-  gradient: 'linear-gradient(135deg, #0a72ef 0%, #de1d8d 100%)',
+  white: '#ffffff',
+  muted: '#666666',
+  faint: '#a3a3a3',
+  surface: '#f5f5f5',
 };
 
 interface TavrionLogoProps {
   size?: LogoSize;
   showWordmark?: boolean;
   wordmark?: 'dark' | 'light';
-  href?: string;
   style?: CSSProperties;
 }
 
@@ -37,17 +36,8 @@ export function TavrionMark({ size = 32 }: { size?: number }) {
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden
     >
-      <defs>
-        <linearGradient id="tavrion-grad" x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse">
-          <stop stopColor={BRAND.blue} />
-          <stop offset="1" stopColor={BRAND.pink} />
-        </linearGradient>
-      </defs>
-      <rect width="32" height="32" rx={r} fill="url(#tavrion-grad)" />
-      <path
-        d="M9 10.5h14v3.2H18.2V22h-4.4v-8.3H9v-3.2z"
-        fill="white"
-      />
+      <rect width="32" height="32" rx={r} fill={BRAND.ink} />
+      <path d="M9 10.5h14v3.2H18.2V22h-4.4v-8.3H9v-3.2z" fill="white" />
       <path
         d="M21.5 11.2a8.5 8.5 0 0 1 2.8 6.3"
         stroke="white"
@@ -69,28 +59,18 @@ export function TavrionWordmark({
   tone?: 'dark' | 'light';
 }) {
   const { word } = SIZES[size];
-  const base = tone === 'light' ? '#ffffff' : BRAND.ink;
+  const color = tone === 'light' ? BRAND.white : BRAND.ink;
   return (
     <span
       style={{
         fontSize: word,
         fontWeight: 700,
         letterSpacing: '-0.04em',
-        color: base,
+        color,
         lineHeight: 1,
       }}
     >
-      Tav
-      <span
-        style={{
-          background: BRAND.gradient,
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text',
-        }}
-      >
-        rion
-      </span>
+      Tavrion
     </span>
   );
 }
