@@ -1,6 +1,12 @@
 import { useEffect, useState, useRef } from 'react';
 import JSZip from 'jszip';
 import { supabase } from '../lib/supabase';
+import {
+  getCourseFilePublicUrl,
+  isExtractedScormPath,
+  SCORM_INDEX_FILE,
+  type ScormStorageIndex,
+} from '../utils/scormStorage';
 import { X, AlertCircle } from 'lucide-react';
 
 interface ScormPlayerProps {
@@ -137,6 +143,57 @@ async function registerScormServiceWorker(): Promise<ServiceWorkerRegistration> 
   });
 }
 
+async function cacheStorageFiles(
+  sessionId: string,
+  files: string[],
+  storagePrefix: string,
+  onProgress?: (current: number, total: number) => void,
+  mounted?: () => boolean,
+) {
+  const cache = await caches.open(`scorm-content-${sessionId}`);
+  const basePath = `/scorm-content/${sessionId}`;
+  let cached = 0;
+
+  for (let i = 0; i < files.length; i += 10) {
+    if (mounted && !mounted()) return { launchBasePath: basePath, cached };
+    const batch = files.slice(i, i + 10);
+    await Promise.all(batch.map(async (relativePath) => {
+      const url = getCourseFilePublicUrl(`${storagePrefix}/${relativePath}`);
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch ${relativePath}: ${response.statusText}`);
+      }
+
+      const mimeType = getMimeType(relativePath);
+      const isHtml = /\.html?$/i.test(relativePath);
+      let body: BodyInit = await response.arrayBuffer();
+
+      if (isHtml) {
+        let text = new TextDecoder().decode(body as ArrayBuffer);
+        if (text.includes('<head>')) {
+          text = text.replace('<head>', '<head>' + SCORM_API_SHIM);
+        } else if (text.includes('<head ')) {
+          text = text.replace(/<head\s[^>]*>/, (m) => m + SCORM_API_SHIM);
+        } else if (text.includes('<html>') || text.includes('<html ')) {
+          text = text.replace(/<html[^>]*>/, (m) => m + '<head>' + SCORM_API_SHIM + '</head>');
+        } else {
+          text = '<head>' + SCORM_API_SHIM + '</head>' + text;
+        }
+        body = new Blob([text], { type: mimeType });
+      } else {
+        body = new Blob([body], { type: mimeType });
+      }
+
+      const cacheUrl = `${location.origin}${basePath}/${relativePath}`;
+      await cache.put(cacheUrl, new Response(body, { headers: { 'Content-Type': mimeType } }));
+      cached += 1;
+      onProgress?.(cached, files.length);
+    }));
+  }
+
+  return { launchBasePath: basePath, cached };
+}
+
 export function ScormPlayer({ courseId, courseTitle, filePath, fileName, onClose, onComplete }: ScormPlayerProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -163,6 +220,44 @@ export function ScormPlayer({ courseId, courseTitle, filePath, fileName, onClose
         addDebug('Registering service worker...');
         await registerScormServiceWorker();
         addDebug('Service worker ready');
+
+        if (isExtractedScormPath(filePath)) {
+          addDebug('Loading extracted SCORM package from storage...');
+          const indexUrl = getCourseFilePublicUrl(`${filePath}/${SCORM_INDEX_FILE}`);
+          const indexResponse = await fetch(indexUrl);
+          if (!indexResponse.ok) {
+            throw new Error('SCORM index file not found for this course');
+          }
+          const index = await indexResponse.json() as ScormStorageIndex;
+          addDebug(`Indexed ${index.files.length} files from extracted package`);
+
+          const { launchBasePath, cached } = await cacheStorageFiles(
+            sessionId,
+            index.files,
+            filePath,
+            (current, total) => {
+              if (mounted) setProgress(`${current}/${total}`);
+            },
+            () => mounted,
+          );
+          addDebug(`Cached ${cached} extracted files`);
+
+          if (!mounted || !iframeRef.current) return;
+          const launchUrl = `${launchBasePath}/${index.launchFile}`;
+          addDebug(`Launching: ${launchUrl}`);
+          iframeRef.current.src = launchUrl;
+          iframeRef.current.onload = () => {
+            addDebug('Iframe loaded');
+            setLoading(false);
+            addDebug('SCORM content ready');
+          };
+          iframeRef.current.onerror = (e) => {
+            addDebug('Iframe error: ' + e);
+            setError('Failed to load SCORM content');
+            setLoading(false);
+          };
+          return;
+        }
 
         const { data: urlData, error: urlError } = await supabase.storage
           .from('course-files')

@@ -1,0 +1,284 @@
+import { BlobReader, BlobWriter, ZipReader } from '@zip.js/zip.js';
+import { supabase } from '../lib/supabase';
+import { formatBookSize, SUPABASE_PER_FILE_LIMIT_BYTES } from './books';
+import { uploadLargeFile } from './chunkedUpload';
+
+const BUCKET = 'course-files';
+const SAFE_FILE_LIMIT_BYTES = 48 * 1024 * 1024;
+const EXTRACTED_UPLOAD_ZIP_THRESHOLD = 45 * 1024 * 1024;
+const UPLOAD_CONCURRENCY = 4;
+
+export const EXTRACTED_SCORM_PREFIX = 'extracted/scorm';
+export const SCORM_INDEX_FILE = '_scorm_index.json';
+
+export interface ScormStorageIndex {
+  version: 1;
+  originalFileName: string;
+  originalZipSize: number;
+  manifestPath: string;
+  launchFile: string;
+  files: string[];
+}
+
+export interface ScormZipScan {
+  fileCount: number;
+  totalUncompressedSize: number;
+  oversizedEntry: { path: string; size: number } | null;
+}
+
+export function isExtractedScormPath(path: string) {
+  return path.startsWith(`${EXTRACTED_SCORM_PREFIX}/`);
+}
+
+export function getCourseFilePublicUrl(filePath: string) {
+  const base = import.meta.env.VITE_SUPABASE_URL as string;
+  return `${base}/storage/v1/object/public/${BUCKET}/${filePath}`;
+}
+
+function shouldIncludeZipEntry(path: string) {
+  const normalized = path.replace(/\\/g, '/');
+  if (normalized.includes('__MACOSX')) return false;
+  if (normalized.split('/').some((segment) => segment.startsWith('.'))) return false;
+  return true;
+}
+
+function normalizeZipEntryPath(path: string) {
+  const normalized = path.replace(/\\/g, '/').replace(/^\/+/, '');
+  if (normalized.includes('..')) {
+    throw new Error(`Invalid path in SCORM package: ${path}`);
+  }
+  return normalized;
+}
+
+function guessContentType(fileName: string): string {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  const mimeMap: Record<string, string> = {
+    html: 'text/html',
+    htm: 'text/html',
+    js: 'application/javascript',
+    css: 'text/css',
+    json: 'application/json',
+    xml: 'application/xml',
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    gif: 'image/gif',
+    svg: 'image/svg+xml',
+    mp4: 'video/mp4',
+    mp3: 'audio/mpeg',
+    wav: 'audio/wav',
+    pdf: 'application/pdf',
+    woff: 'font/woff',
+    woff2: 'font/woff2',
+    ttf: 'font/ttf',
+    swf: 'application/x-shockwave-flash',
+    zip: 'application/zip',
+  };
+  return mimeMap[ext] || 'application/octet-stream';
+}
+
+async function openZipReader(file: File | Blob) {
+  return new ZipReader(new BlobReader(file));
+}
+
+export function shouldExtractScormZip(file: File) {
+  return file.size > EXTRACTED_UPLOAD_ZIP_THRESHOLD;
+}
+
+export async function scanScormZip(file: File): Promise<ScormZipScan> {
+  const reader = await openZipReader(file);
+  try {
+    const entries = await reader.getEntries();
+    const files = entries.filter((entry) => !entry.directory && shouldIncludeZipEntry(entry.filename));
+    let oversizedEntry: ScormZipScan['oversizedEntry'] = null;
+
+    for (const entry of files) {
+      if (entry.uncompressedSize > SAFE_FILE_LIMIT_BYTES) {
+        oversizedEntry = { path: entry.filename, size: entry.uncompressedSize };
+        break;
+      }
+    }
+
+    return {
+      fileCount: files.length,
+      totalUncompressedSize: files.reduce((sum, entry) => sum + entry.uncompressedSize, 0),
+      oversizedEntry,
+    };
+  } finally {
+    await reader.close();
+  }
+}
+
+async function findManifestPath(reader: ZipReader<BlobReader>) {
+  const entries = await reader.getEntries();
+  const manifest = entries.find((entry) => !entry.directory && entry.filename.toLowerCase().endsWith('imsmanifest.xml'));
+  if (!manifest) {
+    throw new Error('imsmanifest.xml not found in SCORM package');
+  }
+  return normalizeZipEntryPath(manifest.filename);
+}
+
+async function readManifestLaunchFile(manifestBlob: Blob, manifestPath: string) {
+  const manifestContent = await manifestBlob.text();
+  const xmlDoc = new DOMParser().parseFromString(manifestContent, 'text/xml');
+  const resource = xmlDoc.querySelector('resource[href]');
+  const launchHref = resource?.getAttribute('href');
+  if (!launchHref) {
+    throw new Error('No launch page found in imsmanifest.xml');
+  }
+
+  const baseDir = manifestPath.includes('/')
+    ? manifestPath.slice(0, manifestPath.lastIndexOf('/') + 1)
+    : '';
+  return normalizeZipEntryPath(`${baseDir}${launchHref}`);
+}
+
+async function uploadEntry(
+  storagePath: string,
+  blob: Blob,
+  fileName: string,
+  onFileProgress?: (pct: number) => void,
+) {
+  const file = new File([blob], fileName, { type: guessContentType(fileName) });
+  const result = await uploadLargeFile({
+    bucket: BUCKET,
+    path: storagePath,
+    file,
+    contentType: guessContentType(fileName),
+    context: 'scorm',
+    onProgress: onFileProgress,
+  });
+
+  if (!result.success) {
+    throw new Error(result.error?.message || `Failed to upload ${fileName}`);
+  }
+}
+
+export async function uploadScormZipExtracted(
+  file: File,
+  storagePrefix: string,
+  onProgress?: (pct: number, message: string) => void,
+): Promise<ScormStorageIndex> {
+  const reader = await openZipReader(file);
+  const uploadedPaths: string[] = [];
+
+  try {
+    const entries = await reader.getEntries();
+    const fileEntries = entries
+      .filter((entry) => !entry.directory && shouldIncludeZipEntry(entry.filename))
+      .sort((a, b) => a.filename.localeCompare(b.filename, undefined, { numeric: true }));
+
+    if (fileEntries.length === 0) {
+      throw new Error('SCORM ZIP contains no usable files');
+    }
+
+    const oversized = fileEntries.find((entry) => entry.uncompressedSize > SAFE_FILE_LIMIT_BYTES);
+    if (oversized) {
+      const name = oversized.filename.split('/').pop() || oversized.filename;
+      throw new Error(
+        `"${name}" is ${formatBookSize(oversized.uncompressedSize)}. Each file inside a SCORM package must be under ${formatBookSize(SUPABASE_PER_FILE_LIMIT_BYTES)} on the current Supabase plan.`,
+      );
+    }
+
+    const manifestPath = await findManifestPath(reader);
+    const manifestEntry = fileEntries.find((entry) => normalizeZipEntryPath(entry.filename) === manifestPath);
+    if (!manifestEntry) {
+      throw new Error('Could not read imsmanifest.xml from SCORM package');
+    }
+
+    const manifestBlob = await manifestEntry.getData(new BlobWriter('application/xml'));
+    const launchFile = await readManifestLaunchFile(manifestBlob, manifestPath);
+    const relativePaths: string[] = new Array(fileEntries.length);
+
+    const uploadOne = async (entry: (typeof fileEntries)[number], index: number) => {
+      const relativePath = normalizeZipEntryPath(entry.filename);
+      relativePaths[index] = relativePath;
+      const storagePath = `${storagePrefix}/${relativePath}`;
+      const name = relativePath.split('/').pop() || relativePath;
+      onProgress?.(
+        Math.round((index / fileEntries.length) * 100),
+        `Uploading ${index + 1} of ${fileEntries.length}: ${name}`,
+      );
+
+      const blob = await entry.getData(new BlobWriter(guessContentType(name)));
+      await uploadEntry(storagePath, blob, name, (pct) => {
+        const overall = Math.round(((index + pct / 100) / fileEntries.length) * 100);
+        onProgress?.(overall, `Uploading ${index + 1} of ${fileEntries.length}: ${name} (${pct}%)`);
+      });
+
+      uploadedPaths.push(storagePath);
+      onProgress?.(
+        Math.round(((index + 1) / fileEntries.length) * 100),
+        `Uploaded ${index + 1} of ${fileEntries.length}`,
+      );
+    };
+
+    for (let i = 0; i < fileEntries.length; i += UPLOAD_CONCURRENCY) {
+      const batch = fileEntries.slice(i, i + UPLOAD_CONCURRENCY);
+      await Promise.all(batch.map((entry, batchIndex) => uploadOne(entry, i + batchIndex)));
+    }
+
+    const index: ScormStorageIndex = {
+      version: 1,
+      originalFileName: file.name,
+      originalZipSize: file.size,
+      manifestPath,
+      launchFile,
+      files: relativePaths.filter(Boolean).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+    };
+
+    const indexPath = `${storagePrefix}/${SCORM_INDEX_FILE}`;
+    const indexBlob = new Blob([JSON.stringify(index)], { type: 'application/json' });
+    await uploadEntry(indexPath, indexBlob, SCORM_INDEX_FILE);
+    uploadedPaths.push(indexPath);
+
+    onProgress?.(100, 'SCORM package uploaded');
+    return index;
+  } catch (error) {
+    if (uploadedPaths.length > 0) {
+      const batchSize = 100;
+      for (let i = 0; i < uploadedPaths.length; i += batchSize) {
+        const batch = uploadedPaths.slice(i, i + batchSize);
+        await supabase.storage.from(BUCKET).remove(batch);
+      }
+    }
+    throw error;
+  } finally {
+    await reader.close();
+  }
+}
+
+export async function listStorageFiles(prefix: string): Promise<string[]> {
+  const paths: string[] = [];
+  const queue = [prefix.replace(/\/$/, '')];
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    let offset = 0;
+
+    while (true) {
+      const { data, error } = await supabase.storage.from(BUCKET).list(current, {
+        limit: 100,
+        offset,
+        sortBy: { column: 'name', order: 'asc' },
+      });
+
+      if (error) throw error;
+      if (!data?.length) break;
+
+      for (const item of data) {
+        const fullPath = `${current}/${item.name}`;
+        if (item.id) {
+          paths.push(fullPath);
+        } else {
+          queue.push(fullPath);
+        }
+      }
+
+      if (data.length < 100) break;
+      offset += data.length;
+    }
+  }
+
+  return paths;
+}

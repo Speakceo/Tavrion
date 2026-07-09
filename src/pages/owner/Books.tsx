@@ -147,6 +147,7 @@ export function OwnerBooks() {
           path: filePath,
           file,
           contentType: 'application/pdf',
+          context: 'book',
           onProgress: (pct) => setUploadProgress(`Uploading ${index + 1}/${total} ${pdf.name}: ${pct}%`),
         });
 

@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { isExtractedScormPath, listStorageFiles } from './scormStorage';
 
 const BUCKET = 'course-files';
 const THUMB_MAX_BYTES = 2 * 1024 * 1024;
@@ -53,8 +54,25 @@ export async function getUploadedCourseSignedUrl(
 }
 
 export async function removeCourseStoragePaths(paths: (string | null | undefined)[]) {
-  const unique = [...new Set(paths.filter((p): p is string => Boolean(p)))];
+  const toRemove = new Set<string>();
+
+  for (const path of paths) {
+    if (!path) continue;
+    if (isExtractedScormPath(path)) {
+      const nested = await listStorageFiles(path);
+      nested.forEach((p) => toRemove.add(p));
+      continue;
+    }
+    toRemove.add(path);
+  }
+
+  const unique = [...toRemove];
   if (!unique.length) return;
-  const { error } = await supabase.storage.from(BUCKET).remove(unique);
-  if (error) console.error('Storage cleanup error:', error);
+
+  const batchSize = 100;
+  for (let i = 0; i < unique.length; i += batchSize) {
+    const batch = unique.slice(i, i + batchSize);
+    const { error } = await supabase.storage.from(BUCKET).remove(batch);
+    if (error) console.error('Storage cleanup error:', error);
+  }
 }

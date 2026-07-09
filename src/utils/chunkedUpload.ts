@@ -14,12 +14,15 @@ function getTusEndpoint() {
   return `${supabaseUrl}/storage/v1/upload/resumable`;
 }
 
+type UploadContext = 'course' | 'scorm' | 'book' | 'generic';
+
 interface UploadOptions {
   bucket: string;
   path: string;
   file: File;
   onProgress?: (progress: number) => void;
   contentType?: string;
+  context?: UploadContext;
 }
 
 function isFileSizeError(msg: string) {
@@ -32,7 +35,7 @@ function isFileSizeError(msg: string) {
   );
 }
 
-function formatUploadError(error: unknown): string {
+function formatUploadError(error: unknown, context: UploadContext = 'generic'): string {
   const raw = error as { message?: string; originalResponse?: { getBody?: () => unknown } };
   let msg = raw?.message || String(error);
 
@@ -42,7 +45,16 @@ function formatUploadError(error: unknown): string {
   }
 
   if (isFileSizeError(msg)) {
-    return `Upload blocked: Supabase allows max 50 MB per file on the current plan (your file may be larger). Books uploads extract PDFs from the ZIP individually — each PDF must be under 50 MB. Upgrade Supabase to Pro for larger single-file uploads.`;
+    if (context === 'scorm') {
+      return `Upload blocked: Supabase allows max 50 MB per stored file on the current plan. Large SCORM ZIPs are extracted and uploaded file-by-file automatically — if you still see this, one asset inside the package exceeds 50 MB.`;
+    }
+    if (context === 'book') {
+      return `Upload blocked: Supabase allows max 50 MB per file on the current plan. Books uploads extract PDFs from the ZIP individually — each PDF must be under 50 MB. Upgrade Supabase to Pro for larger single-file uploads.`;
+    }
+    if (context === 'course') {
+      return `Upload blocked: Supabase allows max 50 MB per file on the current plan. For SCORM packages, use a ZIP — we extract and upload contents individually. For other formats, compress or split the file, or upgrade Supabase to Pro.`;
+    }
+    return `Upload blocked: Supabase allows max 50 MB per file on the current plan. Upgrade Supabase to Pro for larger single-file uploads. (${msg})`;
   }
   if (/mime|invalid file type|not allowed/i.test(msg)) {
     return `Upload rejected by storage: ${msg}`;
@@ -71,6 +83,7 @@ async function uploadWithTus(
   file: File,
   onProgress?: (progress: number) => void,
   contentType?: string,
+  context: UploadContext = 'generic',
 ): Promise<{ success: boolean; data?: { path: string }; error?: { message: string } }> {
   return new Promise((resolve) => {
     const upload = new tus.Upload(file, {
@@ -92,7 +105,7 @@ async function uploadWithTus(
       chunkSize: 6 * 1024 * 1024,
       onError(error) {
         console.error('TUS upload failed:', error);
-        resolve({ success: false, error: { message: formatUploadError(error) } });
+        resolve({ success: false, error: { message: formatUploadError(error, context) } });
       },
       onProgress(bytesUploaded, bytesTotal) {
         if (bytesTotal > 0) {
@@ -122,13 +135,14 @@ export async function uploadLargeFile({
   file,
   onProgress,
   contentType,
+  context = 'generic',
 }: UploadOptions): Promise<{ success: boolean; data?: any; error?: any }> {
   try {
     const sizeMb = (file.size / 1024 / 1024).toFixed(1);
     console.log(`Uploading ${sizeMb} MB to ${bucket}/${path} via ${file.size >= TUS_THRESHOLD_BYTES ? 'TUS' : 'standard'}`);
 
     if (file.size >= TUS_THRESHOLD_BYTES) {
-      return uploadWithTus(bucket, path, file, onProgress, contentType);
+      return uploadWithTus(bucket, path, file, onProgress, contentType, context);
     }
 
     const { data, error } = await supabase.storage.from(bucket).upload(path, file, {
@@ -139,13 +153,13 @@ export async function uploadLargeFile({
 
     if (error) {
       console.error('Upload failed:', error);
-      return { success: false, error: { message: formatUploadError(error) } };
+      return { success: false, error: { message: formatUploadError(error, context) } };
     }
 
     onProgress?.(100);
     return { success: true, data };
   } catch (error: unknown) {
     console.error('Upload exception:', error);
-    return { success: false, error: { message: formatUploadError(error) } };
+    return { success: false, error: { message: formatUploadError(error, context) } };
   }
 }

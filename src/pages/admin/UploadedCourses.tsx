@@ -9,6 +9,12 @@ import { createScormPackage, type ScormCourseData } from '../../utils/scormCreat
 import { convertScormForCompatibility, needsConversion, type ConversionResult } from '../../utils/scormConverter';
 import { uploadLargeFile } from '../../utils/chunkedUpload';
 import {
+  EXTRACTED_SCORM_PREFIX,
+  scanScormZip,
+  shouldExtractScormZip,
+  uploadScormZipExtracted,
+} from '../../utils/scormStorage';
+import {
   uploadCourseThumbnail,
   removeCourseStoragePaths,
   validateThumbnailFile,
@@ -56,6 +62,7 @@ export function UploadedCourses() {
   const [filterType, setFilterType] = useState<string>('all');
   const [previewCourse, setPreviewCourse] = useState<UploadedCourse | null>(null);
   const [scormValidation, setScormValidation] = useState<ScormValidationResult | null>(null);
+  const [scormZipScan, setScormZipScan] = useState<Awaited<ReturnType<typeof scanScormZip>> | null>(null);
   const [conversionResult, setConversionResult] = useState<ConversionResult | null>(null);
   const [validating, setValidating] = useState(false);
   const [converting, setConverting] = useState(false);
@@ -162,6 +169,7 @@ export function UploadedCourses() {
   const handleFileChange = async (file: File | null) => {
     setUploadForm({ ...uploadForm, file });
     setScormValidation(null);
+    setScormZipScan(null);
     setConversionResult(null);
 
     if (!file) return;
@@ -182,8 +190,12 @@ export function UploadedCourses() {
 
       setValidating(true);
       try {
-        const validation = await validateScormPackage(file);
+        const [validation, zipScan] = await Promise.all([
+          validateScormPackage(file),
+          scanScormZip(file),
+        ]);
         setScormValidation(validation);
+        setScormZipScan(zipScan);
 
         if (validation.isValid && validation.title && !uploadForm.title) {
           setUploadForm(prev => ({
@@ -326,15 +338,28 @@ export function UploadedCourses() {
 
       const timestamp = Date.now();
       const sanitizedFileName = uploadForm.file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-      const filePath = `${timestamp}_${sanitizedFileName}`;
+      const useExtractedScormUpload = fileType === 'zip' && shouldExtractScormZip(uploadForm.file);
+      const filePath = useExtractedScormUpload
+        ? `${EXTRACTED_SCORM_PREFIX}/${timestamp}_${sanitizedFileName.replace(/\.zip$/i, '')}`
+        : `${timestamp}_${sanitizedFileName}`;
+
+      if (fileType === 'zip') {
+        const zipScan = scormZipScan || await scanScormZip(uploadForm.file);
+        if (zipScan.oversizedEntry) {
+          const name = zipScan.oversizedEntry.path.split('/').pop() || zipScan.oversizedEntry.path;
+          throw new Error(
+            `"${name}" inside the SCORM package is too large for storage. Each file must be under 50 MB on the current Supabase plan.`,
+          );
+        }
+      }
 
       const fileSizeInMB = uploadForm.file.size / (1024 * 1024);
       console.log(`Uploading ${fileSizeInMB.toFixed(2)} MB file to path: ${filePath}`);
 
       const uploadStartTime = Date.now();
 
-      // Simulate progress for large files
       const progressInterval = setInterval(() => {
+        if (useExtractedScormUpload) return;
         setUploadProgress(prev => {
           if (prev >= 95) return prev;
           const increment = fileSizeInMB > 500 ? 0.5 : 2;
@@ -343,57 +368,56 @@ export function UploadedCourses() {
       }, 2000);
 
       try {
-        console.log('Starting upload to Supabase storage...');
-        console.log('File size:', fileSizeInMB.toFixed(2), 'MB');
-        console.log('Upload path:', filePath);
-        console.log('Note: Supabase uses TUS resumable upload for files > 6MB');
-
-        // Use Supabase client with TUS resumable upload (automatic for files > 6MB)
-        const uploadResult = await uploadLargeFile({
-          bucket: 'course-files',
-          path: filePath,
-          file: uploadForm.file,
-          onProgress: (progress) => {
+        if (useExtractedScormUpload) {
+          console.log('Extracting SCORM ZIP and uploading files individually...');
+          await uploadScormZipExtracted(uploadForm.file, filePath, (pct, message) => {
             clearInterval(progressInterval);
-            setUploadProgress(progress);
-          },
-        });
+            setUploadProgress(pct);
+            console.log(`[SCORM upload] ${pct}% — ${message}`);
+          });
+        } else {
+          console.log('Starting upload to Supabase storage...');
+          console.log('File size:', fileSizeInMB.toFixed(2), 'MB');
+          console.log('Upload path:', filePath);
+          console.log('Note: Supabase uses TUS resumable upload for files > 6MB');
+
+          const uploadResult = await uploadLargeFile({
+            bucket: 'course-files',
+            path: filePath,
+            file: uploadForm.file,
+            context: fileType === 'zip' ? 'scorm' : 'course',
+            onProgress: (progress) => {
+              clearInterval(progressInterval);
+              setUploadProgress(progress);
+            },
+          });
+
+          if (!uploadResult.success || uploadResult.error) {
+            console.error('Upload failed:', uploadResult.error);
+            const errorMessage = uploadResult.error?.message || 'Upload failed';
+            throw new Error(errorMessage);
+          }
+
+          console.log('Upload successful:', uploadResult.data);
+        }
 
         clearInterval(progressInterval);
         setUploadProgress(100);
 
         const uploadDuration = ((Date.now() - uploadStartTime) / 1000).toFixed(2);
         console.log(`Upload completed in ${uploadDuration} seconds`);
-
-        if (!uploadResult.success || uploadResult.error) {
-          console.error('Upload failed:', uploadResult.error);
-
-          const errorMessage = uploadResult.error?.message || 'Upload failed';
-
-          // Check for common errors
-          if (errorMessage.includes('size') || errorMessage.includes('413') || errorMessage.includes('Payload too large')) {
-            throw new Error('File exceeds the maximum allowed size (2GB). Please use a smaller file or contact support.');
-          } else if (errorMessage.includes('timeout') || errorMessage.includes('network')) {
-            throw new Error('Upload timed out. For very large files, please ensure you have a stable internet connection and try again.');
-          } else if (errorMessage.includes('duplicate') || errorMessage.includes('already exists') || errorMessage.includes('409')) {
-            throw new Error('A file with this name already exists. Please try again.');
-          } else {
-            throw new Error(`Upload failed: ${errorMessage}`);
-          }
-        }
-
-        console.log('Upload successful:', uploadResult.data);
       } catch (uploadErr: any) {
         clearInterval(progressInterval);
         console.error('Upload exception:', uploadErr);
-
-        // Re-throw with better message
         if (uploadErr.message) {
           throw uploadErr;
-        } else {
-          throw new Error('Upload failed due to a network error. Please check your connection and try again.');
         }
+        throw new Error('Upload failed due to a network error. Please check your connection and try again.');
       }
+
+      const storedFileType = fileType === 'zip'
+        ? (useExtractedScormUpload ? 'scorm' : 'zip')
+        : fileType;
 
       const { data: courseData, error: dbError } = await supabase
         .from('uploaded_courses')
@@ -402,7 +426,7 @@ export function UploadedCourses() {
           description: uploadForm.description,
           file_name: uploadForm.file.name,
           file_path: filePath,
-          file_type: fileType,
+          file_type: storedFileType,
           file_size: uploadForm.file.size,
           category: uploadForm.category,
           uploaded_by: profile?.id,
@@ -920,7 +944,7 @@ export function UploadedCourses() {
                     PDF, Word, PowerPoint, SCORM (ZIP), Videos, Excel, Text (max 1GB)
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
-                    SCORM packages should be uploaded as ZIP files
+                    SCORM ZIPs over 45 MB are extracted and uploaded file-by-file automatically (works around Supabase&apos;s 50 MB per-file limit).
                   </p>
                   {uploadForm.file && (
                     <p className="text-sm text-green-600 mt-2 font-medium">
@@ -997,6 +1021,22 @@ export function UploadedCourses() {
                         )}
                       </div>
                     </div>
+                  </div>
+                )}
+
+                {scormZipScan && (
+                  <div className="mt-4 p-4 rounded-lg border bg-slate-50 border-slate-200">
+                    <p className="text-sm text-slate-800">
+                      Package contains <strong>{scormZipScan.fileCount}</strong> files
+                      {uploadForm.file && uploadForm.file.size > 45 * 1024 * 1024 && (
+                        <> — will be extracted and uploaded individually because the ZIP exceeds 45 MB.</>
+                      )}
+                    </p>
+                    {scormZipScan.oversizedEntry && (
+                      <p className="text-sm text-red-700 mt-2">
+                        Cannot upload: &quot;{scormZipScan.oversizedEntry.path.split('/').pop()}&quot; is too large for storage (50 MB per-file limit).
+                      </p>
+                    )}
                   </div>
                 )}
 
