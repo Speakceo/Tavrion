@@ -60,6 +60,9 @@ function formatUploadError(error: unknown, context: UploadContext = 'generic'): 
     return `Upload rejected by storage: ${msg}`;
   }
   if (/unauthorized|401|403|jwt|apikey|invalid key/i.test(msg)) {
+    if (context === 'scorm' && /invalid key/i.test(msg)) {
+      return `Upload rejected: storage path contains unsupported characters. Retrying with sanitized file names — please upload again after refreshing. (${msg})`;
+    }
     return `Upload authentication failed. Please refresh the page and try again. (${msg})`;
   }
   if (/timeout|network|failed to fetch|retry/i.test(msg)) {

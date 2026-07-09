@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import {
   getCourseFilePublicUrl,
   isExtractedScormPath,
+  normalizeScormFileEntries,
   SCORM_INDEX_FILE,
   type ScormStorageIndex,
 } from '../utils/scormStorage';
@@ -145,7 +146,7 @@ async function registerScormServiceWorker(): Promise<ServiceWorkerRegistration> 
 
 async function cacheStorageFiles(
   sessionId: string,
-  files: string[],
+  index: ScormStorageIndex,
   storagePrefix: string,
   onProgress?: (current: number, total: number) => void,
   mounted?: () => boolean,
@@ -153,19 +154,20 @@ async function cacheStorageFiles(
   const cache = await caches.open(`scorm-content-${sessionId}`);
   const basePath = `/scorm-content/${sessionId}`;
   let cached = 0;
+  const entries = normalizeScormFileEntries(index);
 
-  for (let i = 0; i < files.length; i += 10) {
+  for (let i = 0; i < entries.length; i += 10) {
     if (mounted && !mounted()) return { launchBasePath: basePath, cached };
-    const batch = files.slice(i, i + 10);
-    await Promise.all(batch.map(async (relativePath) => {
-      const url = getCourseFilePublicUrl(`${storagePrefix}/${relativePath}`);
+    const batch = entries.slice(i, i + 10);
+    await Promise.all(batch.map(async ({ zipPath, storagePath }) => {
+      const url = getCourseFilePublicUrl(`${storagePrefix}/${storagePath}`);
       const response = await fetch(url);
       if (!response.ok) {
-        throw new Error(`Failed to fetch ${relativePath}: ${response.statusText}`);
+        throw new Error(`Failed to fetch ${zipPath}: ${response.statusText}`);
       }
 
-      const mimeType = getMimeType(relativePath);
-      const isHtml = /\.html?$/i.test(relativePath);
+      const mimeType = getMimeType(zipPath);
+      const isHtml = /\.html?$/i.test(zipPath);
       let body: BodyInit = await response.arrayBuffer();
 
       if (isHtml) {
@@ -184,10 +186,10 @@ async function cacheStorageFiles(
         body = new Blob([body], { type: mimeType });
       }
 
-      const cacheUrl = `${location.origin}${basePath}/${relativePath}`;
+      const cacheUrl = `${location.origin}${basePath}/${zipPath}`;
       await cache.put(cacheUrl, new Response(body, { headers: { 'Content-Type': mimeType } }));
       cached += 1;
-      onProgress?.(cached, files.length);
+      onProgress?.(cached, entries.length);
     }));
   }
 
@@ -233,7 +235,7 @@ export function ScormPlayer({ courseId, courseTitle, filePath, fileName, onClose
 
           const { launchBasePath, cached } = await cacheStorageFiles(
             sessionId,
-            index.files,
+            index,
             filePath,
             (current, total) => {
               if (mounted) setProgress(`${current}/${total}`);

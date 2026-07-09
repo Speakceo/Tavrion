@@ -11,13 +11,18 @@ const UPLOAD_CONCURRENCY = 4;
 export const EXTRACTED_SCORM_PREFIX = 'extracted/scorm';
 export const SCORM_INDEX_FILE = '_scorm_index.json';
 
+export interface ScormStorageFileEntry {
+  zipPath: string;
+  storagePath: string;
+}
+
 export interface ScormStorageIndex {
-  version: 1;
+  version: 2;
   originalFileName: string;
   originalZipSize: number;
   manifestPath: string;
   launchFile: string;
-  files: string[];
+  files: ScormStorageFileEntry[];
 }
 
 export interface ScormZipScan {
@@ -32,7 +37,70 @@ export function isExtractedScormPath(path: string) {
 
 export function getCourseFilePublicUrl(filePath: string) {
   const base = import.meta.env.VITE_SUPABASE_URL as string;
-  return `${base}/storage/v1/object/public/${BUCKET}/${filePath}`;
+  const encodedPath = filePath.split('/').map((segment) => encodeURIComponent(segment)).join('/');
+  return `${base}/storage/v1/object/public/${BUCKET}/${encodedPath}`;
+}
+
+export function normalizeScormFileEntries(index: ScormStorageIndex | Record<string, unknown>): ScormStorageFileEntry[] {
+  const files = (index as ScormStorageIndex).files;
+  if (!Array.isArray(files) || files.length === 0) return [];
+
+  if (typeof files[0] === 'object' && files[0] !== null && 'zipPath' in files[0]) {
+    return files as ScormStorageFileEntry[];
+  }
+
+  return (files as string[]).map((zipPath) => ({ zipPath, storagePath: zipPath }));
+}
+
+function sanitizeStoragePathSegment(segment: string) {
+  const normalized = segment
+    .normalize('NFKC')
+    .replace(/[\u00A0\u202F\u2007\uFEFF\u200B-\u200D\u2060]/g, ' ')
+    .trim();
+  const cleaned = normalized
+    .replace(/\s+/g, '_')
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^\.+/, '')
+    .replace(/^_+|_+$/g, '');
+
+  return cleaned || 'file';
+}
+
+function toStorageRelativePath(zipRelativePath: string) {
+  return zipRelativePath
+    .split('/')
+    .map(sanitizeStoragePathSegment)
+    .join('/');
+}
+
+export function resolveStorageRelativePath(index: ScormStorageIndex, zipPath: string) {
+  const entry = normalizeScormFileEntries(index).find((file) => file.zipPath === zipPath);
+  return entry?.storagePath || toStorageRelativePath(zipPath);
+}
+
+function buildStoragePathMap(zipPaths: string[]) {
+  const used = new Set<string>();
+  const map = new Map<string, string>();
+
+  for (const zipPath of zipPaths) {
+    let candidate = toStorageRelativePath(zipPath);
+    if (!candidate) candidate = 'file';
+
+    if (used.has(candidate)) {
+      const dot = candidate.lastIndexOf('.');
+      const stem = dot > 0 ? candidate.slice(0, dot) : candidate;
+      const ext = dot > 0 ? candidate.slice(dot) : '';
+      let suffix = 2;
+      while (used.has(`${stem}_${suffix}${ext}`)) suffix += 1;
+      candidate = `${stem}_${suffix}${ext}`;
+    }
+
+    used.add(candidate);
+    map.set(zipPath, candidate);
+  }
+
+  return map;
 }
 
 function shouldIncludeZipEntry(path: string) {
@@ -188,13 +256,16 @@ export async function uploadScormZipExtracted(
 
     const manifestBlob = await manifestEntry.getData(new BlobWriter('application/xml'));
     const launchFile = await readManifestLaunchFile(manifestBlob, manifestPath);
-    const relativePaths: string[] = new Array(fileEntries.length);
+    const zipPaths = fileEntries.map((entry) => normalizeZipEntryPath(entry.filename));
+    const storagePathMap = buildStoragePathMap(zipPaths);
+    const fileManifest: ScormStorageFileEntry[] = [];
 
     const uploadOne = async (entry: (typeof fileEntries)[number], index: number) => {
-      const relativePath = normalizeZipEntryPath(entry.filename);
-      relativePaths[index] = relativePath;
-      const storagePath = `${storagePrefix}/${relativePath}`;
-      const name = relativePath.split('/').pop() || relativePath;
+      const zipPath = normalizeZipEntryPath(entry.filename);
+      const storageRelativePath = storagePathMap.get(zipPath) || toStorageRelativePath(zipPath);
+      fileManifest[index] = { zipPath, storagePath: storageRelativePath };
+      const storagePath = `${storagePrefix}/${storageRelativePath}`;
+      const name = zipPath.split('/').pop() || zipPath;
       onProgress?.(
         Math.round((index / fileEntries.length) * 100),
         `Uploading ${index + 1} of ${fileEntries.length}: ${name}`,
@@ -219,12 +290,12 @@ export async function uploadScormZipExtracted(
     }
 
     const index: ScormStorageIndex = {
-      version: 1,
+      version: 2,
       originalFileName: file.name,
       originalZipSize: file.size,
       manifestPath,
       launchFile,
-      files: relativePaths.filter(Boolean).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+      files: fileManifest.filter(Boolean).sort((a, b) => a.zipPath.localeCompare(b.zipPath, undefined, { numeric: true })),
     };
 
     const indexPath = `${storagePrefix}/${SCORM_INDEX_FILE}`;
