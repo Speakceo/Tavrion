@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { isOrgFeatureEnabled, type NavFeatureKey } from '../utils/orgFeatures';
 import { FeatureDisabledModal } from './FeatureDisabledModal';
@@ -34,11 +35,18 @@ export function OrgFeatureGate({
 }
 
 function DisabledFeatureFallback() {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(true);
+
+  const handleClose = () => {
+    setOpen(false);
+    navigate('/dashboard', { replace: true });
+  };
+
   if (!open) return null;
   return (
     <FeatureDisabledModal
-      onClose={() => setOpen(false)}
+      onClose={handleClose}
       message="This feature is disabled for your team. Talk to the Tavrion team and we can enable it for your organisation."
     />
   );

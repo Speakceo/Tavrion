@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { isBooksFeatureEnabled } from '../utils/books';
 import { FeatureDisabledModal } from './FeatureDisabledModal';
@@ -22,13 +23,20 @@ export function BooksFeatureRoute({ children }: { children: React.ReactNode }) {
 }
 
 function DisabledBooksFallback() {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(true);
+
+  const handleClose = () => {
+    setOpen(false);
+    navigate('/dashboard', { replace: true });
+  };
+
   if (!open) return null;
   return (
     <FeatureDisabledModal
       title="Books feature disabled for your team"
       message="Books is currently disabled for your organisation. Talk to the Tavrion team to enable it."
-      onClose={() => setOpen(false)}
+      onClose={handleClose}
     />
   );
 }
