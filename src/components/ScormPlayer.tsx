@@ -2,10 +2,13 @@ import { useEffect, useState, useRef } from 'react';
 import JSZip from 'jszip';
 import { supabase } from '../lib/supabase';
 import {
+  buildScormPlaybackResolver,
+  fetchScormAsset,
   getCourseFilePublicUrl,
   isExtractedScormPath,
-  normalizeScormFileEntries,
+  normalizeZipEntryPath,
   SCORM_INDEX_FILE,
+  type ScormPlaybackResolver,
   type ScormStorageIndex,
 } from '../utils/scormStorage';
 import { X, AlertCircle } from 'lucide-react';
@@ -144,56 +147,95 @@ async function registerScormServiceWorker(): Promise<ServiceWorkerRegistration> 
   });
 }
 
+function isRequiredScormAsset(zipPath: string) {
+  return /\.(html?|js|css|xml|json)$/i.test(zipPath) || /imsmanifest\.xml$/i.test(zipPath);
+}
+
+async function registerScormSession(
+  sessionId: string,
+  storagePrefix: string,
+  resolver: ScormPlaybackResolver,
+) {
+  const payload = {
+    type: 'SCORM_SESSION',
+    sessionId,
+    storagePrefix,
+    supabaseUrl: import.meta.env.VITE_SUPABASE_URL as string,
+    bucket: 'course-files',
+    pathMap: resolver.pathMap,
+  };
+
+  if (navigator.serviceWorker?.controller) {
+    navigator.serviceWorker.controller.postMessage(payload);
+    return;
+  }
+
+  const registration = await navigator.serviceWorker.ready;
+  registration.active?.postMessage(payload);
+}
+
 async function cacheStorageFiles(
   sessionId: string,
-  index: ScormStorageIndex,
   storagePrefix: string,
+  resolver: ScormPlaybackResolver,
   onProgress?: (current: number, total: number) => void,
   mounted?: () => boolean,
+  onDebug?: (message: string) => void,
 ) {
   const cache = await caches.open(`scorm-content-${sessionId}`);
   const basePath = `/scorm-content/${sessionId}`;
   let cached = 0;
-  const entries = normalizeScormFileEntries(index);
+  const failures: string[] = [];
 
-  for (let i = 0; i < entries.length; i += 10) {
-    if (mounted && !mounted()) return { launchBasePath: basePath, cached };
-    const batch = entries.slice(i, i + 10);
+  for (let i = 0; i < resolver.entries.length; i += 10) {
+    if (mounted && !mounted()) return { launchBasePath: basePath, cached, failures };
+    const batch = resolver.entries.slice(i, i + 10);
     await Promise.all(batch.map(async ({ zipPath, storagePath }) => {
-      const url = getCourseFilePublicUrl(`${storagePrefix}/${storagePath}`);
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch ${zipPath}: ${response.statusText}`);
-      }
+      try {
+        const response = await fetchScormAsset(storagePrefix, zipPath, resolver);
+        const mimeType = getMimeType(zipPath);
+        const isHtml = /\.html?$/i.test(zipPath);
+        let body: BodyInit = await response.arrayBuffer();
 
-      const mimeType = getMimeType(zipPath);
-      const isHtml = /\.html?$/i.test(zipPath);
-      let body: BodyInit = await response.arrayBuffer();
-
-      if (isHtml) {
-        let text = new TextDecoder().decode(body as ArrayBuffer);
-        if (text.includes('<head>')) {
-          text = text.replace('<head>', '<head>' + SCORM_API_SHIM);
-        } else if (text.includes('<head ')) {
-          text = text.replace(/<head\s[^>]*>/, (m) => m + SCORM_API_SHIM);
-        } else if (text.includes('<html>') || text.includes('<html ')) {
-          text = text.replace(/<html[^>]*>/, (m) => m + '<head>' + SCORM_API_SHIM + '</head>');
+        if (isHtml) {
+          let text = new TextDecoder().decode(body as ArrayBuffer);
+          if (text.includes('<head>')) {
+            text = text.replace('<head>', '<head>' + SCORM_API_SHIM);
+          } else if (text.includes('<head ')) {
+            text = text.replace(/<head\s[^>]*>/, (m) => m + SCORM_API_SHIM);
+          } else if (text.includes('<html>') || text.includes('<html ')) {
+            text = text.replace(/<html[^>]*>/, (m) => m + '<head>' + SCORM_API_SHIM + '</head>');
+          } else {
+            text = '<head>' + SCORM_API_SHIM + '</head>' + text;
+          }
+          body = new Blob([text], { type: mimeType });
         } else {
-          text = '<head>' + SCORM_API_SHIM + '</head>' + text;
+          body = new Blob([body], { type: mimeType });
         }
-        body = new Blob([text], { type: mimeType });
-      } else {
-        body = new Blob([body], { type: mimeType });
-      }
 
-      const cacheUrl = `${location.origin}${basePath}/${zipPath}`;
-      await cache.put(cacheUrl, new Response(body, { headers: { 'Content-Type': mimeType } }));
-      cached += 1;
-      onProgress?.(cached, entries.length);
+        const responseToCache = new Response(body, { headers: { 'Content-Type': mimeType } });
+        const cacheUrls = [
+          `${location.origin}${basePath}/${zipPath}`,
+          `${location.origin}${basePath}/${encodeURI(zipPath)}`,
+        ];
+        for (const cacheUrl of cacheUrls) {
+          await cache.put(cacheUrl, responseToCache.clone());
+        }
+        cached += 1;
+        onProgress?.(cached, resolver.entries.length);
+        onDebug?.(`Cached ${zipPath} as ${storagePath}`);
+      } catch (error: any) {
+        const message = error?.message || `Failed to cache ${zipPath}`;
+        failures.push(message);
+        onDebug?.(message);
+        if (isRequiredScormAsset(zipPath)) {
+          throw error;
+        }
+      }
     }));
   }
 
-  return { launchBasePath: basePath, cached };
+  return { launchBasePath: basePath, cached, failures };
 }
 
 export function ScormPlayer({ courseId, courseTitle, filePath, fileName, onClose, onComplete }: ScormPlayerProps) {
@@ -231,21 +273,27 @@ export function ScormPlayer({ courseId, courseTitle, filePath, fileName, onClose
             throw new Error('SCORM index file not found for this course');
           }
           const index = await indexResponse.json() as ScormStorageIndex;
-          addDebug(`Indexed ${index.files.length} files from extracted package`);
+          const resolver = await buildScormPlaybackResolver(index, filePath);
+          addDebug(`Indexed ${resolver.entries.length} files from extracted package`);
+          await registerScormSession(sessionId, filePath, resolver);
 
-          const { launchBasePath, cached } = await cacheStorageFiles(
+          const { launchBasePath, cached, failures } = await cacheStorageFiles(
             sessionId,
-            index,
             filePath,
+            resolver,
             (current, total) => {
               if (mounted) setProgress(`${current}/${total}`);
             },
             () => mounted,
+            addDebug,
           );
           addDebug(`Cached ${cached} extracted files`);
+          if (failures.length > 0) {
+            addDebug(`Skipped ${failures.length} optional assets; service worker will retry on demand`);
+          }
 
           if (!mounted || !iframeRef.current) return;
-          const launchUrl = `${launchBasePath}/${index.launchFile}`;
+          const launchUrl = `${launchBasePath}/${normalizeZipEntryPath(index.launchFile)}`;
           addDebug(`Launching: ${launchUrl}`);
           iframeRef.current.src = launchUrl;
           iframeRef.current.onload = () => {

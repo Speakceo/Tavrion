@@ -49,7 +49,10 @@ export function normalizeScormFileEntries(index: ScormStorageIndex | Record<stri
     return files as ScormStorageFileEntry[];
   }
 
-  return (files as string[]).map((zipPath) => ({ zipPath, storagePath: zipPath }));
+  return (files as string[]).map((zipPath) => ({
+    zipPath: normalizeZipEntryPath(zipPath),
+    storagePath: toStorageRelativePath(zipPath),
+  }));
 }
 
 function sanitizeStoragePathSegment(segment: string) {
@@ -68,15 +71,138 @@ function sanitizeStoragePathSegment(segment: string) {
 }
 
 function toStorageRelativePath(zipRelativePath: string) {
-  return zipRelativePath
+  return normalizeZipEntryPath(zipRelativePath)
     .split('/')
     .map(sanitizeStoragePathSegment)
     .join('/');
 }
 
+export function zipPathToStoragePath(zipPath: string) {
+  return toStorageRelativePath(zipPath);
+}
+
 export function resolveStorageRelativePath(index: ScormStorageIndex, zipPath: string) {
-  const entry = normalizeScormFileEntries(index).find((file) => file.zipPath === zipPath);
-  return entry?.storagePath || toStorageRelativePath(zipPath);
+  const normalized = normalizeZipEntryPath(zipPath);
+  const entry = normalizeScormFileEntries(index).find(
+    (file) => file.zipPath === normalized || file.zipPath === zipPath,
+  );
+  if (entry && entry.storagePath && entry.storagePath !== entry.zipPath) {
+    return entry.storagePath;
+  }
+  return toStorageRelativePath(normalized);
+}
+
+export interface ScormPlaybackResolver {
+  entries: ScormStorageFileEntry[];
+  pathMap: Record<string, string>;
+  resolveStoragePath: (zipPath: string) => string;
+}
+
+export async function buildScormPlaybackResolver(
+  index: ScormStorageIndex,
+  storagePrefix: string,
+): Promise<ScormPlaybackResolver> {
+  const normalizedEntries = normalizeScormFileEntries(index).map((entry) => ({
+    zipPath: normalizeZipEntryPath(entry.zipPath),
+    storagePath: entry.storagePath && entry.storagePath !== entry.zipPath
+      ? entry.storagePath
+      : toStorageRelativePath(entry.zipPath),
+  }));
+
+  const pathMap = new Map<string, string>();
+  const remember = (zipPath: string, storagePath: string) => {
+    const normalizedZip = normalizeZipEntryPath(zipPath);
+    pathMap.set(normalizedZip, storagePath);
+    pathMap.set(encodeURI(normalizedZip), storagePath);
+    try {
+      pathMap.set(decodeURIComponent(normalizedZip), storagePath);
+    } catch {
+      // ignore malformed URI sequences
+    }
+  };
+
+  for (const entry of normalizedEntries) {
+    remember(entry.zipPath, entry.storagePath);
+  }
+
+  try {
+    const storedFiles = await listStorageFiles(storagePrefix);
+    for (const fullPath of storedFiles) {
+      const storageRelative = fullPath.startsWith(`${storagePrefix}/`)
+        ? fullPath.slice(storagePrefix.length + 1)
+        : fullPath;
+      if (!storageRelative || storageRelative === SCORM_INDEX_FILE) continue;
+
+      for (const entry of normalizedEntries) {
+        if (
+          entry.storagePath === storageRelative
+          || toStorageRelativePath(entry.zipPath) === storageRelative
+        ) {
+          remember(entry.zipPath, storageRelative);
+        }
+      }
+
+      const storageBase = storageRelative.split('/').pop() || storageRelative;
+      for (const entry of normalizedEntries) {
+        const zipBase = entry.zipPath.split('/').pop() || entry.zipPath;
+        if (
+          zipBase === storageBase
+          || sanitizeStoragePathSegment(zipBase) === storageBase
+          || toStorageRelativePath(zipBase) === storageBase
+        ) {
+          remember(entry.zipPath, storageRelative);
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('[SCORM] Could not list storage files for playback resolver:', error);
+  }
+
+  const resolveStoragePath = (zipPath: string) => {
+    const normalized = normalizeZipEntryPath(zipPath);
+    return pathMap.get(normalized)
+      || pathMap.get(encodeURI(normalized))
+      || pathMap.get(zipPath)
+      || toStorageRelativePath(normalized);
+  };
+
+  const entries = normalizedEntries.map((entry) => ({
+    zipPath: entry.zipPath,
+    storagePath: resolveStoragePath(entry.zipPath),
+  }));
+
+  return {
+    entries,
+    pathMap: Object.fromEntries(pathMap.entries()),
+    resolveStoragePath,
+  };
+}
+
+async function fetchStorageObject(storagePrefix: string, storageRelativePath: string) {
+  const url = getCourseFilePublicUrl(`${storagePrefix}/${storageRelativePath}`);
+  return fetch(url);
+}
+
+export async function fetchScormAsset(
+  storagePrefix: string,
+  zipPath: string,
+  resolver: ScormPlaybackResolver,
+) {
+  const candidates = [
+    resolver.resolveStoragePath(zipPath),
+    toStorageRelativePath(zipPath),
+    normalizeZipEntryPath(zipPath),
+  ];
+
+  const tried = new Set<string>();
+  for (const candidate of candidates) {
+    if (!candidate || tried.has(candidate)) continue;
+    tried.add(candidate);
+    const response = await fetchStorageObject(storagePrefix, candidate);
+    if (response.ok) return response;
+  }
+
+  throw new Error(`Failed to fetch ${normalizeZipEntryPath(zipPath)}`);
 }
 
 function buildStoragePathMap(zipPaths: string[]) {
@@ -110,7 +236,7 @@ function shouldIncludeZipEntry(path: string) {
   return true;
 }
 
-function normalizeZipEntryPath(path: string) {
+export function normalizeZipEntryPath(path: string) {
   const normalized = path.replace(/\\/g, '/').replace(/^\/+/, '');
   if (normalized.includes('..')) {
     throw new Error(`Invalid path in SCORM package: ${path}`);
