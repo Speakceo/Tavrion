@@ -178,6 +178,7 @@ export function CourseAssignmentRules() {
     setRunning(rule.id);
     const matched = matchUsers(rule);
     let enrolled = 0;
+    let failed = 0;
     for (const u of matched) {
       const { data: existing } = await supabase
         .from('user_course_enrollments')
@@ -187,27 +188,31 @@ export function CourseAssignmentRules() {
         .maybeSingle();
 
       if (!existing) {
-        await supabase.from('user_course_enrollments').insert({
+        const { error } = await supabase.from('user_course_enrollments').upsert({
           user_id: u.id,
           course_id: rule.course_id,
           status: 'assigned',
           recurrence_interval: rule.recurrence_interval,
           due_date: calcDueDate(rule.recurrence_interval),
           last_assigned_at: new Date().toISOString(),
-        });
-        enrolled++;
+        }, { onConflict: 'user_id,course_id' });
+        if (error) failed++;
+        else enrolled++;
       } else if (rule.recurrence_interval !== 'none' && existing.status === 'completed') {
-        // Re-enroll for recurrence
-        await supabase.from('user_course_enrollments').update({
+        const { error } = await supabase.from('user_course_enrollments').update({
           status: 'assigned',
           due_date: calcDueDate(rule.recurrence_interval),
           last_assigned_at: new Date().toISOString(),
         }).eq('id', existing.id);
-        enrolled++;
+        if (error) failed++;
+        else enrolled++;
       }
     }
     setRunning(null);
     setRunResult({ ruleId: rule.id, count: enrolled });
+    if (failed > 0) {
+      alert(`${enrolled} enrollment(s) updated. ${failed} failed — refresh and try again.`);
+    }
     setTimeout(() => setRunResult(null), 4000);
   }
 

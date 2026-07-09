@@ -19,9 +19,7 @@ export type UploadedCourseAssignment = {
     file_path?: string;
     file_type?: string;
     file_size?: number;
-    category?: string;
-    created_at?: string;
-    is_mandatory?: boolean;
+    thumbnail_path?: string | null;
   };
 };
 

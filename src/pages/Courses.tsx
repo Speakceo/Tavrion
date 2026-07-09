@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -8,6 +8,8 @@ import { useLearnerCourses } from '../hooks/useLearnerCourses';
 import { isInProgressStatus, isPendingStatus, type UploadedCourseAssignment } from '../utils/learnerCourses';
 import { ScormPlayer } from '../components/ScormPlayer';
 import { CourseCompletionCelebration } from '../components/CourseCompletionCelebration';
+import { UploadedCourseCover } from '../components/UploadedCourseCover';
+import { getUploadedCourseSignedUrl } from '../utils/uploadedCourseMedia';
 import { BookOpen, Clock, Award, FileText, Download, Eye } from 'lucide-react';
 
 export function Courses() {
@@ -17,7 +19,25 @@ export function Courses() {
   const uploadedCourses = uploaded;
   const [filter, setFilter] = useState<'all' | 'assigned' | 'in_progress' | 'completed'>('all');
   const [viewingCourse, setViewingCourse] = useState<any>(null);
+  const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null);
   const [completedCourseTitle, setCompletedCourseTitle] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!viewingCourse || viewingCourse.course.file_type !== 'pdf') {
+      setPdfViewerUrl(null);
+      return;
+    }
+
+    getUploadedCourseSignedUrl(viewingCourse.course.file_path).then((url) => {
+      if (!cancelled) setPdfViewerUrl(url);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [viewingCourse]);
 
   const filteredCourses = courses.filter((course) => {
     if (filter === 'all') return true;
@@ -168,9 +188,12 @@ export function Courses() {
                   className="lt-card"
                   style={{ overflow: 'hidden' }}
                 >
-                  <div style={{ height: 140, background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: '1px solid #ebebeb' }}>
-                    <FileText size={40} color="#bbb" />
-                  </div>
+                  <UploadedCourseCover
+                    title={assignment.course.title}
+                    thumbnailPath={assignment.course.thumbnail_path}
+                    fileType={assignment.course.file_type}
+                    height={140}
+                  />
                   <div style={{ padding: 20 }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 }}>
                       <h3 style={{ fontSize: 14, fontWeight: 700, color: '#171717', flex: 1 }}>{assignment.course.title}</h3>
@@ -293,11 +316,17 @@ export function Courses() {
                 </button>
               </div>
               <div className="flex-1 overflow-hidden">
-                <iframe
-                  src={`${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/course-files/${viewingCourse.course.file_path}`}
-                  className="w-full h-full"
-                  title="Course Content"
-                />
+                {pdfViewerUrl ? (
+                  <iframe
+                    src={pdfViewerUrl}
+                    className="w-full h-full"
+                    title="Course Content"
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-gray-500">
+                    Loading PDF…
+                  </div>
+                )}
               </div>
             </div>
           </div>

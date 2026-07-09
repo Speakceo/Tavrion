@@ -8,6 +8,12 @@ import { validateScormPackage, extractScormMetadata, type ScormValidationResult 
 import { createScormPackage, type ScormCourseData } from '../../utils/scormCreator';
 import { convertScormForCompatibility, needsConversion, type ConversionResult } from '../../utils/scormConverter';
 import { uploadLargeFile } from '../../utils/chunkedUpload';
+import {
+  uploadCourseThumbnail,
+  removeCourseStoragePaths,
+  validateThumbnailFile,
+} from '../../utils/uploadedCourseMedia';
+import { UploadedCourseCover } from '../../components/UploadedCourseCover';
 import { applyOrgUserScope, filterByDepartment, uniqueSortedStrings } from '../../utils/orgUsers';
 import { applyOrgScope, orgIdForInsert } from '../../utils/orgScope';
 
@@ -20,6 +26,7 @@ interface UploadedCourse {
   file_type: string;
   file_size: number;
   category: string;
+  thumbnail_path?: string | null;
   uploaded_by: string;
   created_at: string;
   uploader?: {
@@ -62,11 +69,14 @@ export function UploadedCourses() {
     category: 'general',
   });
 
+  const [thumbnailUploading, setThumbnailUploading] = useState(false);
+
   const [uploadForm, setUploadForm] = useState({
     title: '',
     description: '',
     category: 'general',
     file: null as File | null,
+    thumbnail: null as File | null,
     enableQuiz: false,
     passingScore: 70,
     quizQuestions: [] as Array<{
@@ -133,6 +143,21 @@ export function UploadedCourses() {
 
   const departments = uniqueSortedStrings(users.map((u) => u.department));
   const filteredAssignUsers = filterByDepartment(users, departmentFilter);
+  const allowedUserIds = new Set(users.map((u) => u.id));
+
+  const attachThumbnail = async (courseId: string, thumbnail: File, previousPath?: string | null) => {
+    const thumbPath = await uploadCourseThumbnail(thumbnail, courseId);
+    const { error } = await supabase
+      .from('uploaded_courses')
+      .update({ thumbnail_path: thumbPath, updated_at: new Date().toISOString() })
+      .eq('id', courseId);
+    if (error) {
+      await removeCourseStoragePaths([thumbPath]);
+      throw error;
+    }
+    if (previousPath) await removeCourseStoragePaths([previousPath]);
+    return thumbPath;
+  };
 
   const handleFileChange = async (file: File | null) => {
     setUploadForm({ ...uploadForm, file });
@@ -238,7 +263,10 @@ export function UploadedCourses() {
           organization_id: orgIdForInsert(profile),
         });
 
-      if (dbError) throw dbError;
+      if (dbError) {
+        await removeCourseStoragePaths([filePath]);
+        throw dbError;
+      }
 
       alert('SCORM course created successfully!');
       setShowCreateScormModal(false);
@@ -277,6 +305,19 @@ export function UploadedCourses() {
     if (!allowedTypes.includes(fileType || '')) {
       alert('Supported formats: PDF, PPT, PPTX, DOC, DOCX, ZIP (SCORM), Videos (MP4, MOV, AVI, WEBM), Excel, CSV, TXT, MD');
       return;
+    }
+
+    if (uploadForm.enableQuiz && uploadForm.quizQuestions.length === 0) {
+      alert('Add at least one quiz question or disable the quiz.');
+      return;
+    }
+
+    if (uploadForm.thumbnail) {
+      const thumbError = validateThumbnailFile(uploadForm.thumbnail);
+      if (thumbError) {
+        alert(thumbError);
+        return;
+      }
     }
 
     try {
@@ -370,38 +411,51 @@ export function UploadedCourses() {
         .select()
         .single();
 
-      if (dbError) throw dbError;
+      if (dbError) {
+        await removeCourseStoragePaths([filePath]);
+        throw dbError;
+      }
 
-      if (uploadForm.enableQuiz && uploadForm.quizQuestions.length > 0) {
-        const { data: quizData, error: quizError } = await supabase
-          .from('uploaded_course_quizzes')
-          .insert({
-            course_id: courseData.id,
-            enabled: true,
-            passing_score: uploadForm.passingScore,
-          })
-          .select()
-          .single();
+      try {
+        if (uploadForm.thumbnail) {
+          await attachThumbnail(courseData.id, uploadForm.thumbnail);
+        }
 
-        if (quizError) throw quizError;
+        if (uploadForm.enableQuiz && uploadForm.quizQuestions.length > 0) {
+          const { data: quizData, error: quizError } = await supabase
+            .from('uploaded_course_quizzes')
+            .insert({
+              course_id: courseData.id,
+              enabled: true,
+              passing_score: uploadForm.passingScore,
+            })
+            .select()
+            .single();
 
-        const questions = uploadForm.quizQuestions.map((q, index) => ({
-          quiz_id: quizData.id,
-          question_text: q.question,
-          option_a: q.optionA,
-          option_b: q.optionB,
-          option_c: q.optionC,
-          option_d: q.optionD,
-          correct_option: q.correctOption,
-          points: q.points,
-          order_index: index,
-        }));
+          if (quizError) throw quizError;
 
-        const { error: questionsError } = await supabase
-          .from('uploaded_course_quiz_questions')
-          .insert(questions);
+          const questions = uploadForm.quizQuestions.map((q, index) => ({
+            quiz_id: quizData.id,
+            question_text: q.question,
+            option_a: q.optionA,
+            option_b: q.optionB,
+            option_c: q.optionC,
+            option_d: q.optionD,
+            correct_option: q.correctOption,
+            points: q.points,
+            order_index: index,
+          }));
 
-        if (questionsError) throw questionsError;
+          const { error: questionsError } = await supabase
+            .from('uploaded_course_quiz_questions')
+            .insert(questions);
+
+          if (questionsError) throw questionsError;
+        }
+      } catch (followUpError) {
+        await supabase.from('uploaded_courses').delete().eq('id', courseData.id);
+        await removeCourseStoragePaths([filePath]);
+        throw followUpError;
       }
 
       alert('Course uploaded successfully!');
@@ -411,6 +465,7 @@ export function UploadedCourses() {
         description: '',
         category: 'general',
         file: null,
+        thumbnail: null,
         enableQuiz: false,
         passingScore: 70,
         quizQuestions: [],
@@ -429,11 +484,7 @@ export function UploadedCourses() {
     if (!confirm(`Delete "${course.title}"? This will remove all assignments.`)) return;
 
     try {
-      const { error: storageError } = await supabase.storage
-        .from('course-files')
-        .remove([course.file_path]);
-
-      if (storageError) console.error('Storage delete error:', storageError);
+      await removeCourseStoragePaths([course.file_path, course.thumbnail_path]);
 
       const { error: dbError } = await supabase
         .from('uploaded_courses')
@@ -457,7 +508,13 @@ export function UploadedCourses() {
     }
 
     try {
-      const assignments = Array.from(selectedUsers).map((userId) => ({
+      const validUserIds = Array.from(selectedUsers).filter((id) => allowedUserIds.has(id));
+      if (validUserIds.length === 0) {
+        alert('No valid users selected for your organisation.');
+        return;
+      }
+
+      const assignments = validUserIds.map((userId) => ({
         course_id: selectedCourse.id,
         user_id: userId,
         assigned_by: profile?.id,
@@ -474,7 +531,7 @@ export function UploadedCourses() {
 
       if (error) throw error;
 
-      alert(`Course assigned to ${selectedUsers.size} user(s) successfully!`);
+      alert(`Course assigned to ${validUserIds.length} user(s) successfully!`);
       setShowAssignModal(false);
       setSelectedCourse(null);
       setSelectedUsers(new Set());
@@ -503,6 +560,27 @@ export function UploadedCourses() {
     } catch (error: any) {
       console.error('Error downloading file:', error);
       alert('Failed to download file: ' + error.message);
+    }
+  };
+
+  const handleThumbnailChange = async (course: UploadedCourse, file: File | null) => {
+    if (!file) return;
+    const thumbError = validateThumbnailFile(file);
+    if (thumbError) {
+      alert(thumbError);
+      return;
+    }
+
+    try {
+      setThumbnailUploading(true);
+      await attachThumbnail(course.id, file, course.thumbnail_path);
+      alert('Thumbnail updated.');
+      loadCourses();
+    } catch (error: any) {
+      console.error('Error updating thumbnail:', error);
+      alert('Failed to update thumbnail: ' + error.message);
+    } finally {
+      setThumbnailUploading(false);
     }
   };
 
@@ -629,10 +707,15 @@ export function UploadedCourses() {
                 key={course.id}
                 className="lt-card overflow-hidden hover:shadow-md transition-shadow"
               >
+                <UploadedCourseCover
+                  title={course.title}
+                  thumbnailPath={course.thumbnail_path}
+                  fileType={course.file_type}
+                  height={120}
+                />
                 <div className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    {getFileIcon(course.file_type)}
-                    <div className="flex gap-2">
+                  <div className="flex items-start justify-between mb-4 gap-2">
+                    <div className="flex gap-2 flex-wrap justify-end">
                       <span className="lt-badge lt-badge-blue text-xs font-semibold rounded uppercase">
                         {course.file_type}
                       </span>
@@ -662,6 +745,19 @@ export function UploadedCourses() {
                   </div>
 
                   <div className="flex flex-col gap-2">
+                    <label className="lt-btn-secondary w-full cursor-pointer" style={{ padding: '9px 16px', borderRadius: 8, textAlign: 'center' }}>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif"
+                        className="hidden"
+                        disabled={thumbnailUploading}
+                        onChange={(e) => {
+                          void handleThumbnailChange(course, e.target.files?.[0] || null);
+                          e.target.value = '';
+                        }}
+                      />
+                      {thumbnailUploading ? 'Updating…' : course.thumbnail_path ? 'Change thumbnail' : 'Add thumbnail'}
+                    </label>
                     <div className="flex gap-2">
                       {course.file_type === 'zip' && (
                         <button
@@ -769,6 +865,35 @@ export function UploadedCourses() {
                   <option value="leadership">Leadership</option>
                   <option value="technical">Technical</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Cover thumbnail <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    if (file) {
+                      const err = validateThumbnailFile(file);
+                      if (err) {
+                        alert(err);
+                        e.target.value = '';
+                        return;
+                      }
+                    }
+                    setUploadForm({ ...uploadForm, thumbnail: file });
+                  }}
+                  className="w-full text-sm text-gray-600"
+                />
+                <p className="text-xs text-gray-500 mt-1">JPG, PNG, WebP, or GIF · max 2 MB</p>
+                {uploadForm.thumbnail && (
+                  <p className="text-sm text-green-600 mt-1 font-medium">
+                    Thumbnail: {uploadForm.thumbnail.name}
+                  </p>
+                )}
               </div>
 
               <div>

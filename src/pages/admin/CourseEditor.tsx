@@ -174,7 +174,9 @@ export default function CourseEditor() {
         status: 'assigned',
       }));
 
-      const { error } = await supabase.from('user_course_enrollments').upsert(enrollments);
+      const { error } = await supabase.from('user_course_enrollments').upsert(enrollments, {
+        onConflict: 'user_id,course_id',
+      });
 
       if (error) throw error;
 
