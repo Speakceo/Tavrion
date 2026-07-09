@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Layout } from '../../components/Layout';
 import { useAuth } from '../../contexts/AuthContext';
+import { applyOrgScope } from '../../utils/orgScope';
+import { applyOrgUserScope } from '../../utils/orgUsers';
 import { Mail, Send, Users, BookOpen, Check, Filter } from 'lucide-react';
 
 type CourseKind = 'builtin' | 'uploaded';
@@ -169,6 +171,65 @@ async function loadBuiltinLearners(courseId: string, orgId?: string | null) {
   return filtered as { status?: string | null; user: LearnerRow | null }[];
 }
 
+async function loadOrgScopedCourses(
+  profile: { organization_id?: string | null; is_platform_owner?: boolean } | null | undefined,
+): Promise<CourseOption[]> {
+  if (profile?.is_platform_owner) {
+    const [{ data: builtin }, { data: uploaded }] = await Promise.all([
+      supabase.from('courses').select('id, title, status').order('title'),
+      supabase.from('uploaded_courses').select('id, title').order('title'),
+    ]);
+    return [
+      ...(builtin || []).map((c) => ({ id: c.id, title: c.title, kind: 'builtin' as const, status: c.status })),
+      ...(uploaded || []).map((c) => ({ id: c.id, title: c.title, kind: 'uploaded' as const })),
+    ];
+  }
+
+  const orgId = profile?.organization_id;
+  if (!orgId) return [];
+
+  const { data: orgUsers } = await applyOrgUserScope(
+    supabase.from('user_profiles').select('id'),
+    profile,
+  );
+  const orgUserIds = (orgUsers || []).map((u) => u.id);
+
+  let uploadedQuery = applyOrgScope(
+    supabase.from('uploaded_courses').select('id, title').order('title'),
+    profile,
+  );
+
+  const [uploadedRes, enrollmentsRes, assignmentsRes] = await Promise.all([
+    uploadedQuery,
+    orgUserIds.length > 0
+      ? supabase.from('user_course_enrollments').select('course_id').in('user_id', orgUserIds)
+      : Promise.resolve({ data: [] as { course_id: string }[] }),
+    orgUserIds.length > 0
+      ? supabase.from('uploaded_course_assignments').select('course_id').in('user_id', orgUserIds)
+      : Promise.resolve({ data: [] as { course_id: string }[] }),
+  ]);
+
+  const enrolledCourseIds = [...new Set((enrollmentsRes.data || []).map((e) => e.course_id))];
+  const assignedUploadedIds = new Set((assignmentsRes.data || []).map((a) => a.course_id));
+
+  let builtinCourses: { id: string; title: string; status: string }[] = [];
+  if (enrolledCourseIds.length > 0) {
+    const { data } = await supabase
+      .from('courses')
+      .select('id, title, status')
+      .in('id', enrolledCourseIds)
+      .order('title');
+    builtinCourses = data || [];
+  }
+
+  const uploadedCourses = (uploadedRes.data || []).filter((c) => assignedUploadedIds.has(c.id));
+
+  return [
+    ...builtinCourses.map((c) => ({ id: c.id, title: c.title, kind: 'builtin' as const, status: c.status })),
+    ...uploadedCourses.map((c) => ({ id: c.id, title: c.title, kind: 'uploaded' as const })),
+  ];
+}
+
 export function EmailNudges() {
   const { profile, organization } = useAuth();
   const orgEmailDomain =
@@ -202,18 +263,21 @@ export function EmailNudges() {
   }, []);
 
   useEffect(() => {
-    Promise.all([
-      supabase.from('courses').select('id, title, status').order('title'),
-      supabase.from('uploaded_courses').select('id, title').order('title'),
-    ]).then(([{ data: builtin }, { data: uploaded }]) => {
-      const list: CourseOption[] = [
-        ...(builtin || []).map((c) => ({ id: c.id, title: c.title, kind: 'builtin' as const, status: c.status })),
-        ...(uploaded || []).map((c) => ({ id: c.id, title: c.title, kind: 'uploaded' as const })),
-      ];
-      setCourses(list);
-      setLoading(false);
-    });
-  }, []);
+    if (!profile) return;
+
+    setLoading(true);
+    loadOrgScopedCourses(profile)
+      .then((list) => {
+        setCourses(list);
+        setLoadError('');
+      })
+      .catch((err) => {
+        console.error('Error loading email nudge courses:', err);
+        setCourses([]);
+        setLoadError('Could not load courses for your organisation.');
+      })
+      .finally(() => setLoading(false));
+  }, [profile]);
 
   useEffect(() => {
     if (!selectedCourse) {
@@ -338,8 +402,16 @@ export function EmailNudges() {
         <div style={{ marginBottom: 28 }}>
           <p style={{ fontSize: 11, fontWeight: 700, color: '#808080', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Admin</p>
           <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: '#171717', marginBottom: 4 }}>Email Nudges</h1>
-          <p style={{ fontSize: 14, color: '#4d4d4d' }}>Select a course, filter by completion status, and nudge pending learners</p>
+          <p style={{ fontSize: 14, color: '#4d4d4d' }}>
+            Select a course with learners in {organization?.name || 'your organisation'}, filter by completion status, and send nudges
+          </p>
         </div>
+
+        {loadError && (
+          <div style={{ background: '#fff5f5', boxShadow: '#ff5b4f50 0px 0px 0px 1px', borderRadius: 10, padding: '14px 18px', marginBottom: 20, fontSize: 13, color: '#c0392b' }}>
+            {loadError}
+          </div>
+        )}
 
         {resendConfigured === false && (
           <div style={{ background: '#fff8e6', boxShadow: '#e6a81750 0px 0px 0px 1px', borderRadius: 10, padding: '14px 18px', marginBottom: 20, fontSize: 13, color: '#8a6d00' }}>
@@ -397,7 +469,9 @@ export function EmailNudges() {
                 )}
               </select>
               {courses.length === 0 && (
-                <p style={{ fontSize: 12, color: '#808080', marginTop: 8 }}>No courses found. Upload a course or publish a built-in course first.</p>
+                <p style={{ fontSize: 12, color: '#808080', marginTop: 8 }}>
+                  No courses with assigned learners in your organisation yet. Assign a course first, then return here to send nudges.
+                </p>
               )}
             </div>
 
