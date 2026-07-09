@@ -151,30 +151,6 @@ const ENTERPRISE_FEATURES = [
   { icon: Layers, title: 'API & Webhooks', body: 'Deep integrations with your HRIS, CRM, and existing tech stack via REST API.' },
 ];
 
-const PRICING_PLANS = [
-  {
-    name: 'Starter', price: 'Free', period: '',
-    description: 'Perfect for small teams getting started.',
-    accent: T.textBody, highlight: false,
-    features: ['Up to 5 learners', '5 courses', 'Basic analytics', 'Email support', 'SCORM import'],
-    cta: 'Get started free',
-  },
-  {
-    name: 'Growth', price: '$12', period: '/user/month',
-    description: 'For growing teams that need more power.',
-    accent: T.blue, highlight: true,
-    features: ['Up to 500 learners', 'Unlimited courses', 'AI Tutor + Mock Calls', 'Tavrion Test assessments', 'Advanced analytics', 'Email nudges', 'Priority support', 'Custom branding'],
-    cta: 'Start 14-day trial',
-  },
-  {
-    name: 'Enterprise', price: 'Custom', period: '',
-    description: 'For global organisations at scale.',
-    accent: T.text, highlight: false,
-    features: ['Unlimited learners', 'Multi-org management', 'SSO & SAML', 'Data residency choice', 'Dedicated CSM', 'SLA guarantee', 'Custom integrations', 'White-label option'],
-    cta: 'Talk to sales',
-  },
-];
-
 const TESTIMONIALS = [
   { quote: 'Tavrion transformed how we onboard across 30 markets. Completion jumped from 64% to 96% in six months.', name: 'Sarah Mitchell', role: 'Head of L&D, Global Fintech', avatar: 'SM' },
   { quote: 'The mock call AI is extraordinary. Our reps close 23% more deals after four weeks on the platform.', name: 'James Okonkwo', role: 'VP Sales Enablement, EMEA', avatar: 'JO' },
@@ -188,7 +164,6 @@ const NAV_ITEMS = [
   { label: 'Platform', id: 'platform' },
   { label: 'Solutions', id: 'solutions' },
   { label: 'Enterprise', id: 'enterprise' },
-  { label: 'Pricing', id: 'pricing' },
   { label: 'FAQ', id: 'faq' },
 ];
 
@@ -891,12 +866,6 @@ export function LandingPage() {
                   onMouseEnter={e => (e.currentTarget.style.background = '#2d2d2d')}
                   onMouseLeave={e => (e.currentTarget.style.background = T.text)}
                 >Book a demo</Link>
-                <button
-                  onClick={() => scrollTo('pricing')}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 500, color: T.text, background: T.bg, padding: '10px 22px', borderRadius: 6, border: 'none', cursor: 'pointer', boxShadow: T.shadowBorder, transition: 'box-shadow 0.15s' }}
-                  onMouseEnter={e => (e.currentTarget.style.boxShadow = T.shadowHover)}
-                  onMouseLeave={e => (e.currentTarget.style.boxShadow = T.shadowBorder)}
-                >View pricing <ChevronRight size={14} /></button>
               </div>
             </div>
 
@@ -1040,93 +1009,6 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── PRICING ── */}
-      <section id="pricing" style={{ padding: isMobile ? '60px 20px' : '96px 24px', background: T.bg, scrollMarginTop: 60 }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <div data-scroll-fade style={{ textAlign: 'center', marginBottom: 52 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: T.textFaint, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 14 }}>Pricing</p>
-            <h2 style={{ fontSize: isMobile ? 28 : 'clamp(28px,4vw,40px)', fontWeight: 700, letterSpacing: '-0.04em', color: T.text, marginBottom: 14 }}>
-              Simple, transparent pricing
-            </h2>
-            <p style={{ fontSize: isMobile ? 15 : 17, color: T.textBody, maxWidth: 440, margin: '0 auto', lineHeight: 1.7 }}>
-              Start free. Scale as you grow. No hidden fees, no lock-in contracts.
-            </p>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3,1fr)', gap: 14, maxWidth: 960, margin: '0 auto' }}>
-            {PRICING_PLANS.map(plan => (
-              <div
-                key={plan.name}
-                style={{
-                  background: plan.highlight ? T.text : T.bg, borderRadius: 14,
-                  padding: isMobile ? '24px 20px' : '32px 28px',
-                  boxShadow: plan.highlight
-                    ? 'rgba(0,0,0,0.2) 0px 0px 0px 1px, rgba(0,0,0,0.12) 0px 8px 24px'
-                    : T.shadowCard,
-                  position: 'relative', overflow: 'hidden',
-                }}
-              >
-                {plan.highlight && (
-                  <div style={{ position: 'absolute', top: 14, right: 14, fontSize: 10, fontWeight: 700, color: T.text, background: '#f5f5f5', padding: '3px 10px', borderRadius: 9999, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                    Most popular
-                  </div>
-                )}
-                <p style={{ fontSize: 12, fontWeight: 600, color: plan.highlight ? 'rgba(255,255,255,0.5)' : T.textFaint, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{plan.name}</p>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 6 }}>
-                  <span style={{ fontSize: 44, fontWeight: 700, letterSpacing: '-0.045em', color: plan.highlight ? 'white' : T.text }}>{plan.price}</span>
-                  {plan.period && <span style={{ fontSize: 13, color: plan.highlight ? 'rgba(255,255,255,0.4)' : T.textFaint }}>{plan.period}</span>}
-                </div>
-                <p style={{ fontSize: 13, color: plan.highlight ? 'rgba(255,255,255,0.5)' : T.textMuted, marginBottom: 24, lineHeight: 1.6 }}>{plan.description}</p>
-                <div style={{ borderTop: `1px solid ${plan.highlight ? 'rgba(255,255,255,0.1)' : T.borderStrong}`, paddingTop: 20, marginBottom: 24 }}>
-                  <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {plan.features.map(f => (
-                      <li key={f} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: plan.highlight ? 'rgba(255,255,255,0.8)' : T.textBody }}>
-                        <div style={{ width: 15, height: 15, borderRadius: '50%', background: plan.highlight ? 'rgba(255,255,255,0.12)' : T.bgSection, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <Check size={9} style={{ color: plan.highlight ? 'white' : '#10b981' }} />
-                        </div>
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <Link to="/login" style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  fontSize: 14, fontWeight: 600,
-                  color: plan.highlight ? T.text : 'white',
-                  background: plan.highlight ? 'white' : T.text,
-                  padding: '11px 18px', borderRadius: 8,
-                  textDecoration: 'none', transition: 'all 0.15s',
-                }}
-                  onMouseEnter={e => (e.currentTarget.style.opacity = '0.88')}
-                  onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
-                >
-                  {plan.cta} <ArrowRight size={14} />
-                </Link>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ marginTop: 48, textAlign: 'center' }}>
-            <p style={{ fontSize: 13, color: T.textMuted, marginBottom: 4 }}>Need a custom quote for 1,000+ learners?</p>
-            <a href="#" style={{ fontSize: 14, fontWeight: 600, color: T.blue, textDecoration: 'none' }}
-              onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
-              onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
-            >Talk to our enterprise team →</a>
-          </div>
-
-          <div style={{ marginTop: 52, background: T.bgSubtle, borderRadius: 12, padding: isMobile ? '24px 20px' : '32px 40px', boxShadow: T.shadowBorder }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: T.textFaint, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 20, textAlign: 'center' }}>All plans include</p>
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 12 }}>
-              {['99.9% uptime SLA', 'SCORM & xAPI support', 'Mobile-responsive', 'Email support', 'Data export', 'API access', 'Audit logs', 'GDPR compliant'].map(f => (
-                <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: T.textBody }}>
-                  <CheckCircle size={12} style={{ color: '#10b981', flexShrink: 0 }} /> {f}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* ── CTA ── */}
       <section style={{ background: T.text, padding: isMobile ? '60px 20px' : '96px 24px' }}>
         <div style={{ maxWidth: 720, margin: '0 auto', textAlign: 'center' }}>
@@ -1151,17 +1033,6 @@ export function LandingPage() {
               onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
               onMouseLeave={e => (e.currentTarget.style.background = 'white')}
             >Start free trial <ArrowRight size={15} /></Link>
-            <button
-              onClick={() => scrollTo('pricing')}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                fontSize: 15, fontWeight: 500, color: 'rgba(255,255,255,0.7)',
-                background: 'rgba(255,255,255,0.08)', padding: '13px 22px', borderRadius: 6,
-                border: '1px solid rgba(255,255,255,0.12)', cursor: 'pointer', transition: 'all 0.15s',
-              }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.12)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
-            ><MessageSquare size={15} /> View pricing</button>
           </div>
         </div>
       </section>
@@ -1175,7 +1046,6 @@ export function LandingPage() {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? 16 : 24 }}>
             <button type="button" onClick={() => scrollTo('product')} style={{ fontSize: 12, color: T.textFaint, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Product</button>
             <button type="button" onClick={() => scrollTo('platform')} style={{ fontSize: 12, color: T.textFaint, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Platform</button>
-            <button type="button" onClick={() => scrollTo('pricing')} style={{ fontSize: 12, color: T.textFaint, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Pricing</button>
             <button type="button" onClick={() => scrollTo('faq')} style={{ fontSize: 12, color: T.textFaint, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>FAQ</button>
             <Link to="/dna-studio" style={{ fontSize: 12, color: T.textFaint, textDecoration: 'none' }}>DNA Studio</Link>
             <Link to="/tavrion-bot" style={{ fontSize: 12, color: T.textFaint, textDecoration: 'none' }}>Tavrion Bot</Link>

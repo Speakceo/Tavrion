@@ -12,8 +12,6 @@ import {
   ListChecks, Headphones, User, ChevronDown, Activity, Building2, Mail, Menu, X,
   Award, Target, FileText, Library, ClipboardCheck,
 } from 'lucide-react';
-import { isBooksFeatureEnabled } from '../utils/books';
-import { isNavRouteEnabled } from '../utils/orgFeatures';
 import { getOrgLogoUrl } from '../utils/orgSettings';
 import { TestModeToggle } from '../modules/assessment/components/TestModeToggle';
 import { useDocumentTitle } from '../lib/seo';
@@ -171,19 +169,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
     || (location.pathname.startsWith('/test') ? PAGE_TITLES[location.pathname] || { label: 'Tavrion Test', section: 'Admin' } : null)
     || { label: 'Tavrion', section: '' };
   useDocumentTitle(currentPage.label);
-  const booksNavEnabled = profile?.is_platform_owner || isBooksFeatureEnabled(organization?.features);
-  const platformOwner = Boolean(profile?.is_platform_owner);
   const orgLogo = getOrgLogoUrl(organization);
-  const filterByFeature = <T extends { href: string }>(items: T[]) =>
-    items.filter((item) => isNavRouteEnabled(item.href, organization?.features, { platformOwner }));
 
-  const userNavigation = filterByFeature([
+  const userNavigation = [
     { name: 'Home', href: '/dashboard', icon: Home },
     { name: 'Social', href: '/social', icon: Share2 },
     { name: 'Polls', href: '/polls', icon: BarChart3 },
     { name: 'Events', href: '/events', icon: Calendar },
     { name: 'Saved', href: '/saved', icon: Bookmark },
-    ...(booksNavEnabled ? [{ name: 'Books', href: '/books', icon: Library }] : []),
+    { name: 'Books', href: '/books', icon: Library },
     { name: 'Shots', href: '/shots', icon: Video },
     { name: 'Best Calls', href: '/best-calls', icon: Headphones },
     { name: 'My Team', href: '/my-team', icon: TeamIcon },
@@ -193,13 +187,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { name: 'Recent Learning', href: '/recent-learning', icon: Clock },
     { name: 'Completed Learning', href: '/completed-learning', icon: CheckCircle },
     { name: 'My Certificates', href: '/certificates', icon: Award },
-  ]);
+  ];
 
-  const aiTools = filterByFeature([
+  const aiTools = [
     { name: 'AI Tutor', href: '/ai-tutor', icon: MessageSquare },
     { name: 'Mock Calls', href: '/mock-calls', icon: Phone },
     { name: 'Live Calls', href: '/live-calls', icon: Phone },
-  ]);
+  ];
 
   const adminNavigation = [
     { name: 'Manage Users', href: '/admin/users', icon: UsersIcon, roles: ['super_admin', 'admin'] },
@@ -215,9 +209,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { name: 'Policy Versions', href: '/admin/policy-versions', icon: FileText, roles: ['super_admin', 'admin', 'trainer'] },
   ];
 
-  const filteredAdminNav = filterByFeature(
-    adminNavigation.filter((item) => item.roles.includes(profile?.role || '')),
-  );
+  const filteredAdminNav = adminNavigation.filter((item) => item.roles.includes(profile?.role || ''));
   const isAdmin = ['super_admin', 'admin', 'trainer'].includes(profile?.role || '');
   const mobileNavExtra = isMobile && currentPage.section ? 44 : 0;
   const navOffset = 52 + mobileNavExtra;
