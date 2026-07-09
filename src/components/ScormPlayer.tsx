@@ -11,6 +11,11 @@ import {
   type ScormPlaybackResolver,
   type ScormStorageIndex,
 } from '../utils/scormStorage';
+import {
+  isStreamableMedia,
+  rewriteScormCssAssets,
+  rewriteScormHtmlAssets,
+} from '../utils/scormHtmlRewrite';
 import { X, AlertCircle } from 'lucide-react';
 
 interface ScormPlayerProps {
@@ -110,7 +115,14 @@ function getMimeType(fileName: string): string {
     gif: 'image/gif',
     svg: 'image/svg+xml',
     mp4: 'video/mp4',
+    webm: 'video/webm',
+    mov: 'video/quicktime',
+    m4v: 'video/mp4',
     mp3: 'audio/mpeg',
+    m4a: 'audio/mp4',
+    ogg: 'audio/ogg',
+    oga: 'audio/ogg',
+    aac: 'audio/aac',
     wav: 'audio/wav',
     pdf: 'application/pdf',
     xsd: 'application/xml',
@@ -129,7 +141,7 @@ async function registerScormServiceWorker(): Promise<ServiceWorkerRegistration> 
     throw new Error('Service Workers not supported in this browser');
   }
 
-  const registration = await navigator.serviceWorker.register('/scorm-sw.js', { scope: '/' });
+  const registration = await navigator.serviceWorker.register('/scorm-sw.js?v=3', { scope: '/' });
 
   if (registration.active) return registration;
 
@@ -192,9 +204,15 @@ async function cacheStorageFiles(
     const batch = resolver.entries.slice(i, i + 10);
     await Promise.all(batch.map(async ({ zipPath, storagePath }) => {
       try {
+        if (isStreamableMedia(zipPath)) {
+          onDebug?.(`Skipping cache for streamable media: ${zipPath} (direct storage URL in HTML / SW stream)`);
+          return;
+        }
+
         const response = await fetchScormAsset(storagePrefix, zipPath, resolver);
         const mimeType = getMimeType(zipPath);
         const isHtml = /\.html?$/i.test(zipPath);
+        const isCss = /\.css$/i.test(zipPath);
         let body: BodyInit = await response.arrayBuffer();
 
         if (isHtml) {
@@ -208,6 +226,10 @@ async function cacheStorageFiles(
           } else {
             text = '<head>' + SCORM_API_SHIM + '</head>' + text;
           }
+          text = rewriteScormHtmlAssets(text, zipPath, storagePrefix, resolver);
+          body = new Blob([text], { type: mimeType });
+        } else if (isCss) {
+          const text = rewriteScormCssAssets(new TextDecoder().decode(body as ArrayBuffer), zipPath, storagePrefix, resolver);
           body = new Blob([text], { type: mimeType });
         } else {
           body = new Blob([body], { type: mimeType });
