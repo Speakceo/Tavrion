@@ -3,12 +3,17 @@ import { Link } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { Clock, BookOpen, ArrowRight, Eye, Download, FileText } from 'lucide-react';
+import { Clock, BookOpen, ArrowRight, Download, FileText, Play } from 'lucide-react';
 import { ScormPlayer } from '../components/ScormPlayer';
 import { CourseCompletionCelebration } from '../components/CourseCompletionCelebration';
 import { tryCompleteUploadedCourse } from '../utils/courseCompletion';
 import { useLearnerCourses } from '../hooks/useLearnerCourses';
 import { isInProgressStatus, isPendingStatus, statusLabel } from '../utils/learnerCourses';
+import {
+  getCourseActionLabel,
+  getCourseFormatLabel,
+  isInteractiveCourse,
+} from '../utils/uploadedCourseDisplay';
 
 export function RecentLearning() {
   const { profile } = useAuth();
@@ -188,8 +193,8 @@ export function RecentLearning() {
                           <div className="flex-1">
                             <h3 className="text-lg font-semibold text-gray-900 mb-1">{assignment.course.title}</h3>
                             <div className="flex items-center flex-wrap gap-3">
-                              <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold uppercase">
-                                {assignment.course.file_type}
+                              <span className="px-3 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-medium">
+                                {getCourseFormatLabel(assignment.course.file_type)}
                               </span>
                               <span className="text-xs text-gray-500">{formatFileSize(assignment.course.file_size || 0)}</span>
                               {assignment.viewed_at && (
@@ -201,20 +206,36 @@ export function RecentLearning() {
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          {assignment.course.file_type === 'zip' && (
-                            <button onClick={() => setPreviewCourse(assignment.course)} className="lt-btn-primary" style={{ padding: '9px 16px', borderRadius: 8 }}>
-                              <Eye className="w-4 h-4" />
-                              Preview
+                          {(assignment.course.file_type === 'zip' || assignment.course.file_type === 'scorm') && (
+                            <button
+                              onClick={() => setPreviewCourse(assignment.course)}
+                              className="lt-btn-primary"
+                              style={{ padding: '9px 16px', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 6 }}
+                            >
+                              <Play className="w-4 h-4" />
+                              {getCourseActionLabel(assignment.course.file_type, assignment.status)}
                             </button>
                           )}
-                          <button
-                            onClick={() => handleDownloadFile(assignment.course.file_path!, assignment.course.file_name!, assignment.course_id)}
-                            className="lt-btn-primary"
-                            style={{ padding: '9px 16px', borderRadius: 8 }}
-                          >
-                            <Download className="w-4 h-4" />
-                            Download
-                          </button>
+                          {assignment.course.file_type === 'pdf' && (
+                            <Link
+                              to="/courses"
+                              className="lt-btn-primary"
+                              style={{ padding: '9px 16px', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}
+                            >
+                              <Play className="w-4 h-4" />
+                              {getCourseActionLabel(assignment.course.file_type, assignment.status)}
+                            </Link>
+                          )}
+                          {!isInteractiveCourse(assignment.course.file_type) && (
+                            <button
+                              onClick={() => handleDownloadFile(assignment.course.file_path!, assignment.course.file_name!, assignment.course_id)}
+                              className="lt-btn-primary"
+                              style={{ padding: '9px 16px', borderRadius: 8 }}
+                            >
+                              <Download className="w-4 h-4" />
+                              Download
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -226,12 +247,12 @@ export function RecentLearning() {
         )}
       </div>
 
-      {previewCourse && previewCourse.file_type === 'zip' && (
+      {previewCourse && (previewCourse.file_type === 'zip' || previewCourse.file_type === 'scorm') && (
         <ScormPlayer
           courseId={previewCourse.id}
           courseTitle={previewCourse.title}
           filePath={previewCourse.file_path}
-          fileName={previewCourse.file_name}
+          subtitle={getCourseFormatLabel(previewCourse.file_type)}
           onClose={() => setPreviewCourse(null)}
           onComplete={async () => {
             if (profile) {

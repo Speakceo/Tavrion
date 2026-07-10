@@ -7,7 +7,7 @@ import { Upload, FileText, Users, Trash2, Download, Eye, Calendar, Search, Filte
 import { validateScormPackage, extractScormMetadata, type ScormValidationResult } from '../../utils/scormValidator';
 import { createScormPackage, type ScormCourseData } from '../../utils/scormCreator';
 import { convertScormForCompatibility, needsConversion, type ConversionResult } from '../../utils/scormConverter';
-import { uploadLargeFile } from '../../utils/chunkedUpload';
+import { getCourseFormatLabel } from '../../utils/uploadedCourseDisplay';
 import {
   EXTRACTED_SCORM_PREFIX,
   scanScormZip,
@@ -1027,10 +1027,7 @@ export function UploadedCourses() {
                 {scormZipScan && (
                   <div className="mt-4 p-4 rounded-lg border bg-slate-50 border-slate-200">
                     <p className="text-sm text-slate-800">
-                      Package contains <strong>{scormZipScan.fileCount}</strong> files
-                      {uploadForm.file && uploadForm.file.size > 45 * 1024 * 1024 && (
-                        <> — will be extracted and uploaded individually because the ZIP exceeds 45 MB.</>
-                      )}
+                      Package contains <strong>{scormZipScan.fileCount}</strong> files and will be extracted for reliable SCORM playback.
                     </p>
                     {scormZipScan.oversizedEntry && (
                       <p className="text-sm text-red-700 mt-2">
@@ -1525,12 +1522,13 @@ export function UploadedCourses() {
         </div>
       )}
 
-      {previewCourse && previewCourse.file_type === 'zip' && (
+      {previewCourse && (previewCourse.file_type === 'zip' || previewCourse.file_type === 'scorm') && (
         <ScormPlayer
           courseId={previewCourse.id}
           courseTitle={previewCourse.title}
           filePath={previewCourse.file_path}
-          fileName={previewCourse.file_name}
+          subtitle={getCourseFormatLabel(previewCourse.file_type)}
+          showDebug
           onClose={() => setPreviewCourse(null)}
           onComplete={() => {
             console.log('Course preview completed');

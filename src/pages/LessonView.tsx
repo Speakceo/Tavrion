@@ -340,7 +340,7 @@ export function LessonView() {
                     courseId={lesson.module?.course?.id || ''}
                     courseTitle={lesson.title}
                     filePath={lesson.content.scorm_url}
-                    fileName={lesson.content.scorm_file_name || 'SCORM Package'}
+                    subtitle="Interactive course"
                     onClose={() => navigate(-1)}
                     onComplete={() => markComplete()}
                   />

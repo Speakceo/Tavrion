@@ -19,13 +19,16 @@ import {
   rewriteScormJsAssets,
 } from '../utils/scormHtmlRewrite';
 import { buildScormRuntimeShim, SCORM_SESSION_CONFIG_FILE } from '../utils/scormRuntimeShim';
-import { X, AlertCircle } from 'lucide-react';
+import { X, AlertCircle, Maximize2 } from 'lucide-react';
 
 interface ScormPlayerProps {
   courseId: string;
   courseTitle: string;
   filePath: string;
-  fileName: string;
+  /** @deprecated Not shown in the player UI — use subtitle instead */
+  fileName?: string;
+  subtitle?: string;
+  showDebug?: boolean;
   onClose: () => void;
   onComplete?: () => void;
 }
@@ -278,11 +281,20 @@ async function cacheStorageFiles(
   return { launchBasePath: basePath, cached, failures };
 }
 
-export function ScormPlayer({ courseId, courseTitle, filePath, fileName, onClose, onComplete }: ScormPlayerProps) {
+export function ScormPlayer({
+  courseId,
+  courseTitle,
+  filePath,
+  subtitle = 'Interactive course',
+  showDebug: showDebugProp,
+  onClose,
+  onComplete,
+}: ScormPlayerProps) {
+  const showDebugDefault = showDebugProp ?? import.meta.env.DEV;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<string[]>([]);
-  const [showDebug, setShowDebug] = useState(false);
+  const [showDebug, setShowDebug] = useState(showDebugDefault);
   const [progress, setProgress] = useState('');
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const sessionIdRef = useRef<string | null>(null);
@@ -501,62 +513,100 @@ export function ScormPlayer({ courseId, courseTitle, filePath, fileName, onClose
   }, [courseId, filePath, onComplete]);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg w-full h-full max-w-7xl max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">{courseTitle}</h2>
-            <p className="text-sm text-gray-500">{fileName}</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-5">
+      <div
+        className="flex h-full w-full max-h-[94vh] max-w-7xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
+        style={{ boxShadow: '0 24px 80px rgba(0,0,0,0.45)' }}
+      >
+        <div
+          className="flex shrink-0 items-center justify-between gap-4 border-b px-4 py-3 sm:px-5"
+          style={{ borderColor: '#ebebeb', background: '#fafafa' }}
+        >
+          <div className="min-w-0 flex-1">
+            <h2 className="truncate text-base font-bold tracking-tight text-gray-900 sm:text-lg">
+              {courseTitle}
+            </h2>
+            <p className="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500 sm:text-sm">
+              <span>{subtitle}</span>
+              <span className="text-gray-300">·</span>
+              <span className="inline-flex items-center gap-1">
+                <Maximize2 className="h-3 w-3" />
+                Use fullscreen for the best experience
+              </span>
+            </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
+            {import.meta.env.DEV && (
+              <button
+                type="button"
+                onClick={() => setShowDebug(!showDebug)}
+                className="hidden rounded-md px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-200 sm:block"
+              >
+                {showDebug ? 'Hide debug' : 'Debug'}
+              </button>
+            )}
             <button
-              onClick={() => setShowDebug(!showDebug)}
-              className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded"
-            >
-              {showDebug ? 'Hide Debug' : 'Show Debug'}
-            </button>
-            <button
+              type="button"
               onClick={onClose}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900"
+              aria-label="Close course"
             >
-              <X className="w-5 h-5" />
+              <X className="h-5 w-5" />
             </button>
           </div>
         </div>
 
         {showDebug && (
-          <div className="bg-gray-900 text-gray-100 p-4 max-h-48 overflow-y-auto font-mono text-xs">
-            <div className="font-bold mb-2">Debug Log:</div>
+          <div className="max-h-40 shrink-0 overflow-y-auto bg-gray-900 p-3 font-mono text-xs text-gray-100">
+            <div className="mb-2 font-bold">Debug log</div>
             {debugInfo.map((info, i) => (
               <div key={i} className="mb-1">{info}</div>
             ))}
           </div>
         )}
 
-        <div className="flex-1 relative">
+        <div className="relative min-h-0 flex-1 bg-white">
           {loading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-white z-10">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                <p className="text-gray-600">Loading SCORM content...</p>
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-white">
+              <div className="w-full max-w-sm px-6 text-center">
+                <div
+                  className="mx-auto mb-5 h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-900"
+                  role="status"
+                  aria-label="Loading"
+                />
+                <p className="text-sm font-semibold text-gray-900">Preparing your course</p>
+                <p className="mt-1 text-xs text-gray-500">This may take a moment on first launch</p>
                 {progress && (
-                  <p className="text-sm text-gray-500 mt-2">Preparing files: {progress}</p>
+                  <>
+                    <div className="mx-auto mt-4 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-gray-100">
+                      <div
+                        className="h-full rounded-full bg-gray-900 transition-all duration-300"
+                        style={{
+                          width: progress.includes('/')
+                            ? `${Math.min(100, (parseInt(progress.split('/')[0], 10) / parseInt(progress.split('/')[1], 10)) * 100)}%`
+                            : '30%',
+                        }}
+                      />
+                    </div>
+                    <p className="mt-2 text-xs text-gray-400">{progress} files ready</p>
+                  </>
                 )}
               </div>
             </div>
           )}
 
           {error && (
-            <div className="absolute inset-0 flex items-center justify-center bg-white z-10">
-              <div className="text-center max-w-md">
-                <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Content</h3>
-                <p className="text-gray-600 mb-4">{error}</p>
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-white px-6">
+              <div className="max-w-md text-center">
+                <AlertCircle className="mx-auto mb-4 h-11 w-11 text-red-500" />
+                <h3 className="mb-2 text-base font-semibold text-gray-900">Couldn&apos;t load this course</h3>
+                <p className="mb-5 text-sm text-gray-600">{error}</p>
                 <button
+                  type="button"
                   onClick={onClose}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
                 >
-                  Close
+                  Go back
                 </button>
               </div>
             </div>
@@ -564,7 +614,7 @@ export function ScormPlayer({ courseId, courseTitle, filePath, fileName, onClose
 
           <iframe
             ref={iframeRef}
-            className="w-full h-full border-0"
+            className="h-full w-full border-0"
             title={courseTitle}
             allow="autoplay; fullscreen"
           />

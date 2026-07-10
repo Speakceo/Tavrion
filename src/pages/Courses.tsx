@@ -10,7 +10,14 @@ import { ScormPlayer } from '../components/ScormPlayer';
 import { CourseCompletionCelebration } from '../components/CourseCompletionCelebration';
 import { UploadedCourseCover } from '../components/UploadedCourseCover';
 import { getUploadedCourseSignedUrl } from '../utils/uploadedCourseMedia';
-import { BookOpen, Clock, Award, FileText, Download, Eye } from 'lucide-react';
+import {
+  getAssignmentStatusLabel,
+  getCourseActionLabel,
+  getCourseFormatLabel,
+  getStatusBadgeClass,
+  isInteractiveCourse,
+} from '../utils/uploadedCourseDisplay';
+import { BookOpen, Clock, Award, Download, Play } from 'lucide-react';
 
 export function Courses() {
   const { profile } = useAuth();
@@ -84,14 +91,6 @@ export function Courses() {
   };
 
   const handleViewCourse = async (assignment: UploadedCourseAssignment) => {
-    console.log('📂 [Courses] Opening SCORM viewer with assignment:', {
-      id: assignment.id,
-      courseId: assignment.course.id,
-      title: assignment.course.title,
-      filePath: assignment.course.file_path,
-      fileName: assignment.course.file_name,
-      fileType: assignment.course.file_type
-    });
     setViewingCourse(assignment);
 
     if (assignment.status === 'assigned' || assignment.status === 'not_started') {
@@ -123,16 +122,6 @@ export function Courses() {
     if (result.completed) {
       setCompletedCourseTitle(result.courseTitle);
     }
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-  };
-
-  const getFileIcon = (type: string) => {
-    return <FileText className="w-16 h-16 text-blue-600 opacity-80" />;
   };
 
   if (loading) {
@@ -180,7 +169,7 @@ export function Courses() {
 
         {filteredUploadedCourses.length > 0 && (
           <>
-            <h2 style={{ fontSize: 16, fontWeight: 700, color: '#171717', marginBottom: 16, marginTop: 24 }}>Uploaded Courses</h2>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: '#171717', marginBottom: 16, marginTop: 24 }}>Assigned courses</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
               {filteredUploadedCourses.map((assignment) => (
                 <div
@@ -197,25 +186,29 @@ export function Courses() {
                   <div style={{ padding: 20 }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 }}>
                       <h3 style={{ fontSize: 14, fontWeight: 700, color: '#171717', flex: 1 }}>{assignment.course.title}</h3>
-                      <span className="lt-badge" style={{ marginLeft: 8, flexShrink: 0 }}>{assignment.course.file_type?.toUpperCase()}</span>
+                      <span className="lt-badge" style={{ marginLeft: 8, flexShrink: 0 }}>
+                        {getCourseFormatLabel(assignment.course.file_type)}
+                      </span>
                     </div>
-                    <p style={{ fontSize: 12, color: '#666666', marginBottom: 14, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{assignment.course.description}</p>
+                    {assignment.course.description && (
+                      <p style={{ fontSize: 12, color: '#666666', marginBottom: 14, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{assignment.course.description}</p>
+                    )}
 
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                      <span className={`lt-badge ${assignment.status === 'completed' ? 'lt-badge-success' : assignment.status === 'viewed' || assignment.status === 'downloaded' ? 'lt-badge-blue' : ''}`}>
-                        {assignment.status.toUpperCase()}
+                      <span className={`lt-badge ${getStatusBadgeClass(assignment.status)}`}>
+                        {getAssignmentStatusLabel(assignment.status)}
                       </span>
-                      <span style={{ fontSize: 11, color: '#808080' }}>{formatFileSize(assignment.course.file_size)}</span>
                     </div>
 
                     <div style={{ display: 'flex', gap: 8 }}>
-                      {(assignment.course.file_type === 'pdf' || assignment.course.file_type === 'zip' || assignment.course.file_type === 'scorm') ? (
+                      {isInteractiveCourse(assignment.course.file_type) ? (
                         <button
                           onClick={() => handleViewCourse(assignment)}
                           className="lt-btn-primary"
                           style={{ flex: 1, padding: '9px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 8 }}
                         >
-                          <Eye size={13} /> View Course
+                          <Play size={13} />
+                          {getCourseActionLabel(assignment.course.file_type, assignment.status)}
                         </button>
                       ) : (
                         <button
@@ -281,50 +274,44 @@ export function Courses() {
         )}
 
         {viewingCourse && (viewingCourse.course.file_type === 'zip' || viewingCourse.course.file_type === 'scorm') && (
-          <>
-            {console.log('🎯 [Courses] Rendering ScormPlayer component')}
-            <ScormPlayer
-              courseId={viewingCourse.course.id}
-              courseTitle={viewingCourse.course.title}
-              filePath={viewingCourse.course.file_path}
-              fileName={viewingCourse.course.file_name}
-              onClose={() => {
-                console.log('❌ [Courses] Closing SCORM viewer');
-                setViewingCourse(null);
-              }}
-              onComplete={() => {
-                console.log('✅ [Courses] SCORM course completed');
-                void handleCourseComplete(viewingCourse.id, viewingCourse.course.id, viewingCourse.course.title);
-              }}
-            />
-          </>
+          <ScormPlayer
+            courseId={viewingCourse.course.id}
+            courseTitle={viewingCourse.course.title}
+            filePath={viewingCourse.course.file_path}
+            subtitle={getCourseFormatLabel(viewingCourse.course.file_type)}
+            onClose={() => setViewingCourse(null)}
+            onComplete={() => {
+              void handleCourseComplete(viewingCourse.id, viewingCourse.course.id, viewingCourse.course.title);
+            }}
+          />
         )}
 
         {viewingCourse && viewingCourse.course.file_type === 'pdf' && (
-          <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg w-full h-full max-w-7xl max-h-[95vh] flex flex-col">
-              <div className="flex items-center justify-between p-4 border-b bg-gray-50">
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">{viewingCourse.course.title}</h2>
-                  <p className="text-sm text-gray-600">{viewingCourse.course.file_name}</p>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-5">
+            <div className="flex h-full w-full max-h-[94vh] max-w-7xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+              <div className="flex shrink-0 items-center justify-between gap-4 border-b px-4 py-3 sm:px-5" style={{ borderColor: '#ebebeb', background: '#fafafa' }}>
+                <div className="min-w-0">
+                  <h2 className="truncate text-base font-bold text-gray-900 sm:text-lg">{viewingCourse.course.title}</h2>
+                  <p className="mt-0.5 text-xs text-gray-500 sm:text-sm">{getCourseFormatLabel('pdf')}</p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setViewingCourse(null)}
-                  className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg font-medium"
+                  className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800"
                 >
                   Close
                 </button>
               </div>
-              <div className="flex-1 overflow-hidden">
+              <div className="min-h-0 flex-1 overflow-hidden">
                 {pdfViewerUrl ? (
                   <iframe
                     src={pdfViewerUrl}
-                    className="w-full h-full"
+                    className="h-full w-full"
                     title="Course Content"
                   />
                 ) : (
-                  <div className="flex items-center justify-center h-full text-gray-500">
-                    Loading PDF…
+                  <div className="flex h-full items-center justify-center text-sm text-gray-500">
+                    Preparing document…
                   </div>
                 )}
               </div>

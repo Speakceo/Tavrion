@@ -13,6 +13,7 @@ import { tryCompleteUploadedCourse } from '../utils/courseCompletion';
 import { CourseCompletionCelebration } from '../components/CourseCompletionCelebration';
 import { useLearnerCourses } from '../hooks/useLearnerCourses';
 import { isPendingStatus, statusLabel } from '../utils/learnerCourses';
+import { getCourseFormatLabel } from '../utils/uploadedCourseDisplay';
 
 const T = {
   text: '#171717', body: '#4d4d4d', muted: '#666666', faint: '#808080',
@@ -576,7 +577,7 @@ export function Dashboard() {
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</p>
-                      <p style={{ fontSize: 11, color: T.faint, marginTop: 2 }}>{item.assignment.course.file_type?.toUpperCase() || 'FILE'} · {formatFileSize(item.assignment.course.file_size || 0)}</p>
+                      <p style={{ fontSize: 11, color: T.faint, marginTop: 2 }}>{getCourseFormatLabel(item.assignment.course.file_type)}</p>
                     </div>
                     <div className="dash-journey-badges">
                       <span className={`lt-badge ${item.status === 'completed' ? 'lt-badge-success' : isPendingStatus(item.status, 'uploaded') ? '' : 'lt-badge-blue'}`}>
@@ -598,12 +599,12 @@ export function Dashboard() {
 
       </div>
 
-      {previewCourse && previewCourse.file_type === 'zip' && (
+      {previewCourse && (previewCourse.file_type === 'zip' || previewCourse.file_type === 'scorm') && (
         <ScormPlayer
           courseId={previewCourse.id}
           courseTitle={previewCourse.title}
           filePath={previewCourse.file_path}
-          fileName={previewCourse.file_name}
+          subtitle={getCourseFormatLabel(previewCourse.file_type)}
           onClose={() => setPreviewCourse(null)}
           onComplete={async () => {
             if (profile) {

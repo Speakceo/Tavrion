@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FileText } from 'lucide-react';
 import { getUploadedCourseSignedUrl } from '../utils/uploadedCourseMedia';
+import { getCourseFormatLabel } from '../utils/uploadedCourseDisplay';
 
 interface UploadedCourseCoverProps {
   title: string;
@@ -67,7 +68,7 @@ export function UploadedCourseCover({
             letterSpacing: '0.06em',
           }}
         >
-          {fileType.toUpperCase()}
+          {getCourseFormatLabel(fileType)}
         </span>
       )}
     </div>
