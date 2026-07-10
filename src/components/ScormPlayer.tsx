@@ -28,6 +28,7 @@ interface ScormPlayerProps {
   /** @deprecated Not shown in the player UI — use subtitle instead */
   fileName?: string;
   subtitle?: string;
+  /** Enables the debug toggle in the player header (panel stays closed until clicked). */
   showDebug?: boolean;
   onClose: () => void;
   onComplete?: () => void;
@@ -290,11 +291,11 @@ export function ScormPlayer({
   onClose,
   onComplete,
 }: ScormPlayerProps) {
-  const showDebugDefault = showDebugProp ?? import.meta.env.DEV;
+  const debugAllowed = showDebugProp ?? import.meta.env.DEV;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<string[]>([]);
-  const [showDebug, setShowDebug] = useState(showDebugDefault);
+  const [showDebug, setShowDebug] = useState(false);
   const [progress, setProgress] = useState('');
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const sessionIdRef = useRef<string | null>(null);
@@ -536,7 +537,7 @@ export function ScormPlayer({
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {import.meta.env.DEV && (
+            {debugAllowed && (
               <button
                 type="button"
                 onClick={() => setShowDebug(!showDebug)}
