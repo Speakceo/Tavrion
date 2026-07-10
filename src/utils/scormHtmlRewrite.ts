@@ -41,6 +41,73 @@ export function assetPathToPublicUrl(
   return `${getCourseFilePublicUrl(`${storagePrefix}/${storagePath}`)}${suffix}`;
 }
 
+export function assetPathToSessionUrl(
+  rawPath: string,
+  baseZipPath: string,
+  sessionId: string,
+) {
+  const zipPath = resolveAssetZipPath(rawPath, baseZipPath);
+  if (!zipPath) return rawPath;
+  const suffix = rawPath.includes('?') ? rawPath.slice(rawPath.indexOf('?')) : '';
+  return `/scorm-content/${sessionId}/${zipPath}${suffix}`;
+}
+
+export function rewriteScormHtmlAssetsForSession(
+  html: string,
+  htmlZipPath: string,
+  sessionId: string,
+) {
+  const toSessionUrl = (rawPath: string) => assetPathToSessionUrl(rawPath, htmlZipPath, sessionId);
+  let output = html;
+
+  output = output.replace(
+    /(<(?:video|audio|source|track|embed)\b[^>]*\ssrc=)(["'])([^"']+)\2/gi,
+    (_match, prefix, quote, src) => `${prefix}${quote}${toSessionUrl(src)}${quote}`,
+  );
+
+  output = output.replace(
+    /(<object\b[^>]*\sdata=)(["'])([^"']+)\2/gi,
+    (_match, prefix, quote, src) => `${prefix}${quote}${toSessionUrl(src)}${quote}`,
+  );
+
+  output = output.replace(
+    /(\sposter=)(["'])([^"']+)\2/gi,
+    (_match, prefix, quote, src) => `${prefix}${quote}${toSessionUrl(src)}${quote}`,
+  );
+
+  output = output.replace(
+    /url\((["']?)([^"')]+)\1\)/gi,
+    (match, quote, rawPath) => {
+      const cleaned = rawPath.trim();
+      if (!cleaned || /^https?:\/\//i.test(cleaned) || cleaned.startsWith('data:')) return match;
+      const resolved = toSessionUrl(cleaned);
+      return resolved === cleaned ? match : `url(${quote || ''}${resolved}${quote || ''})`;
+    },
+  );
+
+  return output;
+}
+
+export function rewriteScormJsAssetsForSession(
+  js: string,
+  sessionId: string,
+  zipPaths: string[],
+) {
+  let output = js;
+  const sessionRoot = `/scorm-content/${sessionId}/`;
+  const sorted = [...zipPaths].sort((a, b) => b.length - a.length);
+
+  for (const zipPath of sorted) {
+    output = output.split(zipPath).join(`${sessionRoot}${zipPath}`);
+    const basename = zipPath.split('/').pop();
+    if (basename) {
+      output = output.split(`assets/${basename}`).join(`${sessionRoot}scormcontent/assets/${basename}`);
+    }
+  }
+
+  return output;
+}
+
 export function rewriteScormHtmlAssets(
   html: string,
   htmlZipPath: string,

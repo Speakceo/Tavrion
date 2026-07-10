@@ -16,9 +16,11 @@ import {
   isStreamableMedia,
   rewriteScormCssAssets,
   rewriteScormHtmlAssets,
+  rewriteScormHtmlAssetsForSession,
   rewriteScormJsAssets,
+  rewriteScormJsAssetsForSession,
 } from '../utils/scormHtmlRewrite';
-import { buildScormRuntimeShim, SCORM_SESSION_CONFIG_FILE } from '../utils/scormRuntimeShim';
+import { buildScormCacheRuntimeShim, buildScormRuntimeShim, SCORM_SESSION_CONFIG_FILE } from '../utils/scormRuntimeShim';
 import { X, AlertCircle, Maximize2 } from 'lucide-react';
 
 interface ScormPlayerProps {
@@ -148,7 +150,7 @@ async function registerScormServiceWorker(): Promise<ServiceWorkerRegistration> 
     throw new Error('Service Workers not supported in this browser');
   }
 
-  const registration = await navigator.serviceWorker.register('/scorm-sw.js?v=4', { scope: '/' });
+  const registration = await navigator.serviceWorker.register('/scorm-sw.js?v=5', { scope: '/' });
 
   if (registration.active) return registration;
 
@@ -409,7 +411,8 @@ export function ScormPlayer({
 
         if (!mounted) return;
 
-        addDebug(`Caching ${fileNames.length} files for playback...`);
+        const cacheShim = buildScormCacheRuntimeShim(sessionId);
+        addDebug(`Caching ${fileNames.length} files for legacy ZIP playback...`);
         const cache = await caches.open(`scorm-content-${sessionId}`);
         const basePath = `/scorm-content/${sessionId}`;
         let cached = 0;
@@ -422,19 +425,29 @@ export function ScormPlayer({
             const file = zipContent.files[name];
             const mimeType = getMimeType(name);
             const isHtml = /\.html?$/i.test(name);
+            const isCss = /\.css$/i.test(name);
+            const isJs = /\.js$/i.test(name);
             let body: BodyInit;
 
             if (isHtml) {
               let text = await file.async('text');
               if (text.includes('<head>')) {
-                text = text.replace('<head>', '<head>' + SCORM_API_SHIM);
+                text = text.replace('<head>', '<head>' + cacheShim + SCORM_API_SHIM);
               } else if (text.includes('<head ')) {
-                text = text.replace(/<head\s[^>]*>/, (m) => m + SCORM_API_SHIM);
+                text = text.replace(/<head\s[^>]*>/, (m) => m + cacheShim + SCORM_API_SHIM);
               } else if (text.includes('<html>') || text.includes('<html ')) {
-                text = text.replace(/<html[^>]*>/, (m) => m + '<head>' + SCORM_API_SHIM + '</head>');
+                text = text.replace(/<html[^>]*>/, (m) => m + '<head>' + cacheShim + SCORM_API_SHIM + '</head>');
               } else {
-                text = '<head>' + SCORM_API_SHIM + '</head>' + text;
+                text = cacheShim + SCORM_API_SHIM + text;
               }
+              text = rewriteScormHtmlAssetsForSession(text, name, sessionId);
+              body = new Blob([text], { type: mimeType });
+            } else if (isCss) {
+              const text = await file.async('text');
+              body = new Blob([text], { type: mimeType });
+            } else if (isJs) {
+              let text = await file.async('text');
+              text = rewriteScormJsAssetsForSession(text, sessionId, fileNames);
               body = new Blob([text], { type: mimeType });
             } else {
               const raw = await file.async('arraybuffer');
@@ -446,6 +459,9 @@ export function ScormPlayer({
               headers: { 'Content-Type': mimeType },
             });
             await cache.put(cacheUrl, cacheResponse);
+            if (name !== encodeURI(name)) {
+              await cache.put(`${location.origin}${basePath}/${encodeURI(name)}`, cacheResponse.clone());
+            }
 
             cached++;
             if (mounted) {
@@ -458,7 +474,7 @@ export function ScormPlayer({
 
         if (!mounted || !iframeRef.current) return;
 
-        const launchUrl = `${basePath}/${launchHref}`;
+        const launchUrl = `${basePath}/${normalizeZipEntryPath(launchHref)}`;
         addDebug(`Launching: ${launchUrl}`);
 
         iframeRef.current.src = launchUrl;

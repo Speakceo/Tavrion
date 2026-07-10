@@ -66,7 +66,38 @@ function buildRemoteUrl(session, zipPath) {
   return `${session.supabaseUrl}/storage/v1/object/public/${session.bucket}/${encodeStoragePath(`${session.storagePrefix}/${storageRelative}`)}`;
 }
 
-async function fetchRemoteAsset(session, zipPath, request) {
+async function serveCachedWithRange(cached, request) {
+  const range = request.headers.get('Range');
+  if (!range) return cached;
+
+  const blob = await cached.blob();
+  const size = blob.size;
+  const match = range.match(/bytes=(\d+)-(\d*)/);
+  if (!match) return cached;
+
+  const start = parseInt(match[1], 10);
+  const end = match[2] ? parseInt(match[2], 10) : size - 1;
+  if (start >= size || end >= size) {
+    return new Response(null, {
+      status: 416,
+      statusText: 'Range Not Satisfiable',
+      headers: { 'Content-Range': `bytes */${size}` },
+    });
+  }
+
+  const sliced = blob.slice(start, end + 1);
+  return new Response(sliced, {
+    status: 206,
+    statusText: 'Partial Content',
+    headers: {
+      'Content-Type': cached.headers.get('Content-Type') || 'application/octet-stream',
+      'Content-Range': `bytes ${start}-${end}/${size}`,
+      'Accept-Ranges': 'bytes',
+      'Content-Length': String(end - start + 1),
+    },
+  });
+}
+
   const remoteUrl = buildRemoteUrl(session, zipPath);
   const headers = new Headers();
   const range = request.headers.get('Range');
@@ -134,9 +165,8 @@ self.addEventListener('fetch', (event) => {
 
     const cached = await cache.match(event.request);
     if (cached) {
-      if (streamable && event.request.headers.get('Range') && session) {
-        const remote = await fetchRemoteAsset(session, zipPath, event.request);
-        if (remote.ok || remote.status === 206) return remote;
+      if (streamable && event.request.headers.get('Range')) {
+        return serveCachedWithRange(cached, event.request);
       }
       return cached;
     }
