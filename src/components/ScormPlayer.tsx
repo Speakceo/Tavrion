@@ -150,7 +150,7 @@ async function registerScormServiceWorker(): Promise<ServiceWorkerRegistration> 
     throw new Error('Service Workers not supported in this browser');
   }
 
-  const registration = await navigator.serviceWorker.register('/scorm-sw.js?v=5', { scope: '/' });
+  const registration = await navigator.serviceWorker.register('/scorm-sw.js?v=6', { scope: '/' });
 
   if (registration.active) return registration;
 

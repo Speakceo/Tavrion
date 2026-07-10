@@ -19,8 +19,24 @@ export function buildScormRuntimeShim(
     return String(path || '').replace(/\\\\/g, '/').replace(/^\\/+/, '').split('?')[0].split('#')[0];
   }
 
+  function toPublicUrl(storageRelative) {
+    return PUBLIC_ROOT + encodePath(STORAGE_PREFIX + '/' + storageRelative);
+  }
+
+  function lookup(path) {
+    if (!path) return null;
+    if (PATH_MAP[path]) return PATH_MAP[path];
+    try {
+      var decoded = decodeURIComponent(path);
+      if (PATH_MAP[decoded]) return PATH_MAP[decoded];
+    } catch (error) {}
+    return null;
+  }
+
   function absolutize(url) {
-    if (!url || /^https?:\\/\\//i.test(url) || url.indexOf('data:') === 0 || url.indexOf('blob:') === 0) {
+    if (!url) return null;
+    if (url.indexOf(PUBLIC_ROOT) === 0) return null;
+    if (/^https?:\\/\\//i.test(url) || url.indexOf('data:') === 0 || url.indexOf('blob:') === 0) {
       return null;
     }
 
@@ -37,7 +53,7 @@ export function buildScormRuntimeShim(
       var tail = parsed.pathname.slice(idx + marker.length);
       var slash = tail.indexOf('/');
       if (slash === -1) return normalizeZipPath(url);
-      return normalizeZipPath(tail.slice(slash + 1));
+      return normalizeZipPath(decodeURIComponent(tail.slice(slash + 1)));
     } catch (error) {
       return normalizeZipPath(url);
     }
@@ -47,21 +63,20 @@ export function buildScormRuntimeShim(
     var zipPath = absolutize(url);
     if (!zipPath) return url;
 
-    var candidates = [zipPath];
+    var basename = zipPath.split('/').pop() || zipPath;
+    var candidates = [
+      zipPath,
+      basename,
+      'assets/' + basename,
+      'scormcontent/assets/' + basename,
+    ];
+
     if (zipPath.indexOf('scormcontent/') !== 0) candidates.push('scormcontent/' + zipPath);
     if (zipPath.indexOf('scormcontent/') === 0) candidates.push(zipPath.slice('scormcontent/'.length));
 
     for (var i = 0; i < candidates.length; i++) {
-      var candidate = candidates[i];
-      if (PATH_MAP[candidate]) {
-        return PUBLIC_ROOT + encodePath(STORAGE_PREFIX + '/' + PATH_MAP[candidate]);
-      }
-      try {
-        var decoded = decodeURIComponent(candidate);
-        if (PATH_MAP[decoded]) {
-          return PUBLIC_ROOT + encodePath(STORAGE_PREFIX + '/' + PATH_MAP[decoded]);
-        }
-      } catch (error) {}
+      var mapped = lookup(candidates[i]);
+      if (mapped) return toPublicUrl(mapped);
     }
 
     return url;
@@ -99,6 +114,9 @@ export function buildScormRuntimeShim(
 
   if (typeof HTMLMediaElement !== 'undefined') {
     patchSrc(HTMLMediaElement.prototype);
+  }
+  if (typeof HTMLSourceElement !== 'undefined') {
+    patchSrc(HTMLSourceElement.prototype);
   }
 
   var originalSetAttribute = Element.prototype.setAttribute;
@@ -147,7 +165,7 @@ export function buildScormCacheRuntimeShim(sessionId: string) {
       var tail = parsed.pathname.slice(idx + marker.length);
       var slash = tail.indexOf('/');
       if (slash === -1) return normalizeZipPath(url);
-      return normalizeZipPath(tail.slice(slash + 1));
+      return normalizeZipPath(decodeURIComponent(tail.slice(slash + 1)));
     } catch (error) {
       return normalizeZipPath(url);
     }
@@ -191,6 +209,9 @@ export function buildScormCacheRuntimeShim(sessionId: string) {
 
   if (typeof HTMLMediaElement !== 'undefined') {
     patchSrc(HTMLMediaElement.prototype);
+  }
+  if (typeof HTMLSourceElement !== 'undefined') {
+    patchSrc(HTMLSourceElement.prototype);
   }
 
   var originalSetAttribute = Element.prototype.setAttribute;

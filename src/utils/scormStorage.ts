@@ -35,6 +35,18 @@ export function isExtractedScormPath(path: string) {
   return path.startsWith(`${EXTRACTED_SCORM_PREFIX}/`);
 }
 
+/** Any interactive SCORM package (ZIP upload or already-extracted). */
+export function isScormCoursePath(path: string, fileType?: string) {
+  if (isExtractedScormPath(path)) return true;
+  if (fileType === 'scorm' || fileType === 'zip') return true;
+  return /\.zip$/i.test(path);
+}
+
+export function buildExtractedScormStoragePrefix(originalFileName: string, timestamp = Date.now()) {
+  const sanitized = originalFileName.replace(/[^a-zA-Z0-9.-]/g, '_').replace(/\.zip$/i, '');
+  return `${EXTRACTED_SCORM_PREFIX}/${timestamp}_${sanitized}`;
+}
+
 export function getCourseFilePublicUrl(filePath: string) {
   const base = import.meta.env.VITE_SUPABASE_URL as string;
   const encodedPath = filePath.split('/').map((segment) => encodeURIComponent(segment)).join('/');
@@ -112,12 +124,36 @@ export async function buildScormPlaybackResolver(
   const pathMap = new Map<string, string>();
   const remember = (zipPath: string, storagePath: string) => {
     const normalizedZip = normalizeZipEntryPath(zipPath);
-    pathMap.set(normalizedZip, storagePath);
-    pathMap.set(encodeURI(normalizedZip), storagePath);
+    const aliases = new Set<string>([
+      normalizedZip,
+      encodeURI(normalizedZip),
+      toStorageRelativePath(normalizedZip),
+    ]);
+
     try {
-      pathMap.set(decodeURIComponent(normalizedZip), storagePath);
+      aliases.add(decodeURIComponent(normalizedZip));
     } catch {
       // ignore malformed URI sequences
+    }
+
+    const basename = normalizedZip.split('/').pop();
+    if (basename) {
+      aliases.add(basename);
+      aliases.add(`assets/${basename}`);
+      aliases.add(`scormcontent/assets/${basename}`);
+      aliases.add(sanitizeStoragePathSegment(basename));
+      aliases.add(`assets/${sanitizeStoragePathSegment(basename)}`);
+      aliases.add(`scormcontent/assets/${sanitizeStoragePathSegment(basename)}`);
+    }
+
+    if (!normalizedZip.startsWith('scormcontent/')) {
+      aliases.add(`scormcontent/${normalizedZip}`);
+    } else {
+      aliases.add(normalizedZip.slice('scormcontent/'.length));
+    }
+
+    for (const alias of aliases) {
+      if (alias) pathMap.set(alias, storagePath);
     }
   };
 
@@ -160,9 +196,14 @@ export async function buildScormPlaybackResolver(
 
   const resolveStoragePath = (zipPath: string) => {
     const normalized = normalizeZipEntryPath(zipPath);
+    const basename = normalized.split('/').pop() || normalized;
     return pathMap.get(normalized)
       || pathMap.get(encodeURI(normalized))
       || pathMap.get(zipPath)
+      || pathMap.get(basename)
+      || pathMap.get(`assets/${basename}`)
+      || pathMap.get(`scormcontent/assets/${basename}`)
+      || pathMap.get(toStorageRelativePath(normalized))
       || toStorageRelativePath(normalized);
   };
 

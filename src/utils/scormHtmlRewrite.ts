@@ -100,8 +100,9 @@ export function rewriteScormJsAssetsForSession(
   for (const zipPath of sorted) {
     output = output.split(zipPath).join(`${sessionRoot}${zipPath}`);
     const basename = zipPath.split('/').pop();
-    if (basename) {
+    if (basename && isStreamableMedia(basename)) {
       output = output.split(`assets/${basename}`).join(`${sessionRoot}scormcontent/assets/${basename}`);
+      output = output.split(`scormcontent/assets/${basename}`).join(`${sessionRoot}scormcontent/assets/${basename}`);
     }
   }
 
@@ -154,8 +155,9 @@ export function rewriteScormJsAssets(
 ) {
   let output = js;
   const seen = new Set<string>();
+  const sorted = [...resolver.entries].sort((a, b) => b.zipPath.length - a.zipPath.length);
 
-  for (const entry of resolver.entries) {
+  for (const entry of sorted) {
     if (seen.has(entry.zipPath)) continue;
     seen.add(entry.zipPath);
 
@@ -163,8 +165,9 @@ export function rewriteScormJsAssets(
 
     output = output.split(entry.zipPath).join(publicUrl);
     const basename = entry.zipPath.split('/').pop();
-    if (basename) {
+    if (basename && isStreamableMedia(basename)) {
       output = output.split(`assets/${basename}`).join(publicUrl);
+      output = output.split(`scormcontent/assets/${basename}`).join(publicUrl);
     }
   }
 

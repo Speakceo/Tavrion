@@ -9,11 +9,11 @@ import { createScormPackage, type ScormCourseData } from '../../utils/scormCreat
 import { convertScormForCompatibility, needsConversion, type ConversionResult } from '../../utils/scormConverter';
 import { getCourseFormatLabel } from '../../utils/uploadedCourseDisplay';
 import {
-  EXTRACTED_SCORM_PREFIX,
+  buildExtractedScormStoragePrefix,
   scanScormZip,
-  shouldExtractScormZip,
   uploadScormZipExtracted,
 } from '../../utils/scormStorage';
+import { uploadLargeFile } from '../../utils/chunkedUpload';
 import {
   uploadCourseThumbnail,
   removeCourseStoragePaths,
@@ -253,13 +253,10 @@ export function UploadedCourses() {
 
       const timestamp = Date.now();
       const fileName = `${createScormForm.title.replace(/[^a-zA-Z0-9]/g, '_')}_${timestamp}.zip`;
-      const filePath = `${timestamp}_${fileName}`;
+      const scormFile = new File([scormBlob], fileName, { type: 'application/zip' });
+      const filePath = buildExtractedScormStoragePrefix(fileName, timestamp);
 
-      const { error: uploadError } = await supabase.storage
-        .from('course-files')
-        .upload(filePath, scormBlob);
-
-      if (uploadError) throw uploadError;
+      await uploadScormZipExtracted(scormFile, filePath);
 
       const { error: dbError } = await supabase
         .from('uploaded_courses')
@@ -268,7 +265,7 @@ export function UploadedCourses() {
           description: createScormForm.description,
           file_name: fileName,
           file_path: filePath,
-          file_type: 'zip',
+          file_type: 'scorm',
           file_size: scormBlob.size,
           category: createScormForm.category,
           uploaded_by: profile?.id,
@@ -338,12 +335,12 @@ export function UploadedCourses() {
 
       const timestamp = Date.now();
       const sanitizedFileName = uploadForm.file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-      const useExtractedScormUpload = fileType === 'zip' && shouldExtractScormZip(uploadForm.file);
-      const filePath = useExtractedScormUpload
-        ? `${EXTRACTED_SCORM_PREFIX}/${timestamp}_${sanitizedFileName.replace(/\.zip$/i, '')}`
+      const isScormZip = fileType === 'zip';
+      const filePath = isScormZip
+        ? buildExtractedScormStoragePrefix(sanitizedFileName, timestamp)
         : `${timestamp}_${sanitizedFileName}`;
 
-      if (fileType === 'zip') {
+      if (isScormZip) {
         const zipScan = scormZipScan || await scanScormZip(uploadForm.file);
         if (zipScan.oversizedEntry) {
           const name = zipScan.oversizedEntry.path.split('/').pop() || zipScan.oversizedEntry.path;
@@ -359,7 +356,7 @@ export function UploadedCourses() {
       const uploadStartTime = Date.now();
 
       const progressInterval = setInterval(() => {
-        if (useExtractedScormUpload) return;
+        if (isScormZip) return;
         setUploadProgress(prev => {
           if (prev >= 95) return prev;
           const increment = fileSizeInMB > 500 ? 0.5 : 2;
@@ -368,7 +365,8 @@ export function UploadedCourses() {
       }, 2000);
 
       try {
-        if (useExtractedScormUpload) {
+        if (isScormZip) {
+          // Always extract SCORM ZIPs so media/assets stream correctly on playback.
           console.log('Extracting SCORM ZIP and uploading files individually...');
           await uploadScormZipExtracted(uploadForm.file, filePath, (pct, message) => {
             clearInterval(progressInterval);
@@ -379,13 +377,12 @@ export function UploadedCourses() {
           console.log('Starting upload to Supabase storage...');
           console.log('File size:', fileSizeInMB.toFixed(2), 'MB');
           console.log('Upload path:', filePath);
-          console.log('Note: Supabase uses TUS resumable upload for files > 6MB');
 
           const uploadResult = await uploadLargeFile({
             bucket: 'course-files',
             path: filePath,
             file: uploadForm.file,
-            context: fileType === 'zip' ? 'scorm' : 'course',
+            context: 'course',
             onProgress: (progress) => {
               clearInterval(progressInterval);
               setUploadProgress(progress);
@@ -415,9 +412,7 @@ export function UploadedCourses() {
         throw new Error('Upload failed due to a network error. Please check your connection and try again.');
       }
 
-      const storedFileType = fileType === 'zip'
-        ? (useExtractedScormUpload ? 'scorm' : 'zip')
-        : fileType;
+      const storedFileType = isScormZip ? 'scorm' : fileType;
 
       const { data: courseData, error: dbError } = await supabase
         .from('uploaded_courses')
@@ -567,6 +562,11 @@ export function UploadedCourses() {
 
   const handleDownload = async (course: UploadedCourse) => {
     try {
+      if (course.file_type === 'scorm' || course.file_path.startsWith('extracted/scorm/')) {
+        alert('This course is stored as an extracted SCORM package for reliable playback. Use Preview to open it.');
+        return;
+      }
+
       const { data, error } = await supabase.storage
         .from('course-files')
         .download(course.file_path);
@@ -783,7 +783,7 @@ export function UploadedCourses() {
                       {thumbnailUploading ? 'Updating…' : course.thumbnail_path ? 'Change thumbnail' : 'Add thumbnail'}
                     </label>
                     <div className="flex gap-2">
-                      {course.file_type === 'zip' && (
+                      {(course.file_type === 'zip' || course.file_type === 'scorm') && (
                         <button
                           onClick={() => setPreviewCourse(course)}
                           className="lt-btn-primary flex-1"

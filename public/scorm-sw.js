@@ -33,22 +33,23 @@ function encodeStoragePath(path) {
 function resolveStoragePath(session, zipPath) {
   const normalized = zipPath.replace(/\\/g, '/').replace(/^\/+/, '');
   const map = session.pathMap || {};
-  if (map[normalized]) return map[normalized];
-  if (map[encodeURI(normalized)]) return map[encodeURI(normalized)];
-  try {
-    if (map[decodeURIComponent(normalized)]) return map[decodeURIComponent(normalized)];
-  } catch {
-    // ignore malformed URI sequences
-  }
+  const basename = normalized.split('/').pop() || normalized;
+  const candidates = [
+    normalized,
+    encodeURI(normalized),
+    basename,
+    `assets/${basename}`,
+    `scormcontent/assets/${basename}`,
+  ];
 
-  const candidates = [normalized];
   if (!normalized.startsWith('scormcontent/')) candidates.push(`scormcontent/${normalized}`);
   if (normalized.startsWith('scormcontent/')) candidates.push(normalized.slice('scormcontent/'.length));
 
   for (const candidate of candidates) {
     if (map[candidate]) return map[candidate];
     try {
-      if (map[decodeURIComponent(candidate)]) return map[decodeURIComponent(candidate)];
+      const decoded = decodeURIComponent(candidate);
+      if (map[decoded]) return map[decoded];
     } catch {
       // ignore malformed URI sequences
     }
@@ -98,6 +99,7 @@ async function serveCachedWithRange(cached, request) {
   });
 }
 
+async function fetchRemoteAsset(session, zipPath, request) {
   const remoteUrl = buildRemoteUrl(session, zipPath);
   const headers = new Headers();
   const range = request.headers.get('Range');
