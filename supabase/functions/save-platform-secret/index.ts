@@ -59,16 +59,36 @@ Deno.serve(async (req: Request) => {
       const testRes = await fetch("https://api.resend.com/domains", {
         headers: { Authorization: `Bearer ${value.trim()}` },
       });
-      if (!testRes.ok) {
-        const testBody = await testRes.json().catch(() => ({}));
+      const testBody = await testRes.json().catch(() => ({}));
+      const message = String(testBody.message || "");
+
+      // Domain-restricted keys whose domain isn't verified cannot send for any org.
+      if (!testRes.ok && /not verified|unverified|full access/i.test(message)) {
         return new Response(
           JSON.stringify({
             saved: true,
             verified: false,
-            warning: testBody.message || "Key saved but Resend rejected the connection test",
+            warning:
+              "Key saved, but Resend rejected it: create a Full Access API key at resend.com/api-keys (not a domain-restricted key), then save again. One full-access key works for every organisation.",
           }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
+      }
+
+      if (!testRes.ok) {
+        const sendOnly =
+          /restricted to only send/i.test(message) ||
+          /only send/i.test(message);
+        if (!sendOnly) {
+          return new Response(
+            JSON.stringify({
+              saved: true,
+              verified: false,
+              warning: message || "Key saved but Resend rejected the connection test",
+            }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
       }
     }
 

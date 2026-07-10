@@ -245,7 +245,7 @@ export function EmailNudges() {
   const [template, setTemplate] = useState<keyof typeof TEMPLATES>('reminder');
   const [sending, setSending] = useState(false);
   const [loadingLearners, setLoadingLearners] = useState(false);
-  const [result, setResult] = useState<{ sent: number; failed: number; errors?: string[] } | null>(null);
+  const [result, setResult] = useState<{ sent: number; failed: number; errors?: string[]; warning?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [resendConfigured, setResendConfigured] = useState<boolean | null>(null);
@@ -372,7 +372,7 @@ export function EmailNudges() {
       const errors = results
         .filter((r: { status: string; error?: string }) => r.status === 'failed' && r.error)
         .map((r: { email: string; error?: string }) => `${r.email}: ${r.error}`);
-      setResult({ sent, failed, errors });
+      setResult({ sent, failed, errors, warning: data.warning });
       if (sent > 0) setResendConfigured(true);
     } catch (err: any) {
       console.error('Error sending nudges:', err);
@@ -415,7 +415,7 @@ export function EmailNudges() {
 
         {resendConfigured === false && (
           <div style={{ background: '#fff8e6', boxShadow: '#e6a81750 0px 0px 0px 1px', borderRadius: 10, padding: '14px 18px', marginBottom: 20, fontSize: 13, color: '#8a6d00' }}>
-            Resend is not configured. Ask the platform owner to add the API key under Owner Portal → Email Settings.
+            Resend is not configured for the platform yet. Ask the platform owner to add one API key under Owner Portal → Email Settings — it applies to every organisation.
           </div>
         )}
 
@@ -427,10 +427,13 @@ export function EmailNudges() {
                 {result.sent} email{result.sent !== 1 ? 's' : ''} sent successfully{result.failed > 0 ? `, ${result.failed} failed` : ''}.
               </span>
             </div>
+            {result.warning && (
+              <p style={{ marginTop: 8, fontSize: 12, color: '#8a6d00' }}>{result.warning}</p>
+            )}
             {result.errors && result.errors.length > 0 && (
-              <ul style={{ margin: '10px 0 0 24px', padding: 0, fontSize: 12, color: '#c0392b' }}>
-                {result.errors.map((msg) => (
-                  <li key={msg}>{msg}</li>
+              <ul style={{ marginTop: 8, paddingLeft: 18, fontSize: 12, color: '#c0392b' }}>
+                {result.errors.map((err) => (
+                  <li key={err}>{err}</li>
                 ))}
               </ul>
             )}

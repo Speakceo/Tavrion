@@ -180,8 +180,9 @@ export function OwnerDashboard() {
             )}
           </div>
           <p style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>
-            Email nudges use <a href="https://resend.com" target="_blank" rel="noreferrer" style={{ color: '#171717', fontWeight: 600 }}>Resend</a>.
-            Create an API key, verify <strong>jointavrion.com</strong>, then paste the key below.
+            One Resend API key powers email nudges for <strong>every organisation</strong> on the platform.
+            In Resend, create a <strong>Full Access</strong> API key (not domain-restricted), verify <strong>jointavrion.com</strong>,
+            then paste the key below. Until the domain is verified, nudges fall back to Resend&apos;s shared sender when possible.
           </p>
           <form onSubmit={saveResendSettings} style={{ display: 'grid', gap: 12, maxWidth: 560 }}>
             <div>
