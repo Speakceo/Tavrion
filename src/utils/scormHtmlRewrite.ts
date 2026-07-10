@@ -76,15 +76,30 @@ export function rewriteScormHtmlAssets(
     },
   );
 
-  output = output.replace(/<video\b([^>]*)>/gi, (match, attrs) => {
-    if (/crossorigin/i.test(attrs)) return match;
-    return `<video${attrs} crossorigin="anonymous">`;
-  });
+  return output;
+}
 
-  output = output.replace(/<audio\b([^>]*)>/gi, (match, attrs) => {
-    if (/crossorigin/i.test(attrs)) return match;
-    return `<audio${attrs} crossorigin="anonymous">`;
-  });
+export function rewriteScormJsAssets(
+  js: string,
+  jsZipPath: string,
+  storagePrefix: string,
+  resolver: ScormPlaybackResolver,
+) {
+  let output = js;
+  const seen = new Set<string>();
+
+  for (const entry of resolver.entries) {
+    if (seen.has(entry.zipPath)) continue;
+    seen.add(entry.zipPath);
+
+    const publicUrl = getCourseFilePublicUrl(`${storagePrefix}/${entry.storagePath}`);
+
+    output = output.split(entry.zipPath).join(publicUrl);
+    const basename = entry.zipPath.split('/').pop();
+    if (basename) {
+      output = output.split(`assets/${basename}`).join(publicUrl);
+    }
+  }
 
   return output;
 }

@@ -282,8 +282,9 @@ async function openZipReader(file: File | Blob) {
   return new ZipReader(new BlobReader(file));
 }
 
-export function shouldExtractScormZip(file: File) {
-  return file.size > EXTRACTED_UPLOAD_ZIP_THRESHOLD;
+export function shouldExtractScormZip(_file: File) {
+  // Always extract SCORM ZIPs so playback can map assets to sanitized storage keys.
+  return true;
 }
 
 export async function scanScormZip(file: File): Promise<ScormZipScan> {

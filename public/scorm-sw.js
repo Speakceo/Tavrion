@@ -1,4 +1,5 @@
 const CACHE_PREFIX = 'scorm-content-';
+const SESSION_CONFIG_FILE = '__tavrion_session.json';
 const sessions = new Map();
 const MEDIA_EXT = /\.(mp4|webm|mov|m4v|m4a|mp3|wav|ogg|oga|aac|avi)(\?|#|$)/i;
 
@@ -39,6 +40,20 @@ function resolveStoragePath(session, zipPath) {
   } catch {
     // ignore malformed URI sequences
   }
+
+  const candidates = [normalized];
+  if (!normalized.startsWith('scormcontent/')) candidates.push(`scormcontent/${normalized}`);
+  if (normalized.startsWith('scormcontent/')) candidates.push(normalized.slice('scormcontent/'.length));
+
+  for (const candidate of candidates) {
+    if (map[candidate]) return map[candidate];
+    try {
+      if (map[decodeURIComponent(candidate)]) return map[decodeURIComponent(candidate)];
+    } catch {
+      // ignore malformed URI sequences
+    }
+  }
+
   return sanitizePath(normalized);
 }
 
@@ -57,6 +72,18 @@ async function fetchRemoteAsset(session, zipPath, request) {
   const range = request.headers.get('Range');
   if (range) headers.set('Range', range);
   return fetch(remoteUrl, { headers });
+}
+
+async function loadSession(sessionId, cache, origin) {
+  if (sessions.has(sessionId)) return sessions.get(sessionId);
+
+  const configUrl = `${origin}/scorm-content/${sessionId}/${SESSION_CONFIG_FILE}`;
+  const cachedConfig = await cache.match(configUrl);
+  if (!cachedConfig) return null;
+
+  const session = await cachedConfig.json();
+  sessions.set(sessionId, session);
+  return session;
 }
 
 self.addEventListener('install', () => {
@@ -93,7 +120,9 @@ self.addEventListener('fetch', (event) => {
     const parts = url.pathname.split('/');
     const sessionId = parts[2];
     const zipPath = decodeURIComponent(parts.slice(3).join('/'));
-    const session = sessions.get(sessionId);
+    const cacheName = CACHE_PREFIX + sessionId;
+    const cache = await caches.open(cacheName);
+    const session = await loadSession(sessionId, cache, url.origin);
     const streamable = isStreamableMedia(zipPath);
 
     if (session?.supabaseUrl && session?.storagePrefix && streamable) {
@@ -103,13 +132,11 @@ self.addEventListener('fetch', (event) => {
       }
     }
 
-    const cacheName = CACHE_PREFIX + sessionId;
-    const cache = await caches.open(cacheName);
     const cached = await cache.match(event.request);
     if (cached) {
-      if (streamable && event.request.headers.get('Range')) {
-        const remote = session ? await fetchRemoteAsset(session, zipPath, event.request) : null;
-        if (remote && (remote.ok || remote.status === 206)) return remote;
+      if (streamable && event.request.headers.get('Range') && session) {
+        const remote = await fetchRemoteAsset(session, zipPath, event.request);
+        if (remote.ok || remote.status === 206) return remote;
       }
       return cached;
     }

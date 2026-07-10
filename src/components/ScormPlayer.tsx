@@ -12,10 +12,13 @@ import {
   type ScormStorageIndex,
 } from '../utils/scormStorage';
 import {
+  assetPathToPublicUrl,
   isStreamableMedia,
   rewriteScormCssAssets,
   rewriteScormHtmlAssets,
+  rewriteScormJsAssets,
 } from '../utils/scormHtmlRewrite';
+import { buildScormRuntimeShim, SCORM_SESSION_CONFIG_FILE } from '../utils/scormRuntimeShim';
 import { X, AlertCircle } from 'lucide-react';
 
 interface ScormPlayerProps {
@@ -141,7 +144,7 @@ async function registerScormServiceWorker(): Promise<ServiceWorkerRegistration> 
     throw new Error('Service Workers not supported in this browser');
   }
 
-  const registration = await navigator.serviceWorker.register('/scorm-sw.js?v=3', { scope: '/' });
+  const registration = await navigator.serviceWorker.register('/scorm-sw.js?v=4', { scope: '/' });
 
   if (registration.active) return registration;
 
@@ -177,6 +180,12 @@ async function registerScormSession(
     pathMap: resolver.pathMap,
   };
 
+  const cache = await caches.open(`scorm-content-${sessionId}`);
+  await cache.put(
+    `${location.origin}/scorm-content/${sessionId}/${SCORM_SESSION_CONFIG_FILE}`,
+    new Response(JSON.stringify(payload), { headers: { 'Content-Type': 'application/json' } }),
+  );
+
   if (navigator.serviceWorker?.controller) {
     navigator.serviceWorker.controller.postMessage(payload);
     return;
@@ -194,6 +203,11 @@ async function cacheStorageFiles(
   mounted?: () => boolean,
   onDebug?: (message: string) => void,
 ) {
+  const runtimeShim = buildScormRuntimeShim(
+    storagePrefix,
+    resolver.pathMap,
+    import.meta.env.VITE_SUPABASE_URL as string,
+  );
   const cache = await caches.open(`scorm-content-${sessionId}`);
   const basePath = `/scorm-content/${sessionId}`;
   let cached = 0;
@@ -213,23 +227,27 @@ async function cacheStorageFiles(
         const mimeType = getMimeType(zipPath);
         const isHtml = /\.html?$/i.test(zipPath);
         const isCss = /\.css$/i.test(zipPath);
+        const isJs = /\.js$/i.test(zipPath);
         let body: BodyInit = await response.arrayBuffer();
 
         if (isHtml) {
           let text = new TextDecoder().decode(body as ArrayBuffer);
           if (text.includes('<head>')) {
-            text = text.replace('<head>', '<head>' + SCORM_API_SHIM);
+            text = text.replace('<head>', '<head>' + runtimeShim + SCORM_API_SHIM);
           } else if (text.includes('<head ')) {
-            text = text.replace(/<head\s[^>]*>/, (m) => m + SCORM_API_SHIM);
+            text = text.replace(/<head\s[^>]*>/, (m) => m + runtimeShim + SCORM_API_SHIM);
           } else if (text.includes('<html>') || text.includes('<html ')) {
-            text = text.replace(/<html[^>]*>/, (m) => m + '<head>' + SCORM_API_SHIM + '</head>');
+            text = text.replace(/<html[^>]*>/, (m) => m + '<head>' + runtimeShim + SCORM_API_SHIM + '</head>');
           } else {
-            text = '<head>' + SCORM_API_SHIM + '</head>' + text;
+            text = runtimeShim + SCORM_API_SHIM + text;
           }
           text = rewriteScormHtmlAssets(text, zipPath, storagePrefix, resolver);
           body = new Blob([text], { type: mimeType });
         } else if (isCss) {
           const text = rewriteScormCssAssets(new TextDecoder().decode(body as ArrayBuffer), zipPath, storagePrefix, resolver);
+          body = new Blob([text], { type: mimeType });
+        } else if (isJs) {
+          const text = rewriteScormJsAssets(new TextDecoder().decode(body as ArrayBuffer), zipPath, storagePrefix, resolver);
           body = new Blob([text], { type: mimeType });
         } else {
           body = new Blob([body], { type: mimeType });

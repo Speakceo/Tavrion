@@ -944,7 +944,7 @@ export function UploadedCourses() {
                     PDF, Word, PowerPoint, SCORM (ZIP), Videos, Excel, Text (max 1GB)
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
-                    SCORM ZIPs over 45 MB are extracted and uploaded file-by-file automatically (works around Supabase&apos;s 50 MB per-file limit).
+                    SCORM ZIPs are extracted and uploaded file-by-file automatically (works around Supabase&apos;s 50 MB per-file limit).
                   </p>
                   {uploadForm.file && (
                     <p className="text-sm text-green-600 mt-2 font-medium">
