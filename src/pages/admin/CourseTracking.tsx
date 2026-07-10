@@ -3,6 +3,7 @@ import { Layout } from '../../components/Layout';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { applyOrgUserScope } from '../../utils/orgUsers';
+import { applyOrgScope } from '../../utils/orgScope';
 import { Filter, Search, Download, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 
 interface TeamMember {
@@ -101,7 +102,10 @@ export function CourseTracking() {
       const [teamsRes, coursesRes, uploadedCoursesRes, enrollmentsRes, uploadedAssignmentsRes] = await Promise.all([
         teamsQuery,
         supabase.from('courses').select('id, title').eq('status', 'published').order('title'),
-        supabase.from('uploaded_courses').select('id, title').order('title'),
+        applyOrgScope(
+          supabase.from('uploaded_courses').select('id, title').order('title'),
+          profile,
+        ),
         enrollmentsQuery,
         uploadedAssignmentsQuery,
       ]);
@@ -114,14 +118,18 @@ export function CourseTracking() {
 
       setTeams((teamsRes.data || []) as unknown as Team[]);
 
-      const allCourses = [
-        ...(coursesRes.data || []),
-        ...(uploadedCoursesRes.data || [])
-      ];
-      setCourses(allCourses);
-
       const scopedEnrollments = (enrollmentsRes.data || []).filter((e) => orgUserIds.has(e.user_id));
       const scopedAssignments = (uploadedAssignmentsRes.data || []).filter((a) => orgUserIds.has(a.user_id));
+
+      const enrolledBuiltinIds = new Set(scopedEnrollments.map((e) => e.course_id));
+      const assignedUploadedIds = new Set(scopedAssignments.map((a) => a.course_id));
+
+      // Only show courses that belong to this org and have learner activity here.
+      const allCourses = [
+        ...(coursesRes.data || []).filter((c) => enrolledBuiltinIds.has(c.id)),
+        ...(uploadedCoursesRes.data || []).filter((c) => assignedUploadedIds.has(c.id)),
+      ];
+      setCourses(allCourses);
 
       const regularEnrollments = await Promise.all(
         scopedEnrollments.map(async (enrollment) => {
@@ -166,8 +174,12 @@ export function CourseTracking() {
         })
       );
 
+      const orgUploadedCourseIds = new Set((uploadedCoursesRes.data || []).map((c) => c.id));
+
       const uploadedEnrollments = await Promise.all(
-        scopedAssignments.map(async (assignment) => {
+        scopedAssignments
+          .filter((assignment) => orgUploadedCourseIds.has(assignment.course_id))
+          .map(async (assignment) => {
           const [userRes, courseRes] = await Promise.all([
             supabase.from('user_profiles').select('full_name, email, department').eq('id', assignment.user_id).maybeSingle(),
             supabase.from('uploaded_courses').select('title').eq('id', assignment.course_id).maybeSingle(),
