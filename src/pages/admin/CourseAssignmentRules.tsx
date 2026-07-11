@@ -7,6 +7,7 @@ import {
   AlertTriangle, Target, Filter, Play, ChevronDown, ChevronUp, X
 } from 'lucide-react';
 import { applyOrgUserScope } from '../../utils/orgUsers';
+import { applyOrgScope, orgIdForInsert } from '../../utils/orgScope';
 
 type RecurrenceInterval = 'none' | 'monthly' | 'quarterly' | 'semi_annual' | 'annual';
 type UserRole = 'super_admin' | 'admin' | 'trainer' | 'employee' | 'partner';
@@ -112,7 +113,10 @@ export function CourseAssignmentRules() {
       profile,
     );
     const [rulesRes, coursesRes, usersRes] = await Promise.all([
-      supabase.from('course_assignment_rules').select('*, course:courses(title)').order('created_at', { ascending: false }),
+      applyOrgScope(
+        supabase.from('course_assignment_rules').select('*, course:courses(title)').order('created_at', { ascending: false }),
+        profile,
+      ),
       supabase.from('courses').select('id, title, is_mandatory, recurrence_interval, passing_score, requires_quiz_pass').eq('status', 'published').order('title'),
       usersQuery,
     ]);
@@ -163,6 +167,7 @@ export function CourseAssignmentRules() {
       auto_enroll: form.auto_enroll,
       is_active: true,
       created_by: profile?.id,
+      organization_id: orgIdForInsert(profile),
     });
     setSaving(false);
     if (!error) {
@@ -218,7 +223,10 @@ export function CourseAssignmentRules() {
 
   async function deleteRule(id: string) {
     if (!confirm('Delete this assignment rule?')) return;
-    await supabase.from('course_assignment_rules').delete().eq('id', id);
+    await applyOrgScope(
+      supabase.from('course_assignment_rules').delete().eq('id', id),
+      profile,
+    );
     loadAll();
   }
 

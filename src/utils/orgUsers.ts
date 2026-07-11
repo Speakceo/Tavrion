@@ -3,16 +3,19 @@ export interface OrgViewer {
   is_platform_owner?: boolean;
 }
 
+const EMPTY_UUID = '00000000-0000-0000-0000-000000000000';
+
 /** Restrict user_profiles queries to the viewer's org and hide platform owners. */
 export function applyOrgUserScope<T extends { eq: (column: string, value: unknown) => T }>(
   query: T,
   viewer?: OrgViewer | null,
 ): T {
   let scoped = query.eq('is_platform_owner', false);
-  if (viewer?.organization_id && !viewer?.is_platform_owner) {
-    scoped = scoped.eq('organization_id', viewer.organization_id);
+  if (viewer?.is_platform_owner) return scoped;
+  if (viewer?.organization_id) {
+    return scoped.eq('organization_id', viewer.organization_id);
   }
-  return scoped;
+  return scoped.eq('organization_id', EMPTY_UUID);
 }
 
 export function uniqueSortedStrings(values: (string | null | undefined)[]): string[] {

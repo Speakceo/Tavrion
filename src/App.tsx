@@ -28,6 +28,7 @@ import { MySpace } from './pages/MySpace';
 import { RecentLearning } from './pages/RecentLearning';
 import { CompletedLearning } from './pages/CompletedLearning';
 import { BestCalls } from './pages/BestCalls';
+import { Policies } from './pages/Policies';
 import { AdminUsers } from './pages/admin/Users';
 import { Teams } from './pages/admin/Teams';
 import { AdminCourses } from './pages/admin/AdminCourses';
@@ -260,6 +261,15 @@ function App() {
                 <OrgFeatureGate feature="shots">
                   <Shots />
                 </OrgFeatureGate>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/policies"
+            element={
+              <ProtectedRoute>
+                <Policies />
               </ProtectedRoute>
             }
           />

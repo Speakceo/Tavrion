@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { Layout } from '../../components/Layout';
+import { useAuth } from '../../contexts/AuthContext';
+import { applyOrgUserScope } from '../../utils/orgUsers';
 import { ArrowLeft, Download, CheckCircle, Clock, XCircle, TrendingUp } from 'lucide-react';
 import { Course } from '../../types';
 
@@ -21,16 +23,17 @@ interface EnrollmentReport {
 export function CourseReport() {
   const { courseId } = useParams();
   const navigate = useNavigate();
+  const { profile } = useAuth();
   const [course, setCourse] = useState<Course | null>(null);
   const [enrollments, setEnrollments] = useState<EnrollmentReport[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchData();
-  }, [courseId]);
+    if (profile) fetchData();
+  }, [courseId, profile]);
 
   const fetchData = async () => {
-    if (!courseId) return;
+    if (!courseId || !profile) return;
 
     const { data: courseData } = await supabase
       .from('courses')
@@ -39,6 +42,14 @@ export function CourseReport() {
       .single();
 
     if (courseData) setCourse(courseData);
+
+    const { data: orgUsers } = await applyOrgUserScope(
+      supabase.from('user_profiles').select('id'),
+      profile,
+    );
+    const orgUserIds = new Set((orgUsers || []).map((u) => u.id));
+    const emptyId = '00000000-0000-0000-0000-000000000000';
+    const userIdFilter = orgUserIds.size > 0 ? [...orgUserIds] : [emptyId];
 
     const { data: modulesData } = await supabase
       .from('modules')
@@ -68,12 +79,15 @@ export function CourseReport() {
         status,
         user_profiles!inner(full_name, unique_id)
       `)
-      .eq('course_id', courseId);
+      .eq('course_id', courseId)
+      .in('user_id', userIdFilter);
 
     if (enrollmentData) {
       const reports: EnrollmentReport[] = [];
 
       for (const enrollment of enrollmentData) {
+        if (!orgUserIds.has(enrollment.user_id) && !profile.is_platform_owner) continue;
+
         let completedCount = 0;
         if (lessonIds.length > 0) {
           const { data: completedLessonsData } = await supabase

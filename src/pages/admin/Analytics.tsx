@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { Layout } from '../../components/Layout';
 import { useAuth } from '../../contexts/AuthContext';
 import { applyOrgUserScope } from '../../utils/orgUsers';
+import { applyOrgScope } from '../../utils/orgScope';
 import { Users, BookOpen, TrendingUp, Award, Activity, Building2 } from 'lucide-react';
 
 interface RecentActivity {
@@ -63,14 +64,14 @@ export function Analytics() {
       const totalUsers = orgUsers.length;
       const activeUsers = orgUsers.filter((u) => u.is_active).length;
 
-      const { data: courses } = await supabase
-        .from('courses')
-        .select('id')
-        .eq('status', 'published');
+      const { data: uploadedCourses } = await applyOrgScope(
+        supabase.from('uploaded_courses').select('id'),
+        profile,
+      );
 
       let enrollmentsQuery = supabase
         .from('user_course_enrollments')
-        .select('id, status, user_id');
+        .select('id, status, user_id, course_id');
 
       let quizQuery = supabase
         .from('quiz_attempts')
@@ -93,7 +94,12 @@ export function Analytics() {
       const scopedEnrollments = filterByOrgUsers(enrollments, orgUserIds);
       const scopedQuizAttempts = filterByOrgUsers(quizAttempts, orgUserIds);
 
-      const totalCourses = courses?.length || 0;
+      const enrolledBuiltinIds = new Set(
+        scopedEnrollments.map((e: { course_id?: string }) => e.course_id).filter(Boolean) as string[],
+      );
+      const uploadedIds = (uploadedCourses || []).map((c) => c.id);
+      const totalCourses = new Set([...uploadedIds, ...enrolledBuiltinIds]).size;
+
       const completedEnrollments = scopedEnrollments.filter((e) => e.status === 'completed').length;
       const completionRate = scopedEnrollments.length
         ? Math.round((completedEnrollments / scopedEnrollments.length) * 100)
