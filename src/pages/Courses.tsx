@@ -251,7 +251,7 @@ export function Courses() {
                       {course.is_mandatory && <span className="lt-badge lt-badge-error">MANDATORY</span>}
                       {course.enrollment && (
                         <span className={`lt-badge ${course.enrollment.status === 'completed' ? 'lt-badge-success' : course.enrollment.status === 'in_progress' ? 'lt-badge-blue' : ''}`}>
-                          {course.enrollment.status.replace('_', ' ').toUpperCase()}
+                          {getAssignmentStatusLabel(course.enrollment.status)}
                         </span>
                       )}
                     </div>

@@ -6,6 +6,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { applyOrgUserScope } from '../../utils/orgUsers';
 import { ArrowLeft, Download, CheckCircle, Clock, XCircle, TrendingUp } from 'lucide-react';
 import { Course } from '../../types';
+import { getAssignmentStatusLabel } from '../../utils/uploadedCourseDisplay';
+import { normalizeTrackingStatus } from '../../utils/learnerCourses';
 
 interface EnrollmentReport {
   user_id: string;
@@ -128,7 +130,7 @@ export function CourseReport() {
     const rows = enrollments.map(e => [
       e.unique_id,
       e.user_name,
-      e.status,
+      getAssignmentStatusLabel(e.status),
       new Date(e.enrolled_at).toLocaleDateString(),
       e.started_at ? new Date(e.started_at).toLocaleDateString() : 'Not started',
       e.completed_at ? new Date(e.completed_at).toLocaleDateString() : 'Not completed',
@@ -153,9 +155,9 @@ export function CourseReport() {
 
   const stats = {
     total: enrollments.length,
-    completed: enrollments.filter(e => e.status === 'completed').length,
-    inProgress: enrollments.filter(e => e.status === 'in_progress').length,
-    notStarted: enrollments.filter(e => e.status === 'not_started' || e.status === 'assigned').length,
+    completed: enrollments.filter(e => normalizeTrackingStatus(e.status) === 'completed').length,
+    inProgress: enrollments.filter(e => normalizeTrackingStatus(e.status) === 'in_progress').length,
+    notStarted: enrollments.filter(e => normalizeTrackingStatus(e.status) === 'not_started').length,
     averageProgress: enrollments.length > 0
       ? Math.round(enrollments.reduce((sum, e) => sum + e.progress_percentage, 0) / enrollments.length)
       : 0
@@ -267,14 +269,14 @@ export function CourseReport() {
                       <td className="px-6 py-4 text-sm font-mono text-gray-900">{enrollment.unique_id}</td>
                       <td className="px-6 py-4 text-sm text-gray-900 font-medium">{enrollment.user_name}</td>
                       <td className="px-6 py-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium capitalize ${
-                          enrollment.status === 'completed'
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          normalizeTrackingStatus(enrollment.status) === 'completed'
                             ? 'bg-green-100 text-green-700'
-                            : enrollment.status === 'in_progress'
+                            : normalizeTrackingStatus(enrollment.status) === 'in_progress'
                             ? 'bg-blue-100 text-blue-700'
                             : 'bg-gray-100 text-gray-700'
                         }`}>
-                          {enrollment.status.replace('_', ' ')}
+                          {getAssignmentStatusLabel(enrollment.status)}
                         </span>
                       </td>
                       <td className="px-6 py-4">

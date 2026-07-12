@@ -129,7 +129,7 @@ export function Dashboard() {
     });
 
     (uploadedRecent || []).forEach((a: any) => {
-      const label = a.status === 'completed' ? 'Completed' : a.status === 'assigned' ? 'Assigned' : 'Started';
+      const label = a.status === 'completed' ? 'Completed' : a.status === 'assigned' || a.status === 'not_started' ? 'Assigned' : 'Started';
       const when = a.completed_at || a.viewed_at || a.created_at;
       feed.push({ id: `up-${a.id}`, text: `${label} "${a.course?.title}"`, sub: 'Course material', time: formatRelative(when), icon: 'book' });
     });

@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { CheckCircle, Award, Calendar, FileText } from 'lucide-react';
 import { UserCourseEnrollment, Course } from '../types';
+import { getCourseFormatLabel } from '../utils/uploadedCourseDisplay';
 
 export function CompletedLearning() {
   const { profile } = useAuth();
@@ -187,8 +188,8 @@ export function CompletedLearning() {
                               <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold uppercase">
                                 Completed
                               </span>
-                              <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold uppercase">
-                                {assignment.course.file_type}
+                              <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">
+                                {getCourseFormatLabel(assignment.course.file_type)}
                               </span>
                               <span className="text-xs text-gray-500">
                                 {formatFileSize(assignment.course.file_size)}

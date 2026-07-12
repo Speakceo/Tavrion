@@ -740,8 +740,8 @@ export function UploadedCourses() {
                 <div className="p-6">
                   <div className="flex items-start justify-between mb-4 gap-2">
                     <div className="flex gap-2 flex-wrap justify-end">
-                      <span className="lt-badge lt-badge-blue text-xs font-semibold rounded uppercase">
-                        {course.file_type}
+                      <span className="lt-badge lt-badge-blue text-xs font-semibold rounded">
+                        {getCourseFormatLabel(course.file_type)}
                       </span>
                       {course.quiz && course.quiz.enabled && (
                         <span className="lt-badge lt-badge-success text-xs font-semibold rounded flex items-center gap-1">

@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import type { Course, UserCourseEnrollment } from '../types';
+import { getAssignmentStatusLabel, getCourseFormatLabel } from './uploadedCourseDisplay';
 
 export type LearnerCourseKind = 'builtin' | 'uploaded';
 
@@ -26,7 +27,7 @@ export type UploadedCourseAssignment = {
 export type BuiltinLearnerCourse = Course & { enrollment: UserCourseEnrollment };
 
 const PENDING_BUILTIN = new Set(['assigned', 'not_started']);
-const PENDING_UPLOADED = new Set(['assigned', 'not_started', 'viewed', 'downloaded']);
+const PENDING_UPLOADED = new Set(['assigned', 'not_started']);
 const IN_PROGRESS_BUILTIN = new Set(['in_progress']);
 const IN_PROGRESS_UPLOADED = new Set(['in_progress', 'viewed', 'downloaded']);
 
@@ -38,8 +39,23 @@ export function isInProgressStatus(status: string, kind: LearnerCourseKind) {
   return kind === 'builtin' ? IN_PROGRESS_BUILTIN.has(status) : IN_PROGRESS_UPLOADED.has(status);
 }
 
+export function isCompletedStatus(status: string) {
+  return status === 'completed';
+}
+
+/** Normalize any enrollment/assignment status into a single tracking bucket. */
+export function normalizeTrackingStatus(status: string): 'completed' | 'in_progress' | 'not_started' {
+  if (isCompletedStatus(status)) return 'completed';
+  if (IN_PROGRESS_BUILTIN.has(status) || IN_PROGRESS_UPLOADED.has(status)) return 'in_progress';
+  return 'not_started';
+}
+
 export function statusLabel(status: string) {
-  return status.replace(/_/g, ' ');
+  return getAssignmentStatusLabel(status);
+}
+
+export function courseFormatLabel(fileType?: string) {
+  return getCourseFormatLabel(fileType);
 }
 
 export async function fetchLearnerCourses(userId: string) {
@@ -67,8 +83,8 @@ export async function fetchLearnerCourses(userId: string) {
     builtin.filter((c) => isInProgressStatus(c.enrollment.status, 'builtin')).length +
     uploaded.filter((a) => isInProgressStatus(a.status, 'uploaded')).length;
   const completed =
-    builtin.filter((c) => c.enrollment.status === 'completed').length +
-    uploaded.filter((a) => a.status === 'completed').length;
+    builtin.filter((c) => isCompletedStatus(c.enrollment.status)).length +
+    uploaded.filter((a) => isCompletedStatus(a.status)).length;
   const pending =
     builtin.filter((c) => isPendingStatus(c.enrollment.status, 'builtin')).length +
     uploaded.filter((a) => isPendingStatus(a.status, 'uploaded')).length;

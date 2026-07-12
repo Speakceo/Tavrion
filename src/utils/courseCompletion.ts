@@ -124,26 +124,36 @@ export async function tryCompleteUploadedCourse(
   uploadedCourseId: string,
   courseTitle: string,
 ): Promise<{ completed: boolean; courseTitle: string }> {
-  const { data: existingCert } = await supabase
-    .from('certificates')
-    .select('id')
-    .eq('user_id', userId)
-    .eq('uploaded_course_id', uploadedCourseId)
-    .maybeSingle();
-
-  if (existingCert) {
-    return { completed: false, courseTitle };
-  }
-
-  const [{ data: assignment }, { data: user }] = await Promise.all([
+  const [{ data: assignment }, { data: user }, { data: existingCert }] = await Promise.all([
     supabase
       .from('uploaded_course_assignments')
-      .select('certificate_template')
+      .select('id, status, certificate_template')
       .eq('user_id', userId)
       .eq('course_id', uploadedCourseId)
       .maybeSingle(),
     supabase.from('user_profiles').select('full_name').eq('id', userId).maybeSingle(),
+    supabase
+      .from('certificates')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('uploaded_course_id', uploadedCourseId)
+      .maybeSingle(),
   ]);
+
+  if (assignment && assignment.status !== 'completed') {
+    await supabase
+      .from('uploaded_course_assignments')
+      .update({
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        progress_percentage: 100,
+      })
+      .eq('id', assignment.id);
+  }
+
+  if (existingCert) {
+    return { completed: false, courseTitle };
+  }
 
   const result = await issueCertificate({
     userId,

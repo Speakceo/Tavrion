@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { applyOrgUserScope } from '../../utils/orgUsers';
 import { applyOrgScope } from '../../utils/orgScope';
 import { Filter, Search, Download, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { normalizeTrackingStatus, statusLabel } from '../../utils/learnerCourses';
 
 interface TeamMember {
   user_id: string;
@@ -223,7 +224,8 @@ export function CourseTracking() {
 
     if (selectedCourse !== 'all' && enrollment.course_id !== selectedCourse) return false;
 
-    if (selectedStatus !== 'all' && enrollment.status !== selectedStatus) return false;
+    const trackingStatus = normalizeTrackingStatus(enrollment.status);
+    if (selectedStatus !== 'all' && trackingStatus !== selectedStatus) return false;
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -238,17 +240,17 @@ export function CourseTracking() {
   });
 
   const getStatusBadge = (status: string) => {
+    const normalized = normalizeTrackingStatus(status);
     const styles = {
       completed: 'bg-green-100 text-green-800',
       in_progress: 'bg-blue-100 text-blue-800',
       not_started: 'bg-gray-100 text-gray-800',
-      assigned: 'bg-yellow-100 text-yellow-800',
     };
-    return styles[status as keyof typeof styles] || styles.assigned;
+    return styles[normalized];
   };
 
   const getStatusIcon = (status: string) => {
-    switch (status) {
+    switch (normalizeTrackingStatus(status)) {
       case 'completed':
         return <CheckCircle className="w-4 h-4" />;
       case 'in_progress':
@@ -260,9 +262,9 @@ export function CourseTracking() {
 
   const stats = {
     total: filteredEnrollments.length,
-    completed: filteredEnrollments.filter((e) => e.status === 'completed').length,
-    inProgress: filteredEnrollments.filter((e) => e.status === 'in_progress').length,
-    notStarted: filteredEnrollments.filter((e) => e.status === 'not_started' || e.status === 'assigned').length,
+    completed: filteredEnrollments.filter((e) => normalizeTrackingStatus(e.status) === 'completed').length,
+    inProgress: filteredEnrollments.filter((e) => normalizeTrackingStatus(e.status) === 'in_progress').length,
+    notStarted: filteredEnrollments.filter((e) => normalizeTrackingStatus(e.status) === 'not_started').length,
   };
 
   const exportToCSV = () => {
@@ -273,7 +275,7 @@ export function CourseTracking() {
       e.user.department || 'N/A',
       e.team_name || 'N/A',
       e.course.title,
-      e.status,
+      statusLabel(e.status),
       e.progress_percentage,
       new Date(e.enrolled_at).toLocaleDateString(),
       e.started_at ? new Date(e.started_at).toLocaleDateString() : 'N/A',
@@ -406,7 +408,6 @@ export function CourseTracking() {
               <option value="completed">Completed</option>
               <option value="in_progress">In Progress</option>
               <option value="not_started">Not Started</option>
-              <option value="assigned">Assigned</option>
             </select>
           </div>
 
@@ -462,7 +463,7 @@ export function CourseTracking() {
                             )}`}
                           >
                             {getStatusIcon(enrollment.status)}
-                            {enrollment.status.replace('_', ' ')}
+                            {statusLabel(enrollment.status)}
                           </span>
                         </td>
                         <td className="py-4 px-4">

@@ -64,11 +64,11 @@ const TEMPLATES = {
 };
 
 function isPending(status: string) {
-  return ['assigned', 'not_started', 'viewed', 'downloaded'].includes(status);
+  return ['assigned', 'not_started'].includes(status);
 }
 
 function isInProgress(status: string) {
-  return status === 'in_progress';
+  return ['in_progress', 'viewed', 'downloaded'].includes(status);
 }
 
 function isCompleted(status: string) {
@@ -78,8 +78,8 @@ function isCompleted(status: string) {
 function statusLabel(status: string) {
   if (isCompleted(status)) return 'Completed';
   if (isInProgress(status)) return 'In progress';
-  if (isPending(status)) return 'Pending';
-  return status.replace('_', ' ');
+  if (isPending(status)) return 'Not started';
+  return status.replace(/_/g, ' ');
 }
 
 function resolveRecipientEmail(

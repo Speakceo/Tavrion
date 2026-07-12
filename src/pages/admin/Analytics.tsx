@@ -73,6 +73,10 @@ export function Analytics() {
         .from('user_course_enrollments')
         .select('id, status, user_id, course_id');
 
+      let uploadedAssignmentsQuery = supabase
+        .from('uploaded_course_assignments')
+        .select('id, status, user_id, course_id');
+
       let quizQuery = supabase
         .from('quiz_attempts')
         .select('id, score, user_id');
@@ -80,29 +84,41 @@ export function Analytics() {
       if (orgUserIds.size > 0) {
         const ids = [...orgUserIds];
         enrollmentsQuery = enrollmentsQuery.in('user_id', ids);
+        uploadedAssignmentsQuery = uploadedAssignmentsQuery.in('user_id', ids);
         quizQuery = quizQuery.in('user_id', ids);
       } else {
-        enrollmentsQuery = enrollmentsQuery.in('user_id', ['00000000-0000-0000-0000-000000000000']);
-        quizQuery = quizQuery.in('user_id', ['00000000-0000-0000-0000-000000000000']);
+        const empty = ['00000000-0000-0000-0000-000000000000'];
+        enrollmentsQuery = enrollmentsQuery.in('user_id', empty);
+        uploadedAssignmentsQuery = uploadedAssignmentsQuery.in('user_id', empty);
+        quizQuery = quizQuery.in('user_id', empty);
       }
 
-      const [{ data: enrollments }, { data: quizAttempts }] = await Promise.all([
+      const [{ data: enrollments }, { data: uploadedAssignments }, { data: quizAttempts }] = await Promise.all([
         enrollmentsQuery,
+        uploadedAssignmentsQuery,
         quizQuery,
       ]);
 
       const scopedEnrollments = filterByOrgUsers(enrollments, orgUserIds);
+      const scopedUploaded = filterByOrgUsers(uploadedAssignments, orgUserIds);
       const scopedQuizAttempts = filterByOrgUsers(quizAttempts, orgUserIds);
 
       const enrolledBuiltinIds = new Set(
         scopedEnrollments.map((e: { course_id?: string }) => e.course_id).filter(Boolean) as string[],
       );
+      const assignedUploadedIds = new Set(
+        scopedUploaded.map((e: { course_id?: string }) => e.course_id).filter(Boolean) as string[],
+      );
       const uploadedIds = (uploadedCourses || []).map((c) => c.id);
-      const totalCourses = new Set([...uploadedIds, ...enrolledBuiltinIds]).size;
+      const totalCourses = new Set([...uploadedIds, ...enrolledBuiltinIds, ...assignedUploadedIds]).size;
 
-      const completedEnrollments = scopedEnrollments.filter((e) => e.status === 'completed').length;
-      const completionRate = scopedEnrollments.length
-        ? Math.round((completedEnrollments / scopedEnrollments.length) * 100)
+      const allProgressRows = [
+        ...scopedEnrollments.map((e) => e.status),
+        ...scopedUploaded.map((e) => e.status),
+      ];
+      const completedCount = allProgressRows.filter((status) => status === 'completed').length;
+      const completionRate = allProgressRows.length
+        ? Math.round((completedCount / allProgressRows.length) * 100)
         : 0;
       const avgScore = scopedQuizAttempts.length
         ? Math.round(scopedQuizAttempts.reduce((acc, q) => acc + (q.score || 0), 0) / scopedQuizAttempts.length)
@@ -125,6 +141,11 @@ export function Analytics() {
         .select('id, user_id')
         .gte('enrolled_at', since);
 
+      let recentUploadedQuery = supabase
+        .from('uploaded_course_assignments')
+        .select('id, user_id')
+        .gte('created_at', since);
+
       let recentQuizQuery = supabase
         .from('quiz_attempts')
         .select('id, user_id')
@@ -138,26 +159,33 @@ export function Analytics() {
       if (orgUserIds.size > 0) {
         const ids = [...orgUserIds];
         recentEnrollmentsQuery = recentEnrollmentsQuery.in('user_id', ids);
+        recentUploadedQuery = recentUploadedQuery.in('user_id', ids);
         recentQuizQuery = recentQuizQuery.in('user_id', ids);
         recentMockQuery = recentMockQuery.in('user_id', ids);
       } else {
-        recentEnrollmentsQuery = recentEnrollmentsQuery.in('user_id', ['00000000-0000-0000-0000-000000000000']);
-        recentQuizQuery = recentQuizQuery.in('user_id', ['00000000-0000-0000-0000-000000000000']);
-        recentMockQuery = recentMockQuery.in('user_id', ['00000000-0000-0000-0000-000000000000']);
+        const empty = ['00000000-0000-0000-0000-000000000000'];
+        recentEnrollmentsQuery = recentEnrollmentsQuery.in('user_id', empty);
+        recentUploadedQuery = recentUploadedQuery.in('user_id', empty);
+        recentQuizQuery = recentQuizQuery.in('user_id', empty);
+        recentMockQuery = recentMockQuery.in('user_id', empty);
       }
 
       const [
         { data: recentEnrollments },
+        { data: recentUploaded },
         { data: recentQuizAttempts },
         { data: recentMockCalls },
       ] = await Promise.all([
         recentEnrollmentsQuery,
+        recentUploadedQuery,
         recentQuizQuery,
         recentMockQuery,
       ]);
 
       setRecentActivity({
-        enrollments: filterByOrgUsers(recentEnrollments, orgUserIds).length,
+        enrollments:
+          filterByOrgUsers(recentEnrollments, orgUserIds).length +
+          filterByOrgUsers(recentUploaded, orgUserIds).length,
         quizAttempts: filterByOrgUsers(recentQuizAttempts, orgUserIds).length,
         mockCalls: filterByOrgUsers(recentMockCalls, orgUserIds).length,
       });
