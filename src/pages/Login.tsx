@@ -88,9 +88,11 @@ export function Login() {
 
       if (searchError) throw searchError;
       setSuggestions(data || []);
+      setError('');
     } catch (err) {
       console.error('Failed to search organisations:', err);
       setSuggestions([]);
+      setError('Could not reach organisation directory. Please refresh and try again.');
     } finally {
       setOrgSearchLoading(false);
     }
