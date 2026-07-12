@@ -1,6 +1,2 @@
-/* Same-origin Supabase proxy (must come before SPA fallback) */
-/api/sb/*  https://jilehijfjayayfumbrsl.supabase.co/:splat  200
-/api/sb    https://jilehijfjayayfumbrsl.supabase.co/         200
-
-/* SPA */
+/* SPA fallback — Supabase proxy rules live in netlify.toml (not published as a static file). */
 /*    /index.html   200

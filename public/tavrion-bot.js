@@ -5,12 +5,17 @@
   if (!script) return;
 
   var botKey = script.getAttribute('data-bot-key');
-  var apiBase = script.getAttribute('data-api-url') || 'https://jilehijfjayayfumbrsl.supabase.co';
+  // Prefer same-origin proxy path — never default to *.supabase.co
+  var apiBase = script.getAttribute('data-api-url') || (typeof location !== 'undefined' ? (location.origin + '/api/sb') : '');
   var anonKey = script.getAttribute('data-anon-key') || '';
   var position = script.getAttribute('data-position') || 'bottom-right';
 
   if (!botKey) {
     console.error('[Tavrion Bot] Missing data-bot-key attribute');
+    return;
+  }
+  if (!apiBase) {
+    console.error('[Tavrion Bot] Missing data-api-url attribute');
     return;
   }
 
