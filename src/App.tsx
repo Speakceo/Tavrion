@@ -42,6 +42,7 @@ import { BestCalls as AdminBestCalls } from './pages/admin/BestCalls';
 import { EmailNudges } from './pages/admin/EmailNudges';
 import { CourseAssignmentRules } from './pages/admin/CourseAssignmentRules';
 import { PolicyVersions } from './pages/admin/PolicyVersions';
+import { AdminAiSettings } from './pages/admin/AiSettings';
 import { Certificates } from './pages/Certificates';
 import { OwnerDashboard } from './pages/owner/Dashboard';
 import { OrgDetail } from './pages/owner/OrgDetail';
@@ -458,6 +459,14 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['super_admin', 'admin', 'trainer']}>
                 <PolicyVersions />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/ai-settings"
+            element={
+              <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
+                <AdminAiSettings />
               </ProtectedRoute>
             }
           />

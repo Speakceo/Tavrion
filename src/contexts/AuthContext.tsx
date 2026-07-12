@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { UserProfile, Organization } from '../types';
 import { isMasterSuperAdmin } from '../utils/platformAccess';
 import { mergeOrgFeatures } from '../utils/orgFeatures';
+import { setOpenAiOrganizationId } from '../services/openai';
 
 function isPlatformOwnerAccount(profile?: { is_platform_owner?: boolean; unique_id?: string | null } | null) {
   return Boolean(profile?.is_platform_owner || isMasterSuperAdmin(profile?.unique_id));
@@ -48,6 +49,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    setOpenAiOrganizationId(profile?.organization_id || organization?.id || null);
+  }, [profile?.organization_id, organization?.id]);
 
   const fetchProfile = async (userId: string, orgId?: string) => {
     try {
@@ -247,6 +252,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     localStorage.removeItem('user_id');
     localStorage.removeItem('org_id');
+    setOpenAiOrganizationId(null);
     setProfile(null);
     setOrganization(null);
   };

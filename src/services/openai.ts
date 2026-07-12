@@ -3,27 +3,49 @@ import { getSupabaseAnonKey, getSupabaseUrl } from '../lib/supabaseEnv';
 const SUPABASE_URL = getSupabaseUrl();
 const SUPABASE_ANON_KEY = getSupabaseAnonKey();
 
-export class OpenAIService {
+/** Active org for AI calls — set from AuthContext when the user signs in. */
+let activeOrganizationId: string | null = null;
 
+export function setOpenAiOrganizationId(organizationId: string | null | undefined) {
+  activeOrganizationId = organizationId || null;
+}
+
+export function getOpenAiOrganizationId() {
+  return activeOrganizationId;
+}
+
+function orgPayload(extra: Record<string, unknown> = {}) {
+  return {
+    ...extra,
+    organizationId: activeOrganizationId,
+  };
+}
+
+async function postJson(path: string, body: Record<string, unknown>) {
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+    body: JSON.stringify(orgPayload(body)),
+  });
+  return response;
+}
+
+export class OpenAIService {
   async generateCourse(params: {
     topic: string;
     targetRole: string;
     country: string;
     additionalContext?: string;
   }): Promise<any> {
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/ai-chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-      },
-      body: JSON.stringify({
-        action: 'generate-course',
-        topic: params.topic,
-        targetRole: params.targetRole,
-        country: params.country,
-        additionalContext: params.additionalContext,
-      })
+    const response = await postJson('ai-chat', {
+      action: 'generate-course',
+      topic: params.topic,
+      targetRole: params.targetRole,
+      country: params.country,
+      additionalContext: params.additionalContext,
     });
 
     if (!response.ok) {
@@ -34,7 +56,7 @@ export class OpenAIService {
     return await response.json();
   }
 
-  async generateSlides(params: {
+  async generateSlides(_params: {
     topic: string;
     targetRole: string;
     country: string;
@@ -42,7 +64,7 @@ export class OpenAIService {
     return [];
   }
 
-  async generateQuiz(params: {
+  async generateQuiz(_params: {
     topic: string;
     targetRole: string;
   }): Promise<any[]> {
@@ -53,19 +75,14 @@ export class OpenAIService {
     userMessage: string;
     context?: string;
     userRole: string;
+    conversationHistory?: { role: string; content: string }[];
   }): Promise<string> {
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/ai-chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-      },
-      body: JSON.stringify({
-        action: 'chat-tutor',
-        userMessage: params.userMessage,
-        context: params.context,
-        userRole: params.userRole
-      })
+    const response = await postJson('ai-chat', {
+      action: 'chat-tutor',
+      userMessage: params.userMessage,
+      context: params.context,
+      userRole: params.userRole,
+      conversationHistory: params.conversationHistory || [],
     });
 
     if (!response.ok) {
@@ -85,28 +102,21 @@ export class OpenAIService {
     userId: string;
     isNewCall: boolean;
   }): Promise<string> {
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/mock-call-agent`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-      },
-      body: JSON.stringify({
-        scenarioType: params.scenarioType,
-        systemPrompt: params.systemPrompt,
-        userMessage: params.userMessage,
-        conversationHistory: params.conversationHistory,
-        userId: params.userId,
-        isNewCall: params.isNewCall
-      })
+    const response = await postJson('mock-call-agent', {
+      scenarioType: params.scenarioType,
+      systemPrompt: params.systemPrompt,
+      userMessage: params.userMessage,
+      conversationHistory: params.conversationHistory,
+      userId: params.userId,
+      isNewCall: params.isNewCall,
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
+      const errorData = await response.json().catch(() => ({}));
       if (errorData.limitReached) {
         throw new Error(errorData.error);
       }
-      throw new Error(`Failed to get AI response: ${response.statusText}`);
+      throw new Error(errorData.error || `Failed to get AI response: ${response.statusText}`);
     }
 
     const data = await response.json();
@@ -118,17 +128,10 @@ export class OpenAIService {
     transcript: { role: string; message: string }[];
     evaluationRubric?: string;
   }): Promise<{ score: number; feedback: string; strengths: string[]; improvements: string[] }> {
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/mock-call-evaluate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-      },
-      body: JSON.stringify({
-        scenarioType: params.scenarioType,
-        transcript: params.transcript,
-        evaluationRubric: params.evaluationRubric,
-      })
+    const response = await postJson('mock-call-evaluate', {
+      scenarioType: params.scenarioType,
+      transcript: params.transcript,
+      evaluationRubric: params.evaluationRubric,
     });
 
     if (!response.ok) {
@@ -144,18 +147,11 @@ export class OpenAIService {
     userAnswer: string;
     correctAnswer: string;
   }): Promise<{ isCorrect: boolean; feedback: string; score: number }> {
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/ai-chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-      },
-      body: JSON.stringify({
-        action: 'evaluate-answer',
-        question: params.question,
-        userAnswer: params.userAnswer,
-        correctAnswer: params.correctAnswer
-      })
+    const response = await postJson('ai-chat', {
+      action: 'evaluate-answer',
+      question: params.question,
+      userAnswer: params.userAnswer,
+      correctAnswer: params.correctAnswer,
     });
 
     if (!response.ok) {
@@ -166,18 +162,14 @@ export class OpenAIService {
     return await response.json();
   }
 
-  async textToSpeech(text: string, voice: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer' = 'nova'): Promise<Blob> {
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/openai-proxy`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-      },
-      body: JSON.stringify({
-        action: 'text-to-speech',
-        text,
-        voice
-      })
+  async textToSpeech(
+    text: string,
+    voice: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer' = 'nova',
+  ): Promise<Blob> {
+    const response = await postJson('openai-proxy', {
+      action: 'text-to-speech',
+      text,
+      voice,
     });
 
     if (!response.ok) {
@@ -194,16 +186,9 @@ export class OpenAIService {
     const binaryString = uint8Array.reduce((acc, byte) => acc + String.fromCharCode(byte), '');
     const audioData = btoa(binaryString);
 
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/openai-proxy`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-      },
-      body: JSON.stringify({
-        action: 'speech-to-text',
-        audioData
-      })
+    const response = await postJson('openai-proxy', {
+      action: 'speech-to-text',
+      audioData,
     });
 
     if (!response.ok) {

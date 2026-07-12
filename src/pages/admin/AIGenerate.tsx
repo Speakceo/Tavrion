@@ -213,6 +213,7 @@ export function AIGenerate() {
           content: presentationContent,
           n_slides: Math.min(generatedContent.modules.length + 2, 12),
           tone: 'professional',
+          organizationId: profile?.organization_id || null,
         }),
       });
 

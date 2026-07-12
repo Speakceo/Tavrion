@@ -28,6 +28,7 @@ interface Slide {
 }
 
 async function getSecret(key: string): Promise<string> {
+  // Kept for backward compatibility with any remaining callers; prefer resolveOrgLlm.
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const { createClient } = await import('npm:@supabase/supabase-js@2');
@@ -46,8 +47,9 @@ async function getSecret(key: string): Promise<string> {
   return data.value;
 }
 
-async function generatePresentation(params: PresentationParams): Promise<Slide[]> {
-  const openaiApiKey = await getSecret('OPENAI_API_KEY');
+async function generatePresentation(params: PresentationParams & { organizationId?: string }): Promise<Slide[]> {
+  const { chatCompletion, resolveOrgLlm } = await import("../_shared/orgLlm.ts");
+  const llm = await resolveOrgLlm(params.organizationId);
 
   const numSlides = params.n_slides || 5;
   const tone = params.tone || "professional";
@@ -94,26 +96,18 @@ Return ONLY valid JSON in this exact format:
   ]
 }`;
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${openaiApiKey}`,
-    },
-    body: JSON.stringify({
-      model: "gpt-4o",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.7,
-      max_tokens: 4000,
-    }),
+  const response = await chatCompletion(llm, {
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    temperature: 0.7,
+    max_tokens: 4000,
   });
 
   if (!response.ok) {
     const error = await response.text();
-    throw new Error(`OpenAI API error: ${error}`);
+    throw new Error(`LLM API error: ${error}`);
   }
 
   const data = await response.json();
@@ -121,7 +115,7 @@ Return ONLY valid JSON in this exact format:
 
   const jsonMatch = content.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
-    throw new Error("Failed to parse OpenAI response");
+    throw new Error("Failed to parse LLM response");
   }
 
   const result = JSON.parse(jsonMatch[0]);

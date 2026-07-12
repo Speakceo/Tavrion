@@ -1,91 +1,67 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from 'npm:@supabase/supabase-js@2';
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
-};
-
-async function getSecret(key: string): Promise<string> {
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-  const { data, error } = await supabase
-    .from('app_secrets')
-    .select('value')
-    .eq('key', key)
-    .maybeSingle();
-
-  if (error || !data) {
-    throw new Error(`Secret ${key} not found`);
-  }
-
-  return data.value;
-}
+import { chatCompletion, corsHeaders, resolveOrgLlm } from "../_shared/orgLlm.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 200,
-      headers: corsHeaders,
-    });
+    return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   try {
-    const { action, ...params } = await req.json();
-
-    const OPENAI_API_KEY = await getSecret('OPENAI_API_KEY');
+    const { action, organizationId, ...params } = await req.json();
+    const llm = await resolveOrgLlm(organizationId);
 
     if (action === "chat-tutor") {
-      const { userMessage, context, userRole } = params;
+      const { userMessage, context, userRole, conversationHistory } = params;
 
-      const systemPrompt = `You are an AI tutor for Amberstudent LMS. Help ${userRole} team members
-learn about student accommodation, sales processes, operations, and customer service.
-Be helpful, encouraging, and provide practical examples.
-${context ? `\nContext: ${context}` : ''}`;
+      const systemPrompt = `You are an AI tutor for Tavrion LMS. Help ${userRole || "learner"} team members with their organisation's training, SOPs, sales skills, and workplace best practices.
+Be helpful, encouraging, and practical.
+${context ? `\nOrganisation context:\n${context}` : ""}`;
+
+      const history = Array.isArray(conversationHistory)
+        ? conversationHistory
+            .filter((m: { role?: string; content?: string }) => m?.role && m?.content)
+            .slice(-12)
+            .map((m: { role: string; content: string }) => ({
+              role: m.role === "assistant" ? "assistant" : "user",
+              content: m.content,
+            }))
+        : [];
 
       const messages = [
         { role: "system", content: systemPrompt },
-        { role: "user", content: userMessage }
+        ...history,
+        { role: "user", content: userMessage },
       ];
 
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${OPENAI_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: "gpt-4",
-          messages,
-          temperature: 0.7,
-          max_tokens: 2000
-        })
+      const response = await chatCompletion(llm, {
+        messages,
+        temperature: 0.7,
+        max_tokens: 2000,
       });
 
       if (!response.ok) {
-        throw new Error(`OpenAI API error: ${response.statusText}`);
+        const errText = await response.text();
+        throw new Error(`LLM error: ${errText}`);
       }
 
       const data = await response.json();
       return new Response(
-        JSON.stringify({ response: data.choices[0].message.content }),
-        {
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        },
+        JSON.stringify({
+          response: data.choices[0].message.content,
+          provider: llm.provider,
+          model: llm.chatModel,
+          source: llm.source,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
     if (action === "generate-course") {
-      const { topic, targetRole, country } = params;
+      const { topic, targetRole, country, additionalContext } = params;
 
-      const systemPrompt = `You are an expert instructional designer for Amberstudent, a student accommodation platform.
-Create comprehensive, practical training content for ${targetRole} team members in ${country}.`;
+      const systemPrompt = `You are an expert instructional designer for Tavrion LMS.
+Create comprehensive, practical training content for ${targetRole} team members in ${country}.
+${additionalContext ? `\nAdditional context from the organisation:\n${additionalContext}` : ""}`;
 
       const userPrompt = `Create a detailed course outline for: "${topic}"
 
@@ -101,34 +77,25 @@ Return ONLY a valid JSON structure with:
         {
           "title": "Lesson title",
           "type": "slides|text|quiz",
-          "content": { ... }
+          "content": { "text": "lesson body" }
         }
       ]
     }
   ]
 }`;
 
-      const messages = [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
-      ];
-
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${OPENAI_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: "gpt-4",
-          messages,
-          temperature: 0.7,
-          max_tokens: 2000
-        })
+      const response = await chatCompletion(llm, {
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        temperature: 0.7,
+        max_tokens: 4000,
       });
 
       if (!response.ok) {
-        throw new Error(`OpenAI API error: ${response.statusText}`);
+        const errText = await response.text();
+        throw new Error(`LLM error: ${errText}`);
       }
 
       const data = await response.json();
@@ -138,29 +105,28 @@ Return ONLY a valid JSON structure with:
         const cleanedResponse = content.trim();
         const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/);
         const courseData = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(cleanedResponse);
-
-        return new Response(
-          JSON.stringify(courseData),
-          {
-            headers: {
-              ...corsHeaders,
-              "Content-Type": "application/json",
-            },
-          },
-        );
-      } catch (error) {
-        console.error('Failed to parse OpenAI response:', content);
-        throw new Error('Failed to parse course content. Please try again.');
+        return new Response(JSON.stringify(courseData), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      } catch {
+        console.error("Failed to parse LLM course response:", content);
+        throw new Error("Failed to parse course content. Please try again.");
       }
     }
 
     if (action === "evaluate-answer") {
       const { question, userAnswer, correctAnswer } = params;
 
-      const systemPrompt = `Evaluate the user's answer to a training question.
-Be fair and constructive. Award partial credit for partially correct answers.`;
-
-      const userPrompt = `Question: ${question}
+      const response = await chatCompletion(llm, {
+        messages: [
+          {
+            role: "system",
+            content:
+              "Evaluate the user's answer to a training question. Be fair and constructive. Award partial credit for partially correct answers. Return JSON only.",
+          },
+          {
+            role: "user",
+            content: `Question: ${question}
 Correct Answer: ${correctAnswer}
 User Answer: ${userAnswer}
 
@@ -169,57 +135,34 @@ Evaluate and return JSON:
   "isCorrect": boolean,
   "score": 0-100,
   "feedback": "detailed feedback"
-}`;
-
-      const messages = [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
-      ];
-
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${OPENAI_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: "gpt-4",
-          messages,
-          temperature: 0.7,
-          max_tokens: 500
-        })
+}`,
+          },
+        ],
+        temperature: 0.3,
+        max_tokens: 500,
       });
 
       if (!response.ok) {
-        throw new Error(`OpenAI API error: ${response.statusText}`);
+        const errText = await response.text();
+        throw new Error(`LLM error: ${errText}`);
       }
 
       const data = await response.json();
-      const evaluation = JSON.parse(data.choices[0].message.content);
+      const raw = data.choices[0].message.content;
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      const evaluation = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
 
-      return new Response(
-        JSON.stringify(evaluation),
-        {
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      return new Response(JSON.stringify(evaluation), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     throw new Error("Unknown action");
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error:", error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
-      },
-    );
+    return new Response(JSON.stringify({ error: error.message || "AI request failed" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });

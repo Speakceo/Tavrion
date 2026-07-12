@@ -10,7 +10,7 @@ import {
   Video, Users as TeamIcon, FolderLock, Sparkles, BookOpen, Clock, CheckCircle,
   ChevronRight, MessageSquare, Phone, LogOut, Settings, Upload, Bell,
   ListChecks, Headphones, User, ChevronDown, Activity, Building2, Mail, Menu, X,
-  Award, Target, FileText, Library, ClipboardCheck,
+  Award, Target, FileText, Library, ClipboardCheck, Brain,
 } from 'lucide-react';
 import { getOrgLogoUrl } from '../utils/orgSettings';
 import { TestModeToggle } from '../modules/assessment/components/TestModeToggle';
@@ -58,6 +58,7 @@ const PAGE_TITLES: Record<string, { label: string; section: string }> = {
   '/test/library': { label: 'Assessment Library', section: 'Tavrion Test' },
   '/admin/assignment-rules': { label: 'Assignment Rules', section: 'Admin' },
   '/admin/policy-versions': { label: 'Policies', section: 'Admin' },
+  '/admin/ai-settings': { label: 'AI Settings', section: 'Admin' },
   '/policies': { label: 'Policies', section: 'Learning' },
   '/owner': { label: 'Platform Overview', section: 'Owner Portal' },
 };
@@ -209,6 +210,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { name: 'Tavrion Test', href: '/test', icon: ClipboardCheck, roles: ['super_admin', 'admin', 'trainer'] },
     { name: 'Assignment Rules', href: '/admin/assignment-rules', icon: Target, roles: ['super_admin', 'admin', 'trainer'] },
     { name: 'Policies', href: '/admin/policy-versions', icon: FileText, roles: ['super_admin', 'admin', 'trainer'] },
+    { name: 'AI Settings', href: '/admin/ai-settings', icon: Brain, roles: ['super_admin', 'admin'] },
   ];
 
   const filteredAdminNav = adminNavigation.filter((item) => item.roles.includes(profile?.role || ''));

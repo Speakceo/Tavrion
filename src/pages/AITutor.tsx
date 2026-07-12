@@ -71,6 +71,10 @@ export function AITutor() {
         userMessage,
         userRole: profile.role || 'employee',
         context: getAiTutorContext(organization),
+        conversationHistory: messages.slice(-12).map((m) => ({
+          role: m.role === 'assistant' ? 'assistant' : 'user',
+          content: m.message || (m as any).content || '',
+        })),
       });
 
       await supabase.from('ai_chat_history').insert({
