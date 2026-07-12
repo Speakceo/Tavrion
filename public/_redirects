@@ -1,2 +1,2 @@
-/* SPA fallback — Supabase proxy rules live in netlify.toml (not published as a static file). */
+# SPA fallback — Supabase proxy rules live in netlify.toml
 /*    /index.html   200
