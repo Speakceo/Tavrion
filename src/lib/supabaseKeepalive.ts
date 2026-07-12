@@ -1,11 +1,12 @@
-import {
-  SUPABASE_KEEPALIVE_PATHS,
-  SUPABASE_PROJECT_URL,
-  supabaseKeepaliveHeaders,
-} from '../../shared/supabaseProject';
+import { getSupabaseAnonKey, getSupabaseUrl } from './supabaseEnv';
 
 const SESSION_KEY = 'tavrion_supabase_keepalive';
 const MIN_INTERVAL_MS = 4 * 60 * 60 * 1000;
+
+const KEEPALIVE_PATHS = [
+  '/auth/v1/health',
+  '/rest/v1/organizations?select=id&limit=1',
+] as const;
 
 /** Lightweight client ping when the app loads (backup to scheduled keepalives). */
 export function pingSupabaseKeepalive() {
@@ -17,10 +18,22 @@ export function pingSupabaseKeepalive() {
     // sessionStorage unavailable
   }
 
-  const base = SUPABASE_PROJECT_URL.replace(/\/$/, '');
-  const headers = supabaseKeepaliveHeaders();
+  let base: string;
+  let key: string;
+  try {
+    base = getSupabaseUrl().replace(/\/$/, '');
+    key = getSupabaseAnonKey();
+  } catch {
+    return;
+  }
 
-  for (const path of SUPABASE_KEEPALIVE_PATHS) {
+  const headers = {
+    apikey: key,
+    Authorization: `Bearer ${key}`,
+    Accept: 'application/json',
+  };
+
+  for (const path of KEEPALIVE_PATHS) {
     void fetch(`${base}${path}`, { headers }).catch(() => {});
   }
 }
