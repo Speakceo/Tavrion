@@ -1,11 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAnonKey, getSupabaseUrl } from './supabaseEnv';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables');
-}
+const supabaseUrl = getSupabaseUrl();
+const supabaseAnonKey = getSupabaseAnonKey();
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -14,15 +11,15 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
   global: {
     headers: {
-      'x-client-info': 'supabase-js-web'
+      'x-client-info': 'supabase-js-web',
     },
   },
   db: {
-    schema: 'public'
+    schema: 'public',
   },
   realtime: {
     params: {
-      eventsPerSecond: 10
-    }
-  }
+      eventsPerSecond: 10,
+    },
+  },
 });

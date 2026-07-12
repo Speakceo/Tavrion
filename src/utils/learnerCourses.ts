@@ -97,6 +97,8 @@ export async function fetchLearnerCourses(userId: string) {
 }
 
 export function subscribeLearnerCourses(userId: string, onChange: () => void) {
+  // Same-origin proxy often cannot upgrade WebSockets on Netlify/Vercel — poll instead.
+  const pollId = window.setInterval(onChange, 20_000);
   const channel = supabase
     .channel(`learner-courses-${userId}`)
     .on(
@@ -112,6 +114,7 @@ export function subscribeLearnerCourses(userId: string, onChange: () => void) {
     .subscribe();
 
   return () => {
+    window.clearInterval(pollId);
     supabase.removeChannel(channel);
   };
 }

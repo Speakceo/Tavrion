@@ -6,6 +6,19 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
+# Same-origin reverse proxy — browser Network tab shows jointavrion.com/api/sb/*, not *.supabase.co
+[[redirects]]
+  from = "/api/sb/*"
+  to = "https://jilehijfjayayfumbrsl.supabase.co/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/sb"
+  to = "https://jilehijfjayayfumbrsl.supabase.co/"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
@@ -19,7 +32,12 @@
 [[headers]]
   for = "/sitemap.xml"
   [headers.values]
-    Content-Type = "application/xml; charset=utf-8"
+    Content-Type = "text/xml; charset=utf-8"
+
+[[headers]]
+  for = "/api/sb/*"
+  [headers.values]
+    Cache-Control = "no-store"
 
 [[headers]]
   for = "/*"

@@ -21,6 +21,7 @@ import {
   rewriteScormJsAssetsForSession,
 } from '../utils/scormHtmlRewrite';
 import { buildScormCacheRuntimeShim, buildScormRuntimeShim, SCORM_SESSION_CONFIG_FILE } from '../utils/scormRuntimeShim';
+import { getSupabaseUrl } from '../lib/supabaseEnv';
 import { X, AlertCircle, Maximize2 } from 'lucide-react';
 
 interface ScormPlayerProps {
@@ -181,7 +182,7 @@ async function registerScormSession(
     type: 'SCORM_SESSION',
     sessionId,
     storagePrefix,
-    supabaseUrl: import.meta.env.VITE_SUPABASE_URL as string,
+    supabaseUrl: getSupabaseUrl(),
     bucket: 'course-files',
     pathMap: resolver.pathMap,
   };
@@ -212,7 +213,7 @@ async function cacheStorageFiles(
   const runtimeShim = buildScormRuntimeShim(
     storagePrefix,
     resolver.pathMap,
-    import.meta.env.VITE_SUPABASE_URL as string,
+    getSupabaseUrl(),
   );
   const cache = await caches.open(`scorm-content-${sessionId}`);
   const basePath = `/scorm-content/${sessionId}`;

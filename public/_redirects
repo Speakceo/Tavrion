@@ -1,1 +1,6 @@
+/* Same-origin Supabase proxy (must come before SPA fallback) */
+/api/sb/*  https://jilehijfjayayfumbrsl.supabase.co/:splat  200
+/api/sb    https://jilehijfjayayfumbrsl.supabase.co/         200
+
+/* SPA */
 /*    /index.html   200

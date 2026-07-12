@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { SEO, usePageSeo } from '../lib/seo';
+import { getSupabaseAnonKey, getSupabaseUrl } from '../lib/supabaseEnv';
 import {
   Dna, Globe2, Sparkles, Palette, Type, Target, ArrowRight, CheckCircle2,
   Zap, Layers, Share2, Scan, ChevronRight, ExternalLink, Instagram, Linkedin,
@@ -112,7 +113,7 @@ const USE_CASE_EXAMPLES = [
 ];
 
 function proxyImage(url: string) {
-  const base = import.meta.env.VITE_SUPABASE_URL;
+  const base = getSupabaseUrl();
   return `${base}/functions/v1/dna-studio-image-proxy?url=${encodeURIComponent(url)}`;
 }
 
@@ -201,11 +202,11 @@ export function DnaStudio() {
     setLoading(true);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dna-studio-analyze`, {
+      const response = await fetch(`${getSupabaseUrl()}/functions/v1/dna-studio-analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          Authorization: `Bearer ${getSupabaseAnonKey()}`,
         },
         body: JSON.stringify({ url: value }),
       });
@@ -252,11 +253,11 @@ export function DnaStudio() {
     };
 
     const requests = concepts.slice(0, 3).map((c, i) =>
-      fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dna-studio-generate-images`, {
+      fetch(`${getSupabaseUrl()}/functions/v1/dna-studio-generate-images`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          Authorization: `Bearer ${getSupabaseAnonKey()}`,
         },
         body: JSON.stringify({
           brand: brandPayload,
@@ -302,11 +303,11 @@ export function DnaStudio() {
     setCampaigns(null);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dna-studio-generate-campaign`, {
+      const response = await fetch(`${getSupabaseUrl()}/functions/v1/dna-studio-generate-campaign`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          Authorization: `Bearer ${getSupabaseAnonKey()}`,
         },
         body: JSON.stringify({
           brand: {

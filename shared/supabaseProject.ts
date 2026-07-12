@@ -1,7 +1,29 @@
-/** Public Supabase project — anon key is client-safe and already shipped in the frontend bundle. */
-export const SUPABASE_PROJECT_URL = 'https://jilehijfjayayfumbrsl.supabase.co';
+/**
+ * Server-side keepalive helpers.
+ * Prefer Netlify/Vercel env (SUPABASE_URL + SUPABASE_ANON_KEY). Never import this from the browser bundle.
+ */
+const FALLBACK_URL = 'https://jilehijfjayayfumbrsl.supabase.co';
+
+function readEnv(name: string): string | undefined {
+  try {
+    // Deno (Edge) / Node
+    const fromProcess = typeof process !== 'undefined' ? process.env?.[name] : undefined;
+    if (fromProcess) return fromProcess;
+  } catch {
+    /* ignore */
+  }
+  return undefined;
+}
+
+export const SUPABASE_PROJECT_URL =
+  readEnv('SUPABASE_URL') ||
+  readEnv('VITE_SUPABASE_URL_ORIGIN') ||
+  FALLBACK_URL;
+
 export const SUPABASE_ANON_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppbGVoaWpmamF5YXlmdW1icnNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzNzQ1ODQsImV4cCI6MjA5Nzk1MDU4NH0.UFzU1lXpguU3NoW8zKqsfYUVMdIgxOrSbofWV7OmmQw';
+  readEnv('SUPABASE_ANON_KEY') ||
+  readEnv('VITE_SUPABASE_ANON_KEY') ||
+  '';
 
 /** Minimal external pings — empty results still count as Supabase activity. */
 export const SUPABASE_KEEPALIVE_PATHS = [
@@ -10,6 +32,9 @@ export const SUPABASE_KEEPALIVE_PATHS = [
 ] as const;
 
 export function supabaseKeepaliveHeaders() {
+  if (!SUPABASE_ANON_KEY) {
+    throw new Error('SUPABASE_ANON_KEY (or VITE_SUPABASE_ANON_KEY) is required for keepalive');
+  }
   return {
     apikey: SUPABASE_ANON_KEY,
     Authorization: `Bearer ${SUPABASE_ANON_KEY}`,

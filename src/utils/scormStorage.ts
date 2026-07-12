@@ -1,5 +1,6 @@
 import { BlobReader, BlobWriter, ZipReader } from '@zip.js/zip.js';
 import { supabase } from '../lib/supabase';
+import { getSupabaseUrl } from '../lib/supabaseEnv';
 import { formatBookSize, SUPABASE_PER_FILE_LIMIT_BYTES } from './books';
 import { uploadLargeFile } from './chunkedUpload';
 
@@ -48,7 +49,7 @@ export function buildExtractedScormStoragePrefix(originalFileName: string, times
 }
 
 export function getCourseFilePublicUrl(filePath: string) {
-  const base = import.meta.env.VITE_SUPABASE_URL as string;
+  const base = getSupabaseUrl();
   const encodedPath = filePath.split('/').map((segment) => encodeURIComponent(segment)).join('/');
   return `${base}/storage/v1/object/public/${BUCKET}/${encodedPath}`;
 }

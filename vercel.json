@@ -1,12 +1,25 @@
 {
   "rewrites": [
-    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+    {
+      "source": "/api/sb/:path*",
+      "destination": "https://jilehijfjayayfumbrsl.supabase.co/:path*"
+    },
+    {
+      "source": "/((?!api/sb/).*)",
+      "destination": "/index.html"
+    }
   ],
   "headers": [
     {
       "source": "/assets/(.*)",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/api/sb/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" }
       ]
     }
   ]

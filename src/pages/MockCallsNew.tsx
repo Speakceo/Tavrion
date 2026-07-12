@@ -2,13 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Layout } from '../components/Layout';
+import { getSupabaseAnonKey, getSupabaseUrl } from '../lib/supabaseEnv';
 import { Phone, Mic, MicOff, PhoneOff, Send, TrendingUp, Award, Clock, Sparkles, DollarSign, MapPin, Shield, Users, FileText, AlertCircle, X, Briefcase, Home, Heart, Accessibility, Globe, Moon, Zap } from 'lucide-react';
 import type { MockCallSession } from '../types';
 
 type ScenarioType = 'budget_concern' | 'location_specific' | 'safety_parent' | 'amenities_luxury' | 'urgent_booking' | 'payment_issues' | 'roommate_issues' | 'lease_negotiation' | 'maintenance_complaints' | 'cancellation_refund' | 'group_booking' | 'pet_friendly' | 'accessibility_needs' | 'cultural_dietary' | 'late_night_inquiry' | 'competitive_offer';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const SUPABASE_URL = getSupabaseUrl();
+const SUPABASE_ANON_KEY = getSupabaseAnonKey();
 
 interface Message {
   role: 'agent' | 'customer';

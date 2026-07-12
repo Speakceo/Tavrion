@@ -6,6 +6,7 @@ import { Layout } from '../../components/Layout';
 import { Sparkles, Loader, CheckCircle, Users, FileText } from 'lucide-react';
 import { openaiService } from '../../services/openai';
 import { applyOrgUserScope, filterByDepartment, uniqueSortedStrings } from '../../utils/orgUsers';
+import { getSupabaseAnonKey, getSupabaseUrl } from '../../lib/supabaseEnv';
 
 export function AIGenerate() {
   const { profile } = useAuth();
@@ -202,11 +203,11 @@ export function AIGenerate() {
         });
       });
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-presentation`, {
+      const response = await fetch(`${getSupabaseUrl()}/functions/v1/generate-presentation`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          Authorization: `Bearer ${getSupabaseAnonKey()}`,
         },
         body: JSON.stringify({
           content: presentationContent,

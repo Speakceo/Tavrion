@@ -1,17 +1,12 @@
 import * as tus from 'tus-js-client';
 import { supabase } from '../lib/supabase';
+import { getSupabaseAnonKey, getSupabaseUrl } from '../lib/supabaseEnv';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 const TUS_THRESHOLD_BYTES = 6 * 1024 * 1024;
 
-/** Prefer direct storage hostname for resumable uploads (Supabase recommendation). */
+/** Resumable uploads stay on the same-origin proxy (never *.storage.supabase.co). */
 function getTusEndpoint() {
-  const match = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/);
-  if (match?.[1]) {
-    return `https://${match[1]}.storage.supabase.co/storage/v1/upload/resumable`;
-  }
-  return `${supabaseUrl}/storage/v1/upload/resumable`;
+  return `${getSupabaseUrl().replace(/\/$/, '')}/storage/v1/upload/resumable`;
 }
 
 type UploadContext = 'course' | 'scorm' | 'book' | 'generic';
@@ -93,8 +88,8 @@ async function uploadWithTus(
       endpoint: getTusEndpoint(),
       retryDelays: [0, 1000, 3000, 5000, 10000, 20000],
       headers: {
-        authorization: `Bearer ${supabaseAnonKey}`,
-        apikey: supabaseAnonKey,
+        authorization: `Bearer ${getSupabaseAnonKey()}`,
+        apikey: getSupabaseAnonKey(),
         'x-upsert': 'false',
       },
       uploadDataDuringCreation: true,

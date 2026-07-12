@@ -1,8 +1,15 @@
 #!/usr/bin/env node
-/** Manual keepalive check — no env vars required. */
-const BASE = 'https://jilehijfjayayfumbrsl.supabase.co';
-const KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppbGVoaWpmamF5YXlmdW1icnNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzNzQ1ODQsImV4cCI6MjA5Nzk1MDU4NH0.UFzU1lXpguU3NoW8zKqsfYUVMdIgxOrSbofWV7OmmQw';
+/** Manual keepalive check — uses SUPABASE_URL / SUPABASE_ANON_KEY from env (or .env). */
+import { config } from 'dotenv';
+config();
+
+const BASE = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
+const KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+
+if (!BASE || !KEY) {
+  console.error('Set SUPABASE_URL and SUPABASE_ANON_KEY (server env) before running keepalive.');
+  process.exit(1);
+}
 
 const headers = { apikey: KEY, Authorization: `Bearer ${KEY}` };
 

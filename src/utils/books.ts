@@ -1,4 +1,5 @@
 import { BlobReader, BlobWriter, ZipReader } from '@zip.js/zip.js';
+import { getSupabaseUrl } from '../lib/supabaseEnv';
 
 export interface BookCollection {
   id: string;
@@ -38,7 +39,7 @@ export function isBooksFeatureEnabled(features?: Record<string, boolean> | null)
 }
 
 export function getBookFileUrl(filePath: string) {
-  return `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/book-files/${filePath}`;
+  return `${getSupabaseUrl()}/storage/v1/object/public/book-files/${filePath}`;
 }
 
 export function humanizePdfName(filename: string) {

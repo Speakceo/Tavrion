@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, type Dispatch, type SetStateAction } from 
 import { Link } from 'react-router-dom';
 import { ChatMessageBubble, SourceLink } from '../components/ChatMessageBubble';
 import { SEO, usePageSeo } from '../lib/seo';
+import { getSupabaseAnonKey, getSupabaseUrl } from '../lib/supabaseEnv';
 import {
   Bot, Globe2, MessageSquare, Code2, Copy, Check, Loader2, Zap,
   ArrowRight, CheckCircle2, RefreshCw, Smartphone, Layers, Search,
@@ -45,8 +46,8 @@ const T = {
 };
 
 const FONT = 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const SUPABASE_URL = getSupabaseUrl();
+const ANON_KEY = getSupabaseAnonKey();
 
 const FEATURES = [
   { icon: Globe2, title: 'Crawl4AI Engine', body: 'Full browser crawl via Crawl4AI — up to 75 pages with sitemap discovery and deep BFS.' },
