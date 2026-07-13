@@ -483,7 +483,9 @@ export function ScormPlayer({
 
             const cacheUrl = `${location.origin}${basePath}/${name}`;
             const cacheResponse = new Response(body, {
-              headers: { 'Content-Type': mimeType },
+              headers: {
+                'Content-Type': mimeType.includes('charset') ? mimeType : `${mimeType}; charset=utf-8`,
+              },
             });
             await cache.put(cacheUrl, cacheResponse);
             if (name !== encodeURI(name)) {
@@ -522,7 +524,13 @@ export function ScormPlayer({
         console.error('[SCORM] Error:', err);
         addDebug('Error: ' + err.message);
         if (mounted) {
-          setError(err.message || 'Failed to load SCORM content');
+          const raw = String(err?.message || 'Failed to load SCORM content');
+          // Never surface raw HTML/XML bodies in the error UI (Supabase often returns HTML as text/plain).
+          const safe =
+            raw.length > 280 || /<!doctype|<html[\s>]/i.test(raw)
+              ? 'This course package could not be loaded. Refresh and try again. If it keeps failing, re-upload the SCORM ZIP.'
+              : raw;
+          setError(safe);
           setLoading(false);
         }
       }
