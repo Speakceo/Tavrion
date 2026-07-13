@@ -2,16 +2,41 @@ import { useEffect, useState } from 'react';
 import { TestLayout } from '../components/TestLayout';
 import { useAuth } from '../../../contexts/AuthContext';
 import { fetchReusableLinks, createReusableLink, buildPublicUrl, deleteReusableLink, deactivateReusableLink } from '../services/linkService';
-import { fetchAssessments } from '../services/assessmentService';
+import { fetchAssessments, fetchAssessmentQuestionCounts } from '../services/assessmentService';
 import type { Assessment, AssessmentReusableLink } from '../types';
 import type { OrgViewer } from '../../../utils/orgScope';
-import { Plus, Copy, Link2, ExternalLink, Trash2, Ban } from 'lucide-react';
+import { Plus, Copy, Link2, ExternalLink, Trash2, Ban, HelpCircle, Clock, Users, Check } from 'lucide-react';
 import { confirmDelete } from '../utils/confirm';
+
+type LinkCard = AssessmentReusableLink & {
+  public_url?: string;
+  question_count?: number;
+};
+
+const GRID_CSS = `
+.test-links-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+@media (max-width: 640px) {
+  .test-links-grid { grid-template-columns: 1fr; }
+}
+.test-link-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 220px;
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+.test-link-card:hover {
+  box-shadow: rgba(0,0,0,0.08) 0px 0px 0px 1px, rgba(0,0,0,0.06) 0px 8px 24px -8px;
+}
+`;
 
 export function TestLinks() {
   const { profile } = useAuth();
   const viewer = profile ? { organization_id: profile.organization_id, is_platform_owner: profile.is_platform_owner, id: profile.id } : null;
-  const [links, setLinks] = useState<(AssessmentReusableLink & { public_url?: string })[]>([]);
+  const [links, setLinks] = useState<LinkCard[]>([]);
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ assessment_id: '', title: '', max_uses: '' });
@@ -28,7 +53,14 @@ export function TestLinks() {
         fetchReusableLinks(viewer),
         fetchAssessments(viewer, { status: 'published' }),
       ]);
-      setLinks(l.map((link) => ({ ...link, public_url: buildPublicUrl(link.link_code) })));
+      const counts = await fetchAssessmentQuestionCounts(l.map((x) => x.assessment_id));
+      setLinks(
+        l.map((link) => ({
+          ...link,
+          public_url: buildPublicUrl(link.link_code),
+          question_count: counts[link.assessment_id] || 0,
+        })),
+      );
       setAssessments(a);
     } finally {
       setLoading(false);
@@ -89,10 +121,11 @@ export function TestLinks() {
 
   return (
     <TestLayout>
+      <style>{GRID_CSS}</style>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em' }}>Public Links</h1>
-          <p style={{ fontSize: 13, color: '#666', marginTop: 4 }}>Share assessment links with external candidates — no login required.</p>
+          <p style={{ fontSize: 13, color: '#666', marginTop: 4 }}>Share assessment links with candidates — no login required.</p>
         </div>
         <button onClick={() => setShowForm(true)} className="lt-btn-primary" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', fontSize: 13 }}>
           <Plus size={14} /> Create link
@@ -134,49 +167,100 @@ export function TestLinks() {
 
       {copied && (
         <div className="lt-card" style={{ padding: 12, marginBottom: 16, fontSize: 12, color: '#16a34a', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Copy size={14} /> Link copied to clipboard
+          <Check size={14} /> Link copied to clipboard
         </div>
       )}
 
-      {loading ? <p style={{ color: '#808080' }}>Loading...</p> : links.length === 0 ? (
-        <div className="lt-card" style={{ padding: 40, textAlign: 'center' }}>
-          <Link2 size={32} color="#ccc" style={{ margin: '0 auto 12px' }} />
-          <p style={{ color: '#666' }}>No public links yet. Create one to invite external candidates.</p>
+      {loading ? (
+        <p style={{ color: '#808080' }}>Loading...</p>
+      ) : links.length === 0 ? (
+        <div className="lt-card" style={{ padding: 48, textAlign: 'center' }}>
+          <Link2 size={36} color="#ccc" style={{ margin: '0 auto 14px' }} />
+          <p style={{ fontSize: 15, fontWeight: 600, color: '#171717', marginBottom: 6 }}>No public links yet</p>
+          <p style={{ color: '#666', fontSize: 13, marginBottom: 16 }}>Create a link to invite external candidates to take an assessment.</p>
+          <button onClick={() => setShowForm(true)} className="lt-btn-primary" style={{ padding: '8px 16px', fontSize: 13 }}>
+            Create your first link
+          </button>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {links.map((l) => (
-            <div key={l.id} className="lt-card" style={{ padding: '14px 18px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {l.title}
+        <div className="test-links-grid">
+          {links.map((l) => {
+            const qCount = l.question_count ?? 0;
+            const minutes = l.assessment?.time_limit_minutes;
+            return (
+              <div key={l.id} className="lt-card test-link-card" style={{ padding: 0, overflow: 'hidden', opacity: l.is_active ? 1 : 0.72 }}>
+                <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid #f0f0f0', flex: 1 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+                    <h3 style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.35, margin: 0 }}>
+                      {l.title}
+                    </h3>
                     {!l.is_active && (
-                      <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 999, background: '#fef2f2', color: '#c0392b', fontWeight: 600 }}>Inactive</span>
+                      <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 999, background: '#fef2f2', color: '#c0392b', fontWeight: 600, flexShrink: 0 }}>
+                        Inactive
+                      </span>
                     )}
                   </div>
-                  <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>{l.assessment?.title} · {l.uses_count} uses{l.max_uses ? ` / ${l.max_uses}` : ''}</div>
-                  <div style={{ fontSize: 11, color: '#999', marginTop: 6, fontFamily: 'monospace' }}>{l.public_url}</div>
+                  <p style={{ fontSize: 12, color: '#666', margin: '0 0 14px', lineHeight: 1.4 }}>
+                    {l.assessment?.title || 'Assessment'}
+                  </p>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div style={{ background: '#fafafa', borderRadius: 10, padding: '10px 12px', border: '1px solid #f0f0f0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#999', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>
+                        <HelpCircle size={11} /> Questions
+                      </div>
+                      <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.03em', color: '#171717' }}>
+                        {qCount}
+                      </div>
+                    </div>
+                    <div style={{ background: '#fafafa', borderRadius: 10, padding: '10px 12px', border: '1px solid #f0f0f0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#999', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>
+                        <Clock size={11} /> Duration
+                      </div>
+                      <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.03em', color: '#171717' }}>
+                        {minutes ? `${minutes}m` : '—'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 12, fontSize: 12, color: '#808080' }}>
+                    <Users size={12} />
+                    {l.uses_count} use{l.uses_count === 1 ? '' : 's'}
+                    {l.max_uses ? ` · max ${l.max_uses}` : ''}
+                  </div>
                 </div>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  <button onClick={() => copyUrl(l.public_url!)} className="lt-btn-secondary" style={{ padding: '6px 12px', fontSize: 11, display: 'flex', gap: 4, alignItems: 'center' }}>
-                    <Copy size={12} /> Copy
+
+                <div style={{ padding: '10px 12px', display: 'flex', flexWrap: 'wrap', gap: 6, background: '#fcfcfc' }}>
+                  <button
+                    type="button"
+                    onClick={() => copyUrl(l.public_url!)}
+                    className="lt-btn-primary"
+                    style={{ padding: '7px 12px', fontSize: 11, display: 'flex', gap: 4, alignItems: 'center', flex: 1, justifyContent: 'center' }}
+                  >
+                    {copied === l.public_url ? <Check size={12} /> : <Copy size={12} />}
+                    {copied === l.public_url ? 'Copied' : 'Copy link'}
                   </button>
-                  <a href={l.public_url} target="_blank" rel="noreferrer" className="lt-btn-secondary" style={{ padding: '6px 12px', fontSize: 11, display: 'flex', gap: 4, alignItems: 'center', textDecoration: 'none' }}>
-                    <ExternalLink size={12} /> Preview
+                  <a
+                    href={l.public_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="lt-btn-secondary"
+                    style={{ padding: '7px 12px', fontSize: 11, display: 'flex', gap: 4, alignItems: 'center', textDecoration: 'none' }}
+                  >
+                    <ExternalLink size={12} /> Open
                   </a>
                   {l.is_active && (
-                    <button type="button" onClick={() => handleDeactivate(l)} disabled={busy === l.id} className="lt-btn-secondary" style={{ padding: '6px 12px', fontSize: 11, display: 'flex', gap: 4, alignItems: 'center' }}>
-                      <Ban size={12} /> Deactivate
+                    <button type="button" onClick={() => handleDeactivate(l)} disabled={busy === l.id} className="lt-btn-secondary" style={{ padding: '7px 10px', fontSize: 11 }}>
+                      <Ban size={12} />
                     </button>
                   )}
-                  <button type="button" onClick={() => handleDelete(l)} disabled={busy === l.id} className="lt-btn-secondary test-delete-btn" style={{ padding: '6px 12px', fontSize: 11, display: 'flex', gap: 4, alignItems: 'center' }}>
-                    <Trash2 size={12} /> Delete
+                  <button type="button" onClick={() => handleDelete(l)} disabled={busy === l.id} className="lt-btn-secondary test-delete-btn" style={{ padding: '7px 10px', fontSize: 11 }}>
+                    <Trash2 size={12} />
                   </button>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </TestLayout>

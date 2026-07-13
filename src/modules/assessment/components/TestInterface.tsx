@@ -53,8 +53,24 @@ const MOBILE_CSS = `
   .test-interface-main { padding: 16px 14px !important; }
   .test-interface-nav { flex-wrap: wrap; gap: 8px; }
   .test-interface-nav button { flex: 1; min-width: 100px; justify-content: center; }
+  .test-q-palette { max-height: 160px; overflow-y: auto; }
 }
 `;
+
+function isAnswered(ans?: Record<string, unknown>): boolean {
+  if (!ans) return false;
+  const selected = ans.selected;
+  if (Array.isArray(selected) && selected.length > 0) return true;
+  if (selected != null && selected !== '') return true;
+  if (typeof ans.text === 'string' && ans.text.trim()) return true;
+  if (typeof ans.code === 'string' && ans.code.trim()) return true;
+  if (ans.audio_url || ans.video_url || ans.media_url || ans.file_url) return true;
+  return Object.values(ans).some((v) => {
+    if (v == null || v === '') return false;
+    if (typeof v === 'object') return Array.isArray(v) ? v.length > 0 : Object.keys(v as object).length > 0;
+    return true;
+  });
+}
 
 function buildSkippedSet(questions: AssessmentQuestion[], answers: Record<string, Record<string, unknown>>): Set<string> {
   const skipped = new Set<string>();
@@ -296,6 +312,12 @@ export function TestInterface({
   }
 
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  const answeredCount = activeQuestions.filter((q) => isAnswered(answers[q.id])).length;
+
+  const goToQuestion = (index: number) => {
+    setReviewMode(false);
+    setCurrentIndex(index);
+  };
 
   const renderQuestion = () => {
     const val = answers[current.id] || {};
@@ -366,15 +388,30 @@ export function TestInterface({
         <main className="test-interface-main">
           {reviewMode ? (
             <div>
-              <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Review before submit</h2>
-              {activeQuestions.map((q, i) => (
-                <div key={q.id} style={{ padding: '12px 0', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                  <span style={{ fontSize: 13 }}>{i + 1}. {q.prompt.slice(0, 80)}</span>
-                  <span style={{ fontSize: 11, color: answers[q.id] ? '#16a34a' : '#c0392b', flexShrink: 0 }}>
-                    {answers[q.id] ? 'Answered' : 'Unanswered'}{flagged.has(q.id) ? ' · Flagged' : ''}
-                  </span>
-                </div>
-              ))}
+              <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Review before submit</h2>
+              <p style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>
+                {answeredCount} of {activeQuestions.length} answered
+                {flagged.size > 0 ? ` · ${flagged.size} flagged` : ''}. Tap a question to jump back.
+              </p>
+              {activeQuestions.map((q, i) => {
+                const done = isAnswered(answers[q.id]);
+                return (
+                  <button
+                    key={q.id}
+                    type="button"
+                    onClick={() => goToQuestion(i)}
+                    style={{
+                      width: '100%', textAlign: 'left', padding: '12px 0', border: 'none', borderBottom: '1px solid #f0f0f0',
+                      background: 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', gap: 8,
+                    }}
+                  >
+                    <span style={{ fontSize: 13, color: '#171717' }}>{i + 1}. {q.prompt.slice(0, 80)}</span>
+                    <span style={{ fontSize: 11, color: done ? '#16a34a' : '#c0392b', flexShrink: 0 }}>
+                      {done ? 'Answered' : 'Unanswered'}{flagged.has(q.id) ? ' · Flagged' : ''}
+                    </span>
+                  </button>
+                );
+              })}
               <div className="test-interface-nav" style={{ display: 'flex', gap: 10, marginTop: 20 }}>
                 <button type="button" onClick={() => setReviewMode(false)} className="lt-btn-secondary" style={{ padding: '10px 18px' }}>Back</button>
                 <button type="button" onClick={handleSubmit} disabled={submitting} className="lt-btn-primary" style={{ padding: '10px 18px' }}>
@@ -407,7 +444,63 @@ export function TestInterface({
             </>
           )}
         </main>
-        <aside className="test-interface-aside">
+        <aside className="test-interface-aside" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="lt-card" style={{ padding: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '-0.01em' }}>Questions</div>
+              <div style={{ fontSize: 11, color: '#999' }}>{answeredCount}/{activeQuestions.length}</div>
+            </div>
+            <div className="test-q-palette" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
+              {activeQuestions.map((q, i) => {
+                const done = isAnswered(answers[q.id]);
+                const isCurrent = i === currentIndex && !reviewMode;
+                const isFlagged = flagged.has(q.id);
+                let bg = '#f5f5f5';
+                let color = '#666';
+                let border = '1px solid transparent';
+                if (isCurrent) {
+                  bg = '#171717';
+                  color = '#fff';
+                } else if (done) {
+                  bg = '#ecfdf5';
+                  color = '#15803d';
+                  border = '1px solid #bbf7d0';
+                } else if (isFlagged) {
+                  bg = '#fef2f2';
+                  color = '#b91c1c';
+                  border = '1px solid #fecaca';
+                }
+                return (
+                  <button
+                    key={q.id}
+                    type="button"
+                    title={`Question ${i + 1}${done ? ' · answered' : ''}${isFlagged ? ' · flagged' : ''}`}
+                    onClick={() => goToQuestion(i)}
+                    style={{
+                      aspectRatio: '1', borderRadius: 8, border, background: bg, color, fontSize: 12, fontWeight: 700,
+                      cursor: 'pointer', position: 'relative', padding: 0, lineHeight: 1,
+                    }}
+                  >
+                    {i + 1}
+                    {isFlagged && !isCurrent && (
+                      <span style={{ position: 'absolute', top: 2, right: 3, width: 5, height: 5, borderRadius: '50%', background: '#c0392b' }} />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 12px', marginTop: 12, fontSize: 10, color: '#999' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: '#171717' }} /> Current
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: '#ecfdf5', border: '1px solid #bbf7d0' }} /> Done
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: '#f5f5f5' }} /> Todo
+              </span>
+            </div>
+          </div>
           {!practiceMode && <ProctoringMonitor attemptId={attemptId} violationCount={violationCount} />}
         </aside>
       </div>

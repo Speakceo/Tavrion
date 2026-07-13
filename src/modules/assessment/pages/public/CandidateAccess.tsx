@@ -53,6 +53,9 @@ export function CandidateAccess() {
   const [assignmentId, setAssignmentId] = useState<string | null>(null);
   const [questions, setQuestions] = useState<AssessmentQuestion[]>([]);
   const [timeLimit, setTimeLimit] = useState<number | null>(null);
+  const [questionCount, setQuestionCount] = useState(0);
+  const [instructions, setInstructions] = useState('');
+  const [passingScore, setPassingScore] = useState<number | null>(null);
 
   const scheduleWindows = (linkSettings.schedule_windows as ScheduleWindow[] | undefined) || [];
   const practiceMode = Boolean(linkSettings.practice_mode);
@@ -72,6 +75,15 @@ export function CandidateAccess() {
         setLinkSettings(settings);
         const fields = settings.post_form_fields as PostFormField[] | undefined;
         if (fields?.length) setPostFormFields(fields);
+
+        let count = 0;
+        for (const section of assessment?.sections || []) {
+          count += section.assessment_section_questions?.length || 0;
+        }
+        setQuestionCount(count);
+        setTimeLimit(assessment?.time_limit_minutes || null);
+        setInstructions((assessment?.instructions || '').trim());
+        setPassingScore(assessment?.passing_score ?? null);
       }
       setLoading(false);
     })();
@@ -223,17 +235,64 @@ export function CandidateAccess() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#fafafa', display: 'flex', alignItems: 'center', justifyContent: 'center', ...pagePad }}>
-      <div className="lt-card" style={{ padding: 'clamp(20px, 4vw, 32px)', maxWidth: 480, width: '100%' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-          <div style={{ width: 40, height: 40, background: '#171717', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <ClipboardCheck size={20} color="#fff" />
-          </div>
-          <div>
-            <h1 style={{ fontSize: 18, fontWeight: 700 }}>{resolved?.assessment_title || 'Skills Assessment'}</h1>
-            <p style={{ fontSize: 12, color: '#999' }}>{resolved?.title}</p>
-          </div>
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #f7f7f5 0%, #fafafa 40%, #fff 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', ...pagePad }}>
+      <div className="lt-card" style={{ padding: 0, maxWidth: 520, width: '100%', overflow: 'hidden', boxShadow: 'rgba(0,0,0,0.06) 0px 0px 0px 1px, rgba(0,0,0,0.04) 0px 12px 32px -12px' }}>
+        {/* Progress steps */}
+        <div style={{ display: 'flex', borderBottom: '1px solid #f0f0f0', background: '#fcfcfc' }}>
+          {[
+            { key: 'info', label: 'Details' },
+            { key: 'permissions', label: 'Ready' },
+            { key: 'test', label: 'Assessment' },
+          ].map((s, i) => {
+            const stepOrder = step === 'info' ? 0 : step === 'permissions' ? 1 : 2;
+            const isCurrent = step === s.key;
+            const isDone = i < stepOrder;
+            return (
+              <div key={s.key} style={{ flex: 1, padding: '12px 8px', textAlign: 'center', borderRight: i < 2 ? '1px solid #f0f0f0' : undefined }}>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: isCurrent ? '#171717' : isDone ? '#666' : '#bbb' }}>
+                  {i + 1}. {s.label}
+                </div>
+              </div>
+            );
+          })}
         </div>
+
+        <div style={{ padding: 'clamp(20px, 4vw, 28px)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+            <div style={{ width: 44, height: 44, background: '#171717', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <ClipboardCheck size={22} color="#fff" />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <h1 style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', margin: 0, lineHeight: 1.3 }}>
+                {resolved?.assessment_title || 'Skills Assessment'}
+              </h1>
+              {resolved?.title && resolved.title !== resolved.assessment_title && (
+                <p style={{ fontSize: 12, color: '#999', margin: '3px 0 0' }}>{resolved.title}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Meta grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 18 }}>
+            <div style={{ background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 10, padding: '12px 10px', textAlign: 'center' }}>
+              <div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>Questions</div>
+              <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em' }}>{questionCount || '—'}</div>
+            </div>
+            <div style={{ background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 10, padding: '12px 10px', textAlign: 'center' }}>
+              <div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>Time</div>
+              <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em' }}>{timeLimit ? `${timeLimit}m` : 'Open'}</div>
+            </div>
+            <div style={{ background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 10, padding: '12px 10px', textAlign: 'center' }}>
+              <div style={{ fontSize: 10, color: '#999', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>Pass</div>
+              <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em' }}>{passingScore != null ? `${passingScore}%` : '—'}</div>
+            </div>
+          </div>
+
+          {instructions && step === 'info' && (
+            <div style={{ background: '#f8fafc', border: '1px solid #e8eef5', borderRadius: 10, padding: '12px 14px', marginBottom: 16, fontSize: 13, color: '#475569', lineHeight: 1.55 }}>
+              {instructions}
+            </div>
+          )}
 
         {practiceMode && (
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 8, padding: '10px 12px', marginBottom: 16, fontSize: 13, color: '#92400e' }}>
@@ -244,8 +303,8 @@ export function CandidateAccess() {
 
         {step === 'info' && (
           <>
-            <p style={{ fontSize: 14, color: '#666', marginBottom: 20, lineHeight: 1.6 }}>
-              Please enter your details to begin. Ensure a stable internet connection and a quiet environment.
+            <p style={{ fontSize: 14, color: '#666', marginBottom: 16, lineHeight: 1.6 }}>
+              Enter your details to begin. Use a stable connection and a quiet space.
             </p>
 
             {scheduleWindows.length > 0 && (
@@ -295,7 +354,7 @@ export function CandidateAccess() {
             </div>
 
             <div style={{ borderTop: '1px solid #eee', paddingTop: 16, marginBottom: 16 }}>
-              <p style={{ fontSize: 12, color: '#999', marginBottom: 8 }}>Already started? Enter your resume token to continue on this device.</p>
+              <p style={{ fontSize: 12, color: '#999', marginBottom: 8 }}>Already started? Enter your resume token to continue.</p>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <input
                   className="lt-input"
@@ -341,8 +400,8 @@ export function CandidateAccess() {
                 : 'You may be asked for microphone or camera access for certain question types.'}
             </p>
             <ul style={{ fontSize: 13, color: '#666', marginBottom: 20, paddingLeft: 18, lineHeight: 1.8 }}>
+              <li>{questionCount > 0 ? `${questionCount} questions` : 'Complete all questions'}{timeLimit ? ` · ${timeLimit} minutes` : ''}</li>
               <li>Do not switch tabs during the test</li>
-              <li>Complete within the allotted time</li>
               <li>Your session is monitored for integrity</li>
             </ul>
             {resumeToken && (
@@ -351,11 +410,17 @@ export function CandidateAccess() {
               </p>
             )}
             {error && <p style={{ color: '#c0392b', fontSize: 13, marginBottom: 12 }}>{error}</p>}
-            <button onClick={beginTest} className="lt-btn-primary" style={{ width: '100%', padding: '12px 18px' }}>
-              Start assessment
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" onClick={() => setStep('info')} className="lt-btn-secondary" style={{ padding: '12px 16px' }}>
+                Back
+              </button>
+              <button onClick={beginTest} className="lt-btn-primary" style={{ flex: 1, padding: '12px 18px' }}>
+                Start assessment
+              </button>
+            </div>
           </>
         )}
+        </div>
       </div>
     </div>
   );

@@ -76,7 +76,7 @@ export async function resolvePublicLink(code: string): Promise<ResolvedPublicLin
 export async function fetchReusableLinks(viewer: OrgViewer | null | undefined) {
   let query = supabase
     .from('assessment_reusable_links')
-    .select('*, assessment:assessments(id, title)')
+    .select('*, assessment:assessments(id, title, time_limit_minutes, instructions, passing_score)')
     .order('created_at', { ascending: false });
   query = applyOrgScope(query, viewer);
   const { data, error } = await query;

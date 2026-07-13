@@ -43,6 +43,32 @@ export async function fetchAssessments(
   return (data || []) as Assessment[];
 }
 
+/** Count questions per assessment (via section links). */
+export async function fetchAssessmentQuestionCounts(
+  assessmentIds: string[],
+): Promise<Record<string, number>> {
+  const ids = [...new Set(assessmentIds.filter(Boolean))];
+  if (ids.length === 0) return {};
+
+  const { data, error } = await supabase
+    .from('assessment_sections')
+    .select('assessment_id, assessment_section_questions(id)')
+    .in('assessment_id', ids);
+
+  if (error) throw error;
+
+  const counts: Record<string, number> = {};
+  for (const id of ids) counts[id] = 0;
+  for (const section of data || []) {
+    const aid = section.assessment_id as string;
+    const n = Array.isArray(section.assessment_section_questions)
+      ? section.assessment_section_questions.length
+      : 0;
+    counts[aid] = (counts[aid] || 0) + n;
+  }
+  return counts;
+}
+
 export async function fetchAssessmentById(id: string, viewer?: OrgViewer | null) {
   let query = supabase.from('assessments').select('*').eq('id', id);
   query = applyOrgScope(query, viewer);
