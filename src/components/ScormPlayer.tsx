@@ -151,9 +151,30 @@ async function registerScormServiceWorker(): Promise<ServiceWorkerRegistration> 
     throw new Error('Service Workers not supported in this browser');
   }
 
-  const registration = await navigator.serviceWorker.register('/scorm-sw.js?v=6', { scope: '/' });
+  // v7: force correct MIME types — Supabase serves HTML as text/plain + CSP sandbox
+  const registration = await navigator.serviceWorker.register('/scorm-sw.js?v=7', { scope: '/' });
+  await navigator.serviceWorker.ready;
 
-  if (registration.active) return registration;
+  if (registration.active && navigator.serviceWorker.controller) {
+    return registration;
+  }
+
+  if (registration.active && !navigator.serviceWorker.controller) {
+    // New SW installed but page not controlled yet — claim via controllerchange
+    await new Promise<void>((resolve) => {
+      const onChange = () => {
+        navigator.serviceWorker.removeEventListener('controllerchange', onChange);
+        resolve();
+      };
+      navigator.serviceWorker.addEventListener('controllerchange', onChange);
+      registration.active?.postMessage({ type: 'SCORM_CLAIM' });
+      setTimeout(() => {
+        navigator.serviceWorker.removeEventListener('controllerchange', onChange);
+        resolve();
+      }, 3000);
+    });
+    return registration;
+  }
 
   return new Promise((resolve, reject) => {
     const worker = registration.installing || registration.waiting;
@@ -260,7 +281,12 @@ async function cacheStorageFiles(
           body = new Blob([body], { type: mimeType });
         }
 
-        const responseToCache = new Response(body, { headers: { 'Content-Type': mimeType } });
+        const responseToCache = new Response(body, {
+          headers: {
+            'Content-Type': mimeType.includes('charset') ? mimeType : `${mimeType}; charset=utf-8`,
+            'X-Content-Type-Options': 'nosniff',
+          },
+        });
         const cacheUrls = [
           `${location.origin}${basePath}/${zipPath}`,
           `${location.origin}${basePath}/${encodeURI(zipPath)}`,
