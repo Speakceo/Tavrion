@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import type { AssessmentQuestion, QuestionType } from '../types';
 import { QUESTION_TYPES } from '../constants';
 import { saveQuestion } from '../services/questionService';
@@ -20,6 +20,31 @@ export type QuestionFormState = {
 const OPTION_TYPES = new Set([
   'multiple_choice', 'multiple_select', 'true_false', 'listening', 'situational_judgment',
 ]);
+
+const fieldLabel: CSSProperties = {
+  display: 'block',
+  fontSize: 12,
+  fontWeight: 600,
+  color: '#444',
+  marginBottom: 6,
+};
+
+const fieldStack: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 0,
+  width: '100%',
+  minWidth: 0,
+};
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div style={fieldStack}>
+      <div style={fieldLabel}>{label}</div>
+      {children}
+    </div>
+  );
+}
 
 function defaultOptions(type: QuestionType) {
   if (type === 'true_false') {
@@ -179,11 +204,11 @@ export function QuestionEditorModal({ open, question, viewer, onClose, onSaved, 
           position: 'sticky', top: 0, background: '#fff', zIndex: 1,
         }}>
           <div>
-            <h2 style={{ fontSize: 16, fontWeight: 700 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>
               {readOnly ? 'View question' : question ? 'Edit question' : 'New question'}
             </h2>
             {question && (
-              <p style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
+              <p style={{ fontSize: 11, color: '#999', marginTop: 4, marginBottom: 0 }}>
                 {form.question_type.replace(/_/g, ' ')} · {form.difficulty} · weight {form.weight}
               </p>
             )}
@@ -193,48 +218,43 @@ export function QuestionEditorModal({ open, question, viewer, onClose, onSaved, 
           </button>
         </div>
 
-        <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
           {!readOnly && (
-            <label style={{ fontSize: 12, fontWeight: 600 }}>
-              Question type
+            <Field label="Question type">
               <select
                 className="lt-input"
-                style={{ marginTop: 4 }}
                 value={form.question_type}
                 onChange={(e) => handleTypeChange(e.target.value as QuestionType)}
               >
                 {QUESTION_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
-            </label>
+            </Field>
           )}
 
-          <label style={{ fontSize: 12, fontWeight: 600 }}>
-            Title
+          <Field label="Title">
             <input
               className="lt-input"
-              style={{ marginTop: 4 }}
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
               placeholder="Short label for recruiters"
               readOnly={readOnly}
             />
-          </label>
+          </Field>
 
-          <label style={{ fontSize: 12, fontWeight: 600 }}>
-            Prompt
+          <Field label="Prompt">
             <textarea
               className="lt-input"
-              style={{ marginTop: 4 }}
               rows={4}
               value={form.prompt}
               onChange={(e) => setForm({ ...form, prompt: e.target.value })}
               readOnly={readOnly}
+              style={{ resize: 'vertical', minHeight: 96 }}
             />
-          </label>
+          </Field>
 
           {hasOptions && (
             <div>
-              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
+              <div style={{ ...fieldLabel, marginBottom: 8 }}>
                 Answer options {multiCorrect ? '(multiple correct)' : '(select one correct)'}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -255,8 +275,12 @@ export function QuestionEditorModal({ open, question, viewer, onClose, onSaved, 
                       className="lt-input"
                       style={{
                         flex: 1,
+                        width: 'auto',
                         borderColor: opt.is_correct ? '#bbf7d0' : undefined,
                         background: opt.is_correct ? '#f0fdf4' : undefined,
+                        boxShadow: opt.is_correct
+                          ? 'rgba(22,163,74,0.25) 0px 0px 0px 1px'
+                          : undefined,
                       }}
                       value={opt.option_text}
                       onChange={(e) => {
@@ -293,52 +317,46 @@ export function QuestionEditorModal({ open, question, viewer, onClose, onSaved, 
           )}
 
           {(form.question_type === 'short_answer' || form.question_type === 'long_answer') && (
-            <label style={{ fontSize: 12, fontWeight: 600 }}>
-              Expected answer (auto-grade exact match, optional)
+            <Field label="Expected answer (auto-grade exact match, optional)">
               <input
                 className="lt-input"
-                style={{ marginTop: 4 }}
                 value={String(form.metadata.expected_answer ?? '')}
                 onChange={(e) => setForm({ ...form, metadata: { ...form.metadata, expected_answer: e.target.value } })}
                 readOnly={readOnly}
               />
-            </label>
+            </Field>
           )}
 
           {form.question_type === 'listening' && (
-            <label style={{ fontSize: 12, fontWeight: 600 }}>
-              Listening passage / scenario
+            <Field label="Listening passage / scenario">
               <textarea
                 className="lt-input"
-                style={{ marginTop: 4 }}
                 rows={3}
                 value={String(form.metadata.passage ?? '')}
                 onChange={(e) => setForm({ ...form, metadata: { ...form.metadata, passage: e.target.value } })}
                 readOnly={readOnly}
+                style={{ resize: 'vertical' }}
               />
-            </label>
+            </Field>
           )}
 
           {(form.question_type === 'coding' || form.question_type === 'sql') && (
-            <label style={{ fontSize: 12, fontWeight: 600 }}>
-              Starter code (optional)
+            <Field label="Starter code (optional)">
               <textarea
                 className="lt-input"
-                style={{ marginTop: 4, fontFamily: 'monospace', fontSize: 12 }}
+                style={{ fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
                 rows={5}
                 value={String(form.metadata.starter_code ?? '')}
                 onChange={(e) => setForm({ ...form, metadata: { ...form.metadata, starter_code: e.target.value } })}
                 readOnly={readOnly}
               />
-            </label>
+            </Field>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-            <label style={{ fontSize: 12, fontWeight: 600 }}>
-              Difficulty
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <Field label="Difficulty">
               <select
                 className="lt-input"
-                style={{ marginTop: 4 }}
                 value={form.difficulty}
                 onChange={(e) => setForm({ ...form, difficulty: e.target.value })}
                 disabled={readOnly}
@@ -347,36 +365,33 @@ export function QuestionEditorModal({ open, question, viewer, onClose, onSaved, 
                 <option value="medium">Medium</option>
                 <option value="hard">Hard</option>
               </select>
-            </label>
-            <label style={{ fontSize: 12, fontWeight: 600 }}>
-              Weight
+            </Field>
+            <Field label="Weight">
               <input
                 type="number"
                 className="lt-input"
-                style={{ marginTop: 4 }}
                 value={form.weight}
                 onChange={(e) => setForm({ ...form, weight: Number(e.target.value) || 1 })}
                 readOnly={readOnly}
                 min={0.1}
                 step={0.1}
               />
-            </label>
+            </Field>
           </div>
 
-          <label style={{ fontSize: 12, fontWeight: 600 }}>
-            Explanation (shown after grading, optional)
+          <Field label="Explanation (shown after grading, optional)">
             <textarea
               className="lt-input"
-              style={{ marginTop: 4 }}
               rows={2}
               value={form.explanation}
               onChange={(e) => setForm({ ...form, explanation: e.target.value })}
               readOnly={readOnly}
               placeholder="Why the correct answer is correct..."
+              style={{ resize: 'vertical' }}
             />
-          </label>
+          </Field>
 
-          {error && <p style={{ color: '#c0392b', fontSize: 13 }}>{error}</p>}
+          {error && <p style={{ color: '#c0392b', fontSize: 13, margin: 0 }}>{error}</p>}
         </div>
 
         <div style={{

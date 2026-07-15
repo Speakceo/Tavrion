@@ -107,7 +107,9 @@ function App() {
         <KeepaliveBoot />
         <AuthProvider>
           <Routes>
-            <Route path="/" element={<LandingPage />} />
+            {/* Landing hidden while testing internally — restore LandingPage on "/" when going live again */}
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/landing" element={<LandingPage />} />
             <Route path="/login" element={<Login />} />
 
           {/* Public candidate assessment — no auth */}
@@ -703,7 +705,7 @@ function App() {
             }
           />
 
-          <Route path="/home" element={<Navigate to="/" replace />} />
+          <Route path="/home" element={<Navigate to="/login" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

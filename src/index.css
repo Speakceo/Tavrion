@@ -57,12 +57,16 @@
 
   /* Form input */
   .lt-input {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
     background: #fafafa;
     border: none;
     border-radius: 8px;
     font-size: 14px;
     color: #171717;
     outline: none;
+    padding: 9px 12px;
     box-shadow: rgba(0,0,0,0.08) 0px 0px 0px 1px;
     transition: box-shadow 0.12s;
   }

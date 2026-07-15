@@ -18,12 +18,27 @@ function cosineSimilarity(a: number[], b: number[]): number {
 }
 
 async function embedQuery(apiKey: string, text: string): Promise<number[]> {
+  if (!apiKey || /YOUR_|_HERE|placeholder|changeme/i.test(apiKey)) {
+    throw new Error(
+      "OPENAI_API_KEY is missing or still a placeholder in app_secrets. Set a valid OpenAI key.",
+    );
+  }
   const res = await fetch("https://api.openai.com/v1/embeddings", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({ model: "text-embedding-3-small", input: text }),
   });
-  if (!res.ok) throw new Error(`Embedding error: ${res.status}`);
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const errBody = await res.json();
+      detail = errBody?.error?.message ? `: ${errBody.error.message}` : "";
+    } catch { /* ignore */ }
+    if (res.status === 401) {
+      throw new Error(`Embedding error: 401 — OpenAI rejected the API key in app_secrets${detail}`);
+    }
+    throw new Error(`Embedding error: ${res.status}${detail}`);
+  }
   const data = await res.json();
   return data.data[0].embedding;
 }

@@ -96,6 +96,9 @@ Deno.serve(async (req: Request) => {
       const from = msg.from as string;
       const text = msg.text.body as string;
       const openaiKey = await getSecret(supabase, "OPENAI_API_KEY");
+      if (!openaiKey || /YOUR_|_HERE|placeholder|changeme/i.test(openaiKey)) {
+        throw new Error("OPENAI_API_KEY is not configured in app_secrets");
+      }
       const sessionId = `wa:${from}`;
 
       const result = await chatWithBot(supabase, openaiKey, bot, text, sessionId, "whatsapp");

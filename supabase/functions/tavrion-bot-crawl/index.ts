@@ -53,7 +53,11 @@ Deno.serve(async (req: Request) => {
     }
 
     const openaiKey = await getSecret(supabase, "OPENAI_API_KEY");
-    if (!openaiKey) throw new Error("OPENAI_API_KEY not configured");
+    if (!openaiKey || /YOUR_|_HERE|placeholder|changeme/i.test(openaiKey)) {
+      throw new Error(
+        "OPENAI_API_KEY is not configured (or still a placeholder) in app_secrets. Add a valid OpenAI key to run Tavrion Bot crawls.",
+      );
+    }
 
     const bot = await prepareCrawl(supabase, body);
 

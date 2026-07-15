@@ -74,7 +74,12 @@ Deno.serve(async (req: Request) => {
     if (!message?.trim()) throw new Error("message is required");
     if (bot.status !== "ready") throw new Error("Bot is not ready yet. Please wait for crawling to finish.");
 
-    const openaiKey = (await getSecret(supabase, "OPENAI_API_KEY"))!;
+    const openaiKey = await getSecret(supabase, "OPENAI_API_KEY");
+    if (!openaiKey || /YOUR_|_HERE|placeholder|changeme/i.test(openaiKey)) {
+      throw new Error(
+        "OPENAI_API_KEY is not configured (or still a placeholder) in app_secrets. Add a valid OpenAI key for Tavrion Bot chat.",
+      );
+    }
     const sid = sessionId || crypto.randomUUID();
     const result = await chatWithBot(supabase, openaiKey, bot, message.trim(), sid, "web");
 

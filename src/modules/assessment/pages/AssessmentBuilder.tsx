@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type DragEvent } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { TestLayout } from '../components/TestLayout';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -16,12 +16,14 @@ import type { Assessment, AssessmentQuestion, AssessmentSection } from '../types
 import type { OrgViewer } from '../../../utils/orgScope';
 import {
   ArrowLeft, Plus, GripVertical, Pencil, Trash2, Eye, ChevronUp, ChevronDown,
-  ExternalLink, Save, History, Settings2, Shuffle,
+  ExternalLink, Save, History, Settings2, Shuffle, Search, Inbox,
 } from 'lucide-react';
 import { QuestionEditorModal } from '../components/QuestionEditorModal';
 import { confirmDelete } from '../utils/confirm';
 
 type BranchingRule = { if_skill_below: string; show_section: string; threshold: number };
+
+const BANK_DRAG_MIME = 'application/x-tavrion-question-id';
 
 export function AssessmentBuilder() {
   const { id } = useParams<{ id: string }>();
@@ -35,11 +37,14 @@ export function AssessmentBuilder() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [previewOnly, setPreviewOnly] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [bankDragActive, setBankDragActive] = useState(false);
+  const [bankSearch, setBankSearch] = useState('');
   const [snapshots, setSnapshots] = useState<VersionSnapshot[]>([]);
   const [showVersions, setShowVersions] = useState(false);
   const [templateBusy, setTemplateBusy] = useState(false);
   const [previewLink, setPreviewLink] = useState<string | null>(null);
   const [message, setMessage] = useState('');
+  const [dropInsertAt, setDropInsertAt] = useState<number | null>(null);
 
   const load = async () => {
     if (!id) return;
@@ -89,7 +94,7 @@ export function AssessmentBuilder() {
     return data?.id;
   };
 
-  const addQuestionToAssessment = async (questionId: string) => {
+  const addQuestionToAssessment = async (questionId: string, insertAt?: number) => {
     if (!id) return;
     setSaving(true);
     try {
@@ -98,22 +103,33 @@ export function AssessmentBuilder() {
 
       const { data: existing } = await supabase
         .from('assessment_section_questions')
-        .select('sort_order')
+        .select('id, sort_order')
         .eq('section_id', sectionId)
-        .order('sort_order', { ascending: false })
-        .limit(1);
+        .order('sort_order', { ascending: true });
 
-      const nextOrder = (existing?.[0]?.sort_order ?? -1) + 1;
+      const rows = existing || [];
+      const at = insertAt == null || insertAt < 0 || insertAt > rows.length ? rows.length : insertAt;
+
       await supabase.from('assessment_section_questions').insert({
         section_id: sectionId,
         question_id: questionId,
-        sort_order: nextOrder,
+        sort_order: at,
       });
 
+      // Shift existing items at/after insert point
+      await Promise.all(
+        rows.slice(at).map((r, i) =>
+          supabase.from('assessment_section_questions').update({ sort_order: at + 1 + i }).eq('id', r.id),
+        ),
+      );
+
       await supabase.from('assessments').update({ updated_at: new Date().toISOString() }).eq('id', id);
+      flash('Question added to assessment.');
       await load();
     } finally {
       setSaving(false);
+      setBankDragActive(false);
+      setDropInsertAt(null);
     }
   };
 
@@ -155,13 +171,39 @@ export function AssessmentBuilder() {
   const handleDrop = async (targetIndex: number) => {
     if (dragIndex === null || dragIndex === targetIndex) {
       setDragIndex(null);
+      setDropInsertAt(null);
       return;
     }
     const reordered = [...sectionQuestions];
     const [moved] = reordered.splice(dragIndex, 1);
     reordered.splice(targetIndex, 0, moved);
     setDragIndex(null);
+    setDropInsertAt(null);
     await persistQuestionOrder(reordered.map((sq) => sq.id));
+  };
+
+  const handleBankDrop = async (e: DragEvent, insertAt?: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const questionId =
+      e.dataTransfer.getData(BANK_DRAG_MIME) || e.dataTransfer.getData('text/plain');
+    setBankDragActive(false);
+    setDropInsertAt(null);
+    if (!questionId || usedIds.has(questionId)) return;
+    await addQuestionToAssessment(questionId, insertAt);
+  };
+
+  const onZoneDragOver = (e: DragEvent, insertAt?: number) => {
+    e.preventDefault();
+    const types = Array.from(e.dataTransfer.types || []);
+    if (types.includes(BANK_DRAG_MIME) || types.includes('text/plain')) {
+      setBankDragActive(true);
+      if (insertAt != null) setDropInsertAt(insertAt);
+      e.dataTransfer.dropEffect = 'copy';
+    } else if (dragIndex != null) {
+      e.dataTransfer.dropEffect = 'move';
+      if (insertAt != null) setDropInsertAt(insertAt);
+    }
   };
 
   const openQuestion = async (questionId: string, preview = false) => {
@@ -277,7 +319,18 @@ export function AssessmentBuilder() {
   ) || [];
 
   const usedIds = new Set(sectionQuestions.map((sq) => sq.question_id));
-  const available = bank.filter((q) => !usedIds.has(q.id));
+  const available = useMemo(() => {
+    const q = bankSearch.trim().toLowerCase();
+    return bank.filter((item) => {
+      if (usedIds.has(item.id)) return false;
+      if (!q) return true;
+      return (
+        (item.title || '').toLowerCase().includes(q) ||
+        (item.prompt || '').toLowerCase().includes(q) ||
+        (item.question_type || '').toLowerCase().includes(q)
+      );
+    });
+  }, [bank, bankSearch, sectionQuestions]);
 
   const settings = (assessment?.settings || {}) as Record<string, unknown>;
   const branchingRules = (settings.branching_rules as BranchingRule[]) || [];
@@ -349,8 +402,8 @@ export function AssessmentBuilder() {
                 <h3 style={{ fontSize: 13, fontWeight: 700 }}>Section: {primarySection.title}</h3>
               </div>
               <div className="test-section-grid">
-                <label style={{ fontSize: 11 }}>
-                  Section time (min)
+                <div className="test-field">
+                  <span>Section time (min)</span>
                   <input
                     type="number"
                     className="lt-input"
@@ -362,11 +415,10 @@ export function AssessmentBuilder() {
                       ),
                     })}
                     onBlur={(e) => updateSection(primarySection.id, { time_limit_minutes: Number(e.target.value) || null })}
-                    style={{ marginTop: 4 }}
                   />
-                </label>
-                <label style={{ fontSize: 11 }}>
-                  Pool size
+                </div>
+                <div className="test-field">
+                  <span>Pool size</span>
                   <input
                     type="number"
                     className="lt-input"
@@ -379,9 +431,8 @@ export function AssessmentBuilder() {
                       ),
                     })}
                     onBlur={(e) => updateSection(primarySection.id, { question_pool_size: Number(e.target.value) || null })}
-                    style={{ marginTop: 4 }}
                   />
-                </label>
+                </div>
                 <label style={{ fontSize: 11, display: 'flex', alignItems: 'flex-end', gap: 6, paddingBottom: 8 }}>
                   <input
                     type="checkbox"
@@ -401,72 +452,112 @@ export function AssessmentBuilder() {
           )}
 
           <div className="lt-card" style={{ padding: 16, marginBottom: 16 }}>
-            <h3 style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Assessment questions ({sectionQuestions.length})</h3>
-            <p style={{ fontSize: 11, color: '#999', marginBottom: 12 }}>Drag or use arrows to reorder · click to edit</p>
-            {sectionQuestions.length === 0 ? (
-              <p style={{ fontSize: 12, color: '#999' }}>Add questions from the bank on the right.</p>
-            ) : (
-              sectionQuestions.map((sq, i) => {
-                const q = sq.question;
-                const correct = q?.options?.filter((o) => o.is_correct).map((o) => o.option_text).join(', ');
-                return (
-                  <div
-                    key={sq.id}
-                    draggable
-                    onDragStart={() => setDragIndex(i)}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={() => handleDrop(i)}
-                    style={{
-                      display: 'flex', alignItems: 'flex-start', gap: 8,
-                      padding: '12px 8px', borderBottom: '1px solid #f5f5f5',
-                      cursor: 'pointer', borderRadius: 6, margin: '0 -8px',
-                      opacity: dragIndex === i ? 0.5 : 1,
-                    }}
-                    onClick={() => q && openQuestion(q.id, false)}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = '#fafafa'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-                  >
-                    <GripVertical size={14} color="#ccc" style={{ marginTop: 2, cursor: 'grab' }} />
-                    <span style={{ fontSize: 12, color: '#999', width: 20, marginTop: 2 }}>{i + 1}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>{q?.title || q?.prompt?.slice(0, 60) || 'Question'}</div>
-                      {correct && (
-                        <div style={{ fontSize: 11, color: '#16a34a', marginTop: 4 }}>✓ {correct}</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4, gap: 8 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 700, margin: 0 }}>Assessment questions ({sectionQuestions.length})</h3>
+              {saving && <span style={{ fontSize: 11, color: '#999' }}>Saving…</span>}
+            </div>
+            <p style={{ fontSize: 11, color: '#999', marginBottom: 12 }}>
+              Drag from the question bank · reorder with handles · click a row to edit
+            </p>
+
+            <div
+              className={`test-drop-zone${bankDragActive ? ' test-drop-zone--bank-drag' : ''}${dragIndex != null ? ' test-drop-zone--active' : ''}`}
+              style={{ padding: sectionQuestions.length === 0 ? 28 : '6px 4px', minHeight: sectionQuestions.length === 0 ? 140 : undefined }}
+              onDragOver={(e) => onZoneDragOver(e, sectionQuestions.length)}
+              onDragLeave={() => { setBankDragActive(false); setDropInsertAt(null); }}
+              onDrop={(e) => {
+                if (dragIndex != null) {
+                  e.preventDefault();
+                  void handleDrop(sectionQuestions.length - 1);
+                  return;
+                }
+                void handleBankDrop(e, sectionQuestions.length);
+              }}
+            >
+              {sectionQuestions.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#888' }}>
+                  <Inbox size={28} color="#ccc" style={{ margin: '0 auto 10px' }} />
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#555', margin: '0 0 4px' }}>Drop questions here</p>
+                  <p style={{ fontSize: 12, margin: 0, lineHeight: 1.5 }}>
+                    Drag from the bank on the right, or tap <strong>+</strong> to add.
+                  </p>
+                </div>
+              ) : (
+                sectionQuestions.map((sq, i) => {
+                  const q = sq.question;
+                  const correct = q?.options?.filter((o) => o.is_correct).map((o) => o.option_text).join(', ');
+                  return (
+                    <div key={sq.id}>
+                      {dropInsertAt === i && bankDragActive && (
+                        <div style={{ height: 3, background: '#0a72ef', borderRadius: 2, margin: '4px 8px' }} />
                       )}
-                      <div style={{ fontSize: 10, color: '#aaa', marginTop: 4 }}>{q?.question_type?.replace(/_/g, ' ')}</div>
+                      <div
+                        className={`test-q-row${dragIndex === i ? ' test-q-row--dragging' : ''}`}
+                        draggable
+                        onDragStart={(e) => {
+                          setDragIndex(i);
+                          e.dataTransfer.effectAllowed = 'move';
+                        }}
+                        onDragEnd={() => { setDragIndex(null); setDropInsertAt(null); }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          onZoneDragOver(e, i);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const bankId = e.dataTransfer.getData(BANK_DRAG_MIME) || e.dataTransfer.getData('text/plain');
+                          if (bankId && !usedIds.has(bankId)) {
+                            void handleBankDrop(e, i);
+                            return;
+                          }
+                          void handleDrop(i);
+                        }}
+                        onClick={() => q && openQuestion(q.id, false)}
+                      >
+                        <GripVertical size={14} color="#ccc" style={{ marginTop: 2, flexShrink: 0 }} />
+                        <span style={{ fontSize: 12, color: '#999', width: 20, marginTop: 2, flexShrink: 0 }}>{i + 1}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600 }}>{q?.title || q?.prompt?.slice(0, 60) || 'Question'}</div>
+                          {correct && (
+                            <div style={{ fontSize: 11, color: '#16a34a', marginTop: 4 }}>✓ {correct}</div>
+                          )}
+                          <div style={{ fontSize: 10, color: '#aaa', marginTop: 4 }}>{q?.question_type?.replace(/_/g, ' ')}</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 2, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                          <button type="button" onClick={() => moveQuestion(i, -1)} disabled={i === 0 || saving} className="lt-btn-secondary" style={{ padding: '4px 6px', fontSize: 11 }} title="Move up">
+                            <ChevronUp size={12} />
+                          </button>
+                          <button type="button" onClick={() => moveQuestion(i, 1)} disabled={i === sectionQuestions.length - 1 || saving} className="lt-btn-secondary" style={{ padding: '4px 6px', fontSize: 11 }} title="Move down">
+                            <ChevronDown size={12} />
+                          </button>
+                          <button type="button" onClick={() => q && openQuestion(q.id, true)} className="lt-btn-secondary" style={{ padding: '4px 8px', fontSize: 11 }} title="Preview">
+                            <Eye size={12} />
+                          </button>
+                          <button type="button" onClick={() => q && openQuestion(q.id, false)} className="lt-btn-secondary" style={{ padding: '4px 8px', fontSize: 11 }} title="Edit">
+                            <Pencil size={12} />
+                          </button>
+                          <button type="button" onClick={() => removeFromAssessment(sq.id)} disabled={saving} className="lt-btn-secondary" style={{ padding: '4px 8px', fontSize: 11, color: '#c0392b' }} title="Remove">
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 2, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
-                      <button type="button" onClick={() => moveQuestion(i, -1)} disabled={i === 0 || saving} className="lt-btn-secondary" style={{ padding: '4px 6px', fontSize: 11 }} title="Move up">
-                        <ChevronUp size={12} />
-                      </button>
-                      <button type="button" onClick={() => moveQuestion(i, 1)} disabled={i === sectionQuestions.length - 1 || saving} className="lt-btn-secondary" style={{ padding: '4px 6px', fontSize: 11 }} title="Move down">
-                        <ChevronDown size={12} />
-                      </button>
-                      <button type="button" onClick={() => q && openQuestion(q.id, true)} className="lt-btn-secondary" style={{ padding: '4px 8px', fontSize: 11 }} title="Preview">
-                        <Eye size={12} />
-                      </button>
-                      <button type="button" onClick={() => q && openQuestion(q.id, false)} className="lt-btn-secondary" style={{ padding: '4px 8px', fontSize: 11 }} title="Edit">
-                        <Pencil size={12} />
-                      </button>
-                      <button type="button" onClick={() => removeFromAssessment(sq.id)} disabled={saving} className="lt-btn-secondary" style={{ padding: '4px 8px', fontSize: 11, color: '#c0392b' }} title="Remove">
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
-            )}
+                  );
+                })
+              )}
+            </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <label style={{ fontSize: 12 }}>
-              Passing score (%)
-              <input type="number" className="lt-input" value={assessment.passing_score} onChange={(e) => setAssessment({ ...assessment, passing_score: Number(e.target.value) })} onBlur={(e) => updateMeta('passing_score', Number(e.target.value))} style={{ marginTop: 4 }} />
-            </label>
-            <label style={{ fontSize: 12 }}>
-              Overall time limit (min)
-              <input type="number" className="lt-input" value={assessment.time_limit_minutes || ''} onChange={(e) => setAssessment({ ...assessment, time_limit_minutes: Number(e.target.value) || null })} onBlur={(e) => updateMeta('time_limit_minutes', Number(e.target.value) || null)} style={{ marginTop: 4 }} />
-            </label>
+          <div className="test-form-grid" style={{ marginBottom: 8 }}>
+            <div className="test-field">
+              <span>Passing score (%)</span>
+              <input type="number" className="lt-input" value={assessment.passing_score} onChange={(e) => setAssessment({ ...assessment, passing_score: Number(e.target.value) })} onBlur={(e) => updateMeta('passing_score', Number(e.target.value))} />
+            </div>
+            <div className="test-field">
+              <span>Overall time limit (min)</span>
+              <input type="number" className="lt-input" value={assessment.time_limit_minutes || ''} onChange={(e) => setAssessment({ ...assessment, time_limit_minutes: Number(e.target.value) || null })} onBlur={(e) => updateMeta('time_limit_minutes', Number(e.target.value) || null)} />
+            </div>
           </div>
         </div>
 
@@ -552,22 +643,60 @@ export function AssessmentBuilder() {
           )}
         </div>
 
-        <div className="lt-card" style={{ padding: 16, position: 'sticky', top: 72 }}>
+        <div className="lt-card" style={{ padding: 16, position: 'sticky', top: 72, maxHeight: 'calc(100vh - 96px)', overflow: 'auto' }}>
           <h3 style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Question bank</h3>
-          <p style={{ fontSize: 11, color: '#999', marginBottom: 12 }}>Click title to preview before adding</p>
+          <p style={{ fontSize: 11, color: '#999', marginBottom: 10 }}>
+            Drag onto the assessment · or click + · title opens preview
+          </p>
+          <div style={{ position: 'relative', marginBottom: 12 }}>
+            <Search size={13} color="#999" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
+            <input
+              className="lt-input"
+              placeholder="Search bank…"
+              value={bankSearch}
+              onChange={(e) => setBankSearch(e.target.value)}
+              style={{ paddingLeft: 30, fontSize: 12 }}
+            />
+          </div>
           {available.length === 0 ? (
-            <p style={{ fontSize: 12, color: '#999' }}>No more questions. <Link to="/test/questions">Create questions</Link></p>
+            <p style={{ fontSize: 12, color: '#999', lineHeight: 1.5 }}>
+              {bankSearch ? 'No matches.' : <>No unused questions. <Link to="/test/questions">Create more</Link></>}
+            </p>
           ) : (
-            available.slice(0, 30).map((q) => (
-              <div key={q.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: '1px solid #f5f5f5' }}>
+            available.slice(0, 40).map((q) => (
+              <div
+                key={q.id}
+                className="test-bank-item"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData(BANK_DRAG_MIME, q.id);
+                  e.dataTransfer.setData('text/plain', q.id);
+                  e.dataTransfer.effectAllowed = 'copy';
+                  setBankDragActive(true);
+                }}
+                onDragEnd={() => { setBankDragActive(false); setDropInsertAt(null); }}
+              >
+                <GripVertical size={12} color="#ccc" style={{ flexShrink: 0 }} />
                 <button
                   type="button"
                   onClick={() => openQuestion(q.id, true)}
-                  style={{ fontSize: 12, flex: 1, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', color: '#171717', padding: 0 }}
+                  style={{ fontSize: 12, flex: 1, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', color: '#171717', padding: 0, minWidth: 0 }}
                 >
-                  {q.title || q.prompt.slice(0, 40)}
+                  <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {q.title || q.prompt.slice(0, 40)}
+                  </div>
+                  <div style={{ fontSize: 10, color: '#aaa', marginTop: 2 }}>
+                    {q.question_type.replace(/_/g, ' ')} · {q.difficulty || 'medium'}
+                  </div>
                 </button>
-                <button type="button" onClick={() => addQuestionToAssessment(q.id)} disabled={saving} className="lt-btn-secondary" style={{ padding: '4px 8px', fontSize: 11, display: 'flex', gap: 4, alignItems: 'center' }} title="Add to assessment">
+                <button
+                  type="button"
+                  onClick={() => addQuestionToAssessment(q.id)}
+                  disabled={saving}
+                  className="lt-btn-secondary"
+                  style={{ padding: '4px 8px', fontSize: 11, display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}
+                  title="Add to assessment"
+                >
                   <Plus size={12} />
                 </button>
               </div>
