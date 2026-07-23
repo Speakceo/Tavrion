@@ -201,15 +201,31 @@ export function Social() {
   };
 
   const handleSave = async (postId: string, isSaved: boolean) => {
+    if (!profile?.id) {
+      alert('You must be logged in to save posts');
+      return;
+    }
+    // Optimistic UI so the bookmark feels instant
+    setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, is_saved: !isSaved } : p)));
     try {
       if (isSaved) {
-        await supabase.from('saved_items').delete().eq('item_type', 'post').eq('item_id', postId).eq('user_id', profile?.id);
+        const { error } = await supabase
+          .from('saved_items')
+          .delete()
+          .eq('item_type', 'post')
+          .eq('item_id', postId)
+          .eq('user_id', profile.id);
+        if (error) throw error;
       } else {
-        await supabase.from('saved_items').insert({ item_type: 'post', item_id: postId, user_id: profile?.id });
+        const { error } = await supabase
+          .from('saved_items')
+          .insert({ item_type: 'post', item_id: postId, user_id: profile.id });
+        if (error) throw error;
       }
-      loadPosts();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error toggling save:', error);
+      setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, is_saved: isSaved } : p)));
+      alert(error?.message || 'Could not save this post');
     }
   };
 
