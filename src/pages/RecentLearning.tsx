@@ -5,20 +5,28 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Clock, BookOpen, ArrowRight, Download, FileText, Play } from 'lucide-react';
 import { ScormPlayer } from '../components/ScormPlayer';
+import { UploadedCourseViewer } from '../components/UploadedCourseViewer';
 import { CourseCompletionCelebration } from '../components/CourseCompletionCelebration';
 import { tryCompleteUploadedCourse } from '../utils/courseCompletion';
 import { useLearnerCourses } from '../hooks/useLearnerCourses';
-import { isInProgressStatus, isPendingStatus, statusLabel } from '../utils/learnerCourses';
+import {
+  isInProgressStatus,
+  isPendingStatus,
+  statusLabel,
+  type UploadedCourseAssignment,
+} from '../utils/learnerCourses';
 import {
   getCourseActionLabel,
   getCourseFormatLabel,
   isInteractiveCourse,
+  isScormCourse,
 } from '../utils/uploadedCourseDisplay';
 
 export function RecentLearning() {
   const { profile } = useAuth();
   const { builtin, uploaded, loading, refresh } = useLearnerCourses(profile?.id);
   const [previewCourse, setPreviewCourse] = useState<any>(null);
+  const [viewingAssignment, setViewingAssignment] = useState<UploadedCourseAssignment | null>(null);
   const [completedCourseTitle, setCompletedCourseTitle] = useState<string | null>(null);
 
   const pendingBuiltin = useMemo(
@@ -56,15 +64,56 @@ export function RecentLearning() {
 
       await supabase
         .from('uploaded_course_assignments')
-        .update({ status: 'downloaded', viewed_at: new Date().toISOString() })
+        .update({ status: 'in_progress', viewed_at: new Date().toISOString() })
         .eq('user_id', profile.id)
-        .eq('course_id', courseId);
+        .eq('course_id', courseId)
+        .neq('status', 'completed');
 
       refresh();
     } catch (error: any) {
       console.error('Error downloading file:', error);
       alert('Failed to download file: ' + error.message);
     }
+  };
+
+  const openAssignment = async (assignment: UploadedCourseAssignment) => {
+    if (isScormCourse(assignment.course.file_type)) {
+      setPreviewCourse(assignment.course);
+    } else {
+      setViewingAssignment(assignment);
+    }
+
+    if (
+      assignment.status === 'assigned' ||
+      assignment.status === 'not_started' ||
+      assignment.status === 'downloaded'
+    ) {
+      await supabase
+        .from('uploaded_course_assignments')
+        .update({ status: 'in_progress', viewed_at: new Date().toISOString() })
+        .eq('id', assignment.id);
+    }
+  };
+
+  const completeAssignment = async (courseId: string, courseTitle: string, assignmentId?: string) => {
+    if (!profile) return;
+    let query = supabase
+      .from('uploaded_course_assignments')
+      .update({
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        progress_percentage: 100,
+      })
+      .eq('user_id', profile.id)
+      .eq('course_id', courseId);
+    if (assignmentId) query = query.eq('id', assignmentId);
+    await query;
+
+    const result = await tryCompleteUploadedCourse(profile.id, courseId, courseTitle);
+    refresh();
+    setPreviewCourse(null);
+    setViewingAssignment(null);
+    if (result.completed) setCompletedCourseTitle(result.courseTitle);
   };
 
   const formatFileSize = (bytes: number) => {
@@ -128,19 +177,31 @@ export function RecentLearning() {
                     </Link>
                   ))}
                   {pendingUploaded.map((assignment) => (
-                    <Link
-                      key={assignment.id}
-                      to="/courses"
-                      className="block p-6 hover:bg-amber-50 transition-all group"
-                    >
+                    <div key={assignment.id} className="p-6 hover:bg-amber-50 transition-all">
                       <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900 group-hover:text-amber-800">{assignment.course.title}</h3>
-                          <p className="text-sm text-gray-600 mt-1">{statusLabel(assignment.status)} · {getCourseFormatLabel(assignment.course.file_type)}</p>
+                        <div className="min-w-0">
+                          <h3 className="text-lg font-semibold text-gray-900">{assignment.course.title}</h3>
+                          <p className="text-sm text-gray-600 mt-1">
+                            {statusLabel(assignment.status)} · {getCourseFormatLabel(assignment.course.file_type)}
+                          </p>
                         </div>
-                        <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-amber-700" />
+                        {isInteractiveCourse(assignment.course.file_type) ? (
+                          <button
+                            type="button"
+                            onClick={() => void openAssignment(assignment)}
+                            className="lt-btn-primary shrink-0"
+                            style={{ padding: '9px 16px', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 6 }}
+                          >
+                            <Play className="w-4 h-4" />
+                            {getCourseActionLabel(assignment.course.file_type, assignment.status)}
+                          </button>
+                        ) : (
+                          <Link to="/courses" className="lt-btn-secondary shrink-0" style={{ padding: '9px 16px', borderRadius: 8, textDecoration: 'none' }}>
+                            View
+                          </Link>
+                        )}
                       </div>
-                    </Link>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -206,29 +267,42 @@ export function RecentLearning() {
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          {(assignment.course.file_type === 'zip' || assignment.course.file_type === 'scorm') && (
+                          {isInteractiveCourse(assignment.course.file_type) ? (
+                            <>
+                              <button
+                                onClick={() => void openAssignment(assignment)}
+                                className="lt-btn-primary"
+                                style={{ padding: '9px 16px', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 6 }}
+                              >
+                                <Play className="w-4 h-4" />
+                                {getCourseActionLabel(assignment.course.file_type, assignment.status)}
+                              </button>
+                              {!isScormCourse(assignment.course.file_type) && (
+                                <button
+                                  onClick={() =>
+                                    handleDownloadFile(
+                                      assignment.course.file_path!,
+                                      assignment.course.file_name!,
+                                      assignment.course_id,
+                                    )
+                                  }
+                                  className="lt-btn-secondary"
+                                  style={{ padding: '9px 12px', borderRadius: 8 }}
+                                  title="Download"
+                                >
+                                  <Download className="w-4 h-4" />
+                                </button>
+                              )}
+                            </>
+                          ) : (
                             <button
-                              onClick={() => setPreviewCourse(assignment.course)}
-                              className="lt-btn-primary"
-                              style={{ padding: '9px 16px', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 6 }}
-                            >
-                              <Play className="w-4 h-4" />
-                              {getCourseActionLabel(assignment.course.file_type, assignment.status)}
-                            </button>
-                          )}
-                          {assignment.course.file_type === 'pdf' && (
-                            <Link
-                              to="/courses"
-                              className="lt-btn-primary"
-                              style={{ padding: '9px 16px', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}
-                            >
-                              <Play className="w-4 h-4" />
-                              {getCourseActionLabel(assignment.course.file_type, assignment.status)}
-                            </Link>
-                          )}
-                          {!isInteractiveCourse(assignment.course.file_type) && (
-                            <button
-                              onClick={() => handleDownloadFile(assignment.course.file_path!, assignment.course.file_name!, assignment.course_id)}
+                              onClick={() =>
+                                handleDownloadFile(
+                                  assignment.course.file_path!,
+                                  assignment.course.file_name!,
+                                  assignment.course_id,
+                                )
+                              }
                               className="lt-btn-primary"
                               style={{ padding: '9px 16px', borderRadius: 8 }}
                             >
@@ -247,7 +321,7 @@ export function RecentLearning() {
         )}
       </div>
 
-      {previewCourse && (previewCourse.file_type === 'zip' || previewCourse.file_type === 'scorm') && (
+      {previewCourse && isScormCourse(previewCourse.file_type) && (
         <ScormPlayer
           courseId={previewCourse.id}
           courseTitle={previewCourse.title}
@@ -255,27 +329,36 @@ export function RecentLearning() {
           subtitle={getCourseFormatLabel(previewCourse.file_type)}
           onClose={() => setPreviewCourse(null)}
           onComplete={async () => {
-            if (profile) {
-              await supabase
-                .from('uploaded_course_assignments')
-                .update({
-                  status: 'completed',
-                  completed_at: new Date().toISOString(),
-                  progress_percentage: 100,
-                })
-                .eq('user_id', profile.id)
-                .eq('course_id', previewCourse.id);
-
-              const result = await tryCompleteUploadedCourse(profile.id, previewCourse.id, previewCourse.title);
-              refresh();
-              setPreviewCourse(null);
-              if (result.completed) {
-                setCompletedCourseTitle(result.courseTitle);
-              }
-            } else {
-              setPreviewCourse(null);
-            }
+            await completeAssignment(previewCourse.id, previewCourse.title);
           }}
+        />
+      )}
+
+      {viewingAssignment && (
+        <UploadedCourseViewer
+          courseTitle={viewingAssignment.course.title}
+          filePath={viewingAssignment.course.file_path}
+          fileName={viewingAssignment.course.file_name}
+          fileType={viewingAssignment.course.file_type}
+          alreadyCompleted={viewingAssignment.status === 'completed'}
+          onClose={() => {
+            setViewingAssignment(null);
+            refresh();
+          }}
+          onDownload={() =>
+            handleDownloadFile(
+              viewingAssignment.course.file_path!,
+              viewingAssignment.course.file_name!,
+              viewingAssignment.course_id,
+            )
+          }
+          onComplete={() =>
+            completeAssignment(
+              viewingAssignment.course.id,
+              viewingAssignment.course.title,
+              viewingAssignment.id,
+            )
+          }
         />
       )}
 

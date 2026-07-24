@@ -328,6 +328,11 @@ export function ScormPlayer({
   const [progress, setProgress] = useState('');
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const sessionIdRef = useRef<string | null>(null);
+  // Keep completion callback out of the init effect deps — parents pass a new
+  // inline function every render (and learner course polls every 20s), which was
+  // tearing down the SCORM session and relaunching the iframe mid-course.
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
 
   const addDebug = (message: string) => {
     console.log(`[SCORM] ${message}`);
@@ -541,7 +546,7 @@ export function ScormPlayer({
         const { event: scormEvent, detail } = event.data;
         addDebug(`API: ${scormEvent} ${detail?.key ? `${detail.key} = ${detail.value}` : ''}`);
         if (scormEvent === 'LMSComplete') {
-          onComplete?.();
+          onCompleteRef.current?.();
         }
       }
     };
@@ -555,6 +560,7 @@ export function ScormPlayer({
 
       if (sessionIdRef.current) {
         const sid = sessionIdRef.current;
+        sessionIdRef.current = null;
         caches.delete(`scorm-content-${sid}`).catch(() => {});
         navigator.serviceWorker?.controller?.postMessage({
           type: 'SCORM_CLEANUP',
@@ -562,7 +568,7 @@ export function ScormPlayer({
         });
       }
     };
-  }, [courseId, filePath, onComplete]);
+  }, [courseId, filePath]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-5">

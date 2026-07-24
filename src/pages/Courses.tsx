@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -7,15 +7,16 @@ import { tryCompleteUploadedCourse } from '../utils/courseCompletion';
 import { useLearnerCourses } from '../hooks/useLearnerCourses';
 import { isInProgressStatus, isPendingStatus, type UploadedCourseAssignment } from '../utils/learnerCourses';
 import { ScormPlayer } from '../components/ScormPlayer';
+import { UploadedCourseViewer } from '../components/UploadedCourseViewer';
 import { CourseCompletionCelebration } from '../components/CourseCompletionCelebration';
 import { UploadedCourseCover } from '../components/UploadedCourseCover';
-import { getUploadedCourseSignedUrl } from '../utils/uploadedCourseMedia';
 import {
   getAssignmentStatusLabel,
   getCourseActionLabel,
   getCourseFormatLabel,
   getStatusBadgeClass,
   isInteractiveCourse,
+  isScormCourse,
 } from '../utils/uploadedCourseDisplay';
 import { BookOpen, Clock, Award, Download, Play } from 'lucide-react';
 
@@ -25,26 +26,8 @@ export function Courses() {
   const courses = builtin;
   const uploadedCourses = uploaded;
   const [filter, setFilter] = useState<'all' | 'assigned' | 'in_progress' | 'completed'>('all');
-  const [viewingCourse, setViewingCourse] = useState<any>(null);
-  const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null);
+  const [viewingCourse, setViewingCourse] = useState<UploadedCourseAssignment | null>(null);
   const [completedCourseTitle, setCompletedCourseTitle] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    if (!viewingCourse || viewingCourse.course.file_type !== 'pdf') {
-      setPdfViewerUrl(null);
-      return;
-    }
-
-    getUploadedCourseSignedUrl(viewingCourse.course.file_path).then((url) => {
-      if (!cancelled) setPdfViewerUrl(url);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [viewingCourse]);
 
   const filteredCourses = courses.filter((course) => {
     if (filter === 'all') return true;
@@ -77,13 +60,16 @@ export function Courses() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-      await supabase
-        .from('uploaded_course_assignments')
-        .update({
-          status: 'downloaded',
-          viewed_at: new Date().toISOString()
-        })
-        .eq('id', assignment.id);
+      // Download alone is not completion — mark in progress if not already done
+      if (assignment.status !== 'completed') {
+        await supabase
+          .from('uploaded_course_assignments')
+          .update({
+            status: 'in_progress',
+            viewed_at: new Date().toISOString(),
+          })
+          .eq('id', assignment.id);
+      }
     } catch (error: any) {
       console.error('Error downloading file:', error);
       alert('Failed to download file: ' + error.message);
@@ -93,15 +79,15 @@ export function Courses() {
   const handleViewCourse = async (assignment: UploadedCourseAssignment) => {
     setViewingCourse(assignment);
 
-    if (assignment.status === 'assigned' || assignment.status === 'not_started') {
+    if (assignment.status === 'assigned' || assignment.status === 'not_started' || assignment.status === 'downloaded') {
       await supabase
         .from('uploaded_course_assignments')
         .update({
           status: 'in_progress',
-          viewed_at: new Date().toISOString()
+          viewed_at: new Date().toISOString(),
         })
         .eq('id', assignment.id);
-      refresh();
+      // Don't refresh while the player is open — remounts mid-session.
     }
   };
 
@@ -202,14 +188,26 @@ export function Courses() {
 
                     <div style={{ display: 'flex', gap: 8 }}>
                       {isInteractiveCourse(assignment.course.file_type) ? (
-                        <button
-                          onClick={() => handleViewCourse(assignment)}
-                          className="lt-btn-primary"
-                          style={{ flex: 1, padding: '9px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 8 }}
-                        >
-                          <Play size={13} />
-                          {getCourseActionLabel(assignment.course.file_type, assignment.status)}
-                        </button>
+                        <>
+                          <button
+                            onClick={() => handleViewCourse(assignment)}
+                            className="lt-btn-primary"
+                            style={{ flex: 1, padding: '9px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 8 }}
+                          >
+                            <Play size={13} />
+                            {getCourseActionLabel(assignment.course.file_type, assignment.status)}
+                          </button>
+                          {!isScormCourse(assignment.course.file_type) && (
+                            <button
+                              onClick={() => handleDownloadCourse(assignment)}
+                              className="lt-btn-secondary"
+                              style={{ padding: '9px 12px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8 }}
+                              title="Download"
+                            >
+                              <Download size={13} />
+                            </button>
+                          )}
+                        </>
                       ) : (
                         <button
                           onClick={() => handleDownloadCourse(assignment)}
@@ -273,7 +271,7 @@ export function Courses() {
           </div>
         )}
 
-        {viewingCourse && (viewingCourse.course.file_type === 'zip' || viewingCourse.course.file_type === 'scorm') && (
+        {viewingCourse && isScormCourse(viewingCourse.course.file_type) && (
           <ScormPlayer
             courseId={viewingCourse.course.id}
             courseTitle={viewingCourse.course.title}
@@ -286,37 +284,22 @@ export function Courses() {
           />
         )}
 
-        {viewingCourse && viewingCourse.course.file_type === 'pdf' && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-5">
-            <div className="flex h-full w-full max-h-[94vh] max-w-7xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
-              <div className="flex shrink-0 items-center justify-between gap-4 border-b px-4 py-3 sm:px-5" style={{ borderColor: '#ebebeb', background: '#fafafa' }}>
-                <div className="min-w-0">
-                  <h2 className="truncate text-base font-bold text-gray-900 sm:text-lg">{viewingCourse.course.title}</h2>
-                  <p className="mt-0.5 text-xs text-gray-500 sm:text-sm">{getCourseFormatLabel('pdf')}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setViewingCourse(null)}
-                  className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800"
-                >
-                  Close
-                </button>
-              </div>
-              <div className="min-h-0 flex-1 overflow-hidden">
-                {pdfViewerUrl ? (
-                  <iframe
-                    src={pdfViewerUrl}
-                    className="h-full w-full"
-                    title="Course Content"
-                  />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-sm text-gray-500">
-                    Preparing document…
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+        {viewingCourse && isInteractiveCourse(viewingCourse.course.file_type) && !isScormCourse(viewingCourse.course.file_type) && (
+          <UploadedCourseViewer
+            courseTitle={viewingCourse.course.title}
+            filePath={viewingCourse.course.file_path}
+            fileName={viewingCourse.course.file_name}
+            fileType={viewingCourse.course.file_type}
+            alreadyCompleted={viewingCourse.status === 'completed'}
+            onClose={() => {
+              setViewingCourse(null);
+              refresh();
+            }}
+            onDownload={() => handleDownloadCourse(viewingCourse)}
+            onComplete={() =>
+              handleCourseComplete(viewingCourse.id, viewingCourse.course.id, viewingCourse.course.title)
+            }
+          />
         )}
       </div>
 

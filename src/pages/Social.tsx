@@ -1,9 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { applyOrgScope, orgIdForInsert } from '../utils/orgScope';
-import { Heart, MessageCircle, Share2, Send, MoreHorizontal, Bookmark, Image as ImageIcon, Video, X, Trash2 } from 'lucide-react';
+import {
+  Heart, MessageCircle, Share2, Send, MoreHorizontal, Bookmark,
+  Image as ImageIcon, Video, X, Trash2, Pencil,
+} from 'lucide-react';
 
 interface Post {
   id: string;
@@ -13,6 +16,7 @@ interface Post {
   media_type?: string;
   visibility: string;
   created_at: string;
+  updated_at?: string;
   user: {
     full_name: string;
     email: string;
@@ -44,10 +48,29 @@ export function Social() {
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [editingPost, setEditingPost] = useState<Post | null>(null);
+  const [editContent, setEditContent] = useState('');
+  const [editMediaFile, setEditMediaFile] = useState<File | null>(null);
+  const [editMediaPreview, setEditMediaPreview] = useState<string | null>(null);
+  const [removeExistingMedia, setRemoveExistingMedia] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadPosts();
   }, [profile]);
+
+  useEffect(() => {
+    if (!menuOpenId) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpenId(null);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [menuOpenId]);
 
   const loadPosts = async () => {
     try {
@@ -290,19 +313,116 @@ export function Social() {
   };
 
   const handleDeletePost = async (postId: string) => {
+    setMenuOpenId(null);
     if (!confirm('Are you sure you want to delete this post?')) return;
 
     try {
       const { error } = await supabase.from('social_posts').delete().eq('id', postId);
       if (error) throw error;
-      loadPosts();
+      setPosts((prev) => prev.filter((p) => p.id !== postId));
     } catch (error) {
       console.error('Error deleting post:', error);
       alert('Failed to delete post');
     }
   };
 
-  const isAdmin = ['super_admin', 'admin'].includes(profile?.role || '');
+  const openEditPost = (post: Post) => {
+    setMenuOpenId(null);
+    setEditingPost(post);
+    setEditContent(post.content || '');
+    setEditMediaFile(null);
+    setEditMediaPreview(null);
+    setRemoveExistingMedia(false);
+  };
+
+  const closeEditPost = () => {
+    setEditingPost(null);
+    setEditContent('');
+    setEditMediaFile(null);
+    setEditMediaPreview(null);
+    setRemoveExistingMedia(false);
+  };
+
+  const handleEditMediaSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File size must be less than 10MB');
+      return;
+    }
+    setEditMediaFile(file);
+    setRemoveExistingMedia(false);
+    const reader = new FileReader();
+    reader.onloadend = () => setEditMediaPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleUpdatePost = async () => {
+    if (!editingPost || !profile?.id) return;
+    if (!editContent.trim() && !editMediaFile && (!editingPost.media_url || removeExistingMedia)) {
+      alert('Post must have text or media');
+      return;
+    }
+
+    try {
+      setSavingEdit(true);
+      let mediaUrl = removeExistingMedia ? null : (editingPost.media_url || null);
+      let mediaType = removeExistingMedia ? null : (editingPost.media_type || null);
+
+      if (editMediaFile) {
+        mediaUrl = await uploadMedia(editMediaFile);
+        mediaType = editMediaFile.type.startsWith('video/') ? 'video' : 'image';
+      }
+
+      const { error } = await supabase
+        .from('social_posts')
+        .update({
+          content: editContent.trim(),
+          media_url: mediaUrl,
+          media_type: mediaType,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', editingPost.id)
+        .eq('user_id', profile.id);
+
+      if (error) throw error;
+
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === editingPost.id
+            ? {
+                ...p,
+                content: editContent.trim(),
+                media_url: mediaUrl || undefined,
+                media_type: mediaType || undefined,
+                updated_at: new Date().toISOString(),
+              }
+            : p,
+        ),
+      );
+      closeEditPost();
+    } catch (error: any) {
+      console.error('Error updating post:', error);
+      alert(error?.message || 'Failed to update post');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleShare = async (postId: string) => {
+    const url = `${window.location.origin}/social#post-${postId}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      alert('Post link copied');
+    } catch {
+      alert(url);
+    }
+  };
+
+  const canManagePost = (post: Post) =>
+    !!profile?.id && (post.user_id === profile.id || ['super_admin', 'admin'].includes(profile.role || ''));
+
+  const canEditPost = (post: Post) => !!profile?.id && post.user_id === profile.id;
 
   return (
     <Layout>
@@ -388,7 +508,7 @@ export function Social() {
           </div>
         ) : (
           posts.map((post) => (
-            <div key={post.id} className="lt-card p-6">
+            <div key={post.id} id={`post-${post.id}`} className="lt-card p-6">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white font-semibold">
@@ -398,23 +518,46 @@ export function Social() {
                     <p className="font-semibold text-gray-900">{post.user?.full_name || 'Unknown User'}</p>
                     <p className="text-sm text-gray-500">
                       {new Date(post.created_at).toLocaleDateString()} at {new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {post.updated_at && post.updated_at !== post.created_at ? ' · Edited' : ''}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {isAdmin && (
+                {canManagePost(post) && (
+                  <div className="relative" ref={menuOpenId === post.id ? menuRef : undefined}>
                     <button
-                      onClick={() => handleDeletePost(post.id)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Delete post (Admin)"
+                      type="button"
+                      onClick={() => setMenuOpenId((id) => (id === post.id ? null : post.id))}
+                      className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                      aria-label="Post options"
+                      aria-expanded={menuOpenId === post.id}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <MoreHorizontal className="w-5 h-5" />
                     </button>
-                  )}
-                  <button className="text-gray-400 hover:text-gray-600">
-                    <MoreHorizontal className="w-5 h-5" />
-                  </button>
-                </div>
+                    {menuOpenId === post.id && (
+                      <div
+                        className="absolute right-0 z-20 mt-1 w-40 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+                        style={{ boxShadow: 'rgba(0,0,0,0.12) 0px 0px 0px 1px, rgba(0,0,0,0.08) 0px 8px 24px' }}
+                      >
+                        {canEditPost(post) && (
+                          <button
+                            type="button"
+                            onClick={() => openEditPost(post)}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Pencil className="w-4 h-4" /> Edit
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePost(post.id)}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                        >
+                          <Trash2 className="w-4 h-4" /> Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {post.content && (
@@ -449,7 +592,11 @@ export function Social() {
                   <span className="text-sm font-medium">{post.comments_count}</span>
                 </button>
 
-                <button className="flex items-center gap-2 text-gray-600 hover:text-blue-600 transition-colors">
+                <button
+                  type="button"
+                  onClick={() => handleShare(post.id)}
+                  className="flex items-center gap-2 text-gray-600 hover:text-blue-600 transition-colors"
+                >
                   <Share2 className="w-5 h-5" />
                   <span className="text-sm font-medium">Share</span>
                 </button>
@@ -510,6 +657,85 @@ export function Social() {
           ))
         )}
       </div>
+
+      {editingPost && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={closeEditPost}
+        >
+          <div
+            className="lt-card w-full max-w-lg overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+              <h2 className="text-base font-bold text-gray-900">Edit post</h2>
+              <button type="button" onClick={closeEditPost} className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-4 p-5">
+              <textarea
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                rows={4}
+                className="w-full resize-none rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="What's on your mind?"
+              />
+
+              {(editMediaPreview || (editingPost.media_url && !removeExistingMedia)) && (
+                <div className="relative overflow-hidden rounded-lg bg-gray-100">
+                  {editMediaPreview ? (
+                    editMediaFile?.type.startsWith('video/') ? (
+                      <video src={editMediaPreview} controls className="max-h-56 w-full" />
+                    ) : (
+                      <img src={editMediaPreview} alt="New media" className="max-h-56 w-full object-cover" />
+                    )
+                  ) : editingPost.media_type === 'video' ? (
+                    <video src={editingPost.media_url} controls className="max-h-56 w-full" />
+                  ) : (
+                    <img src={editingPost.media_url} alt="Current media" className="max-h-56 w-full object-cover" />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditMediaFile(null);
+                      setEditMediaPreview(null);
+                      setRemoveExistingMedia(true);
+                    }}
+                    className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                <label className="lt-btn-secondary inline-flex cursor-pointer items-center gap-2 px-3 py-2 text-sm">
+                  <ImageIcon className="w-4 h-4" /> Replace image
+                  <input type="file" accept="image/*" className="hidden" onChange={handleEditMediaSelect} />
+                </label>
+                <label className="lt-btn-secondary inline-flex cursor-pointer items-center gap-2 px-3 py-2 text-sm">
+                  <Video className="w-4 h-4" /> Replace video
+                  <input type="file" accept="video/*" className="hidden" onChange={handleEditMediaSelect} />
+                </label>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-gray-100 px-5 py-4">
+              <button type="button" onClick={closeEditPost} className="lt-btn-secondary px-4 py-2 text-sm">
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleUpdatePost()}
+                disabled={savingEdit}
+                className="lt-btn-primary px-4 py-2 text-sm"
+              >
+                {savingEdit ? 'Saving…' : 'Save changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

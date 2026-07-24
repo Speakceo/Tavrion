@@ -1,5 +1,20 @@
+export function isScormCourse(fileType?: string) {
+  return fileType === 'scorm' || fileType === 'zip';
+}
+
+/** Any uploaded course that can be started/continued inside the LMS (not download-only). */
 export function isInteractiveCourse(fileType?: string) {
-  return fileType === 'scorm' || fileType === 'zip' || fileType === 'pdf';
+  if (!fileType) return false;
+  if (isScormCourse(fileType)) return true;
+  return [
+    'pdf',
+    'mp4', 'mov', 'webm', 'avi',
+    'ppt', 'pptx',
+    'doc', 'docx',
+    'xls', 'xlsx',
+    'jpg', 'jpeg', 'png', 'gif', 'webp',
+    'txt', 'md', 'csv',
+  ].includes(fileType);
 }
 
 export function getCourseFormatLabel(fileType?: string) {
@@ -20,6 +35,19 @@ export function getCourseFormatLabel(fileType?: string) {
     case 'doc':
     case 'docx':
       return 'Document';
+    case 'xls':
+    case 'xlsx':
+    case 'csv':
+      return 'Spreadsheet';
+    case 'jpg':
+    case 'jpeg':
+    case 'png':
+    case 'gif':
+    case 'webp':
+      return 'Image';
+    case 'txt':
+    case 'md':
+      return 'Text';
     default:
       return 'Course material';
   }
