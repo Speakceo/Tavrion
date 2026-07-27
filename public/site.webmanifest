@@ -1,21 +1,26 @@
 {
-  "name": "Tavrion",
+  "name": "Tavrion — Enterprise Learning Platform",
   "short_name": "Tavrion",
-  "description": "Enterprise learning and sales training platform",
+  "description": "Enterprise learning and sales training platform with AI coaching, SCORM, and analytics.",
+  "lang": "en-GB",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#171717",
+  "categories": ["business", "education", "productivity"],
   "icons": [
     {
       "src": "/favicon.svg",
       "sizes": "any",
-      "type": "image/svg+xml"
+      "type": "image/svg+xml",
+      "purpose": "any"
     },
     {
       "src": "/apple-touch-icon.svg",
       "sizes": "180x180",
-      "type": "image/svg+xml"
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
   ]
 }

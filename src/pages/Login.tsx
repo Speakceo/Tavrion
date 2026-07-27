@@ -520,11 +520,11 @@ export function Login() {
           </div>
 
           <div style={{ marginTop: 28, textAlign: 'center' }}>
-            <Link to="/" style={{ fontSize: 13, color: T.textMuted, textDecoration: 'none', transition: 'color 0.15s' }}
+            <Link to="/landing" style={{ fontSize: 13, color: T.textMuted, textDecoration: 'none', transition: 'color 0.15s' }}
               onMouseEnter={e => (e.currentTarget.style.color = T.text)}
               onMouseLeave={e => (e.currentTarget.style.color = T.textMuted)}
             >
-              &larr; Back to jointavrion.com
+              &larr; Explore Tavrion
             </Link>
           </div>
         </div>

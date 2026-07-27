@@ -263,8 +263,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
               ) : (
                 <TavrionMark size={28} />
               )}
-              <span className="hidden sm:inline" style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.04em', color: '#171717' }}>
-                {organization?.name || 'Tavrion'}
+              <span className="hidden sm:inline" style={{ display: 'inline-flex', flexDirection: 'column', lineHeight: 1.1 }}>
+                <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.04em', color: '#171717' }}>
+                  {organization?.name || 'Tavrion'}
+                </span>
+                {organization?.name && organization.name !== 'Tavrion' && (
+                  <span style={{ fontSize: 10, fontWeight: 500, color: '#aaa', letterSpacing: '0.02em' }}>by Tavrion</span>
+                )}
               </span>
             </Link>
 
@@ -515,6 +520,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
             >
               <LogOut size={14} /> Sign out
             </button>
+          </div>
+
+          <div style={{ marginTop: 16, padding: '10px 10px 4px', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <TavrionMark size={18} />
+            <div>
+              <p style={{ fontSize: 11, fontWeight: 600, color: '#bbb', margin: 0, letterSpacing: '-0.02em' }}>Tavrion</p>
+              <p style={{ fontSize: 9, color: '#ccc', margin: 0, lineHeight: 1.3 }}>Enterprise LMS</p>
+            </div>
           </div>
         </aside>
 

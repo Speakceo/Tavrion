@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { MASTER_SUPER_ADMIN_UNIQUE_ID } from '../utils/platformAccess';
+import { TavrionLogo } from './TavrionLogo';
 
 const DEFAULT_GATE_KEY = 'tavrion_internal_tools_gate';
 
@@ -70,6 +71,9 @@ export function PagePasswordGate({
   return (
     <div className="page-password-gate" role="dialog" aria-modal="true" aria-labelledby="page-gate-title">
       <div className="page-password-gate-card lt-card">
+        <div style={{ marginBottom: 20 }}>
+          <TavrionLogo size="sm" />
+        </div>
         <div className="page-password-gate-header">
           <div className="page-password-gate-icon">
             <Lock size={18} color="#fff" />
@@ -126,7 +130,7 @@ export function PagePasswordGate({
         </form>
 
         <p className="page-password-gate-back">
-          <Link to="/">&larr; Back to home</Link>
+          <Link to="/login">&larr; Back to sign in</Link>
         </p>
       </div>
     </div>

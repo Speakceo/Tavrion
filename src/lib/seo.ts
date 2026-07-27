@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 
 export const SITE_URL = 'https://jointavrion.com';
 export const SITE_NAME = 'Tavrion';
+export const BRAND_TAGLINE = 'Train the world. Scale without limits.';
 export const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.svg`;
 
 export const SEO = {
@@ -11,7 +12,7 @@ export const SEO = {
       'All-in-one enterprise learning platform for global teams. AI mock calls, SCORM/xAPI courses, live call coaching, multi-org management, certificates, and real-time analytics — deploy in 150+ countries.',
     keywords:
       'enterprise LMS, learning management system, sales training software, AI mock calls, SCORM LMS, call coaching platform, employee onboarding, compliance training, multi-tenant LMS, learning analytics',
-    path: '/',
+    path: '/landing',
   },
   dnaStudio: {
     title: 'DNA Studio — AI Brand & Campaign Generator | Tavrion',
@@ -27,7 +28,7 @@ export const SEO = {
   },
   login: {
     title: 'Sign In | Tavrion',
-    description: 'Sign in to your Tavrion learning platform account.',
+    description: 'Sign in to your Tavrion enterprise learning platform — AI coaching, SCORM courses, and team analytics.',
     path: '/login',
     noindex: true,
   },
@@ -108,6 +109,7 @@ export function usePageSeo({
     document.title = fullTitle;
     upsertMeta('name', 'description', description);
     upsertMeta('name', 'robots', noindex ? 'noindex, nofollow' : 'index, follow');
+    upsertMeta('name', 'application-name', SITE_NAME);
     if (keywords) upsertMeta('name', 'keywords', keywords);
     upsertLink('canonical', url);
 
@@ -117,6 +119,9 @@ export function usePageSeo({
     upsertMeta('property', 'og:description', description);
     upsertMeta('property', 'og:url', url);
     upsertMeta('property', 'og:image', image);
+    upsertMeta('property', 'og:image:width', '1200');
+    upsertMeta('property', 'og:image:height', '630');
+    upsertMeta('property', 'og:image:alt', fullTitle);
     upsertMeta('property', 'og:locale', 'en_GB');
 
     upsertMeta('name', 'twitter:card', 'summary_large_image');
@@ -124,5 +129,6 @@ export function usePageSeo({
     upsertMeta('name', 'twitter:title', fullTitle);
     upsertMeta('name', 'twitter:description', description);
     upsertMeta('name', 'twitter:image', image);
+    upsertMeta('name', 'twitter:image:alt', fullTitle);
   }, [title, description, path, image, keywords, noindex, type]);
 }

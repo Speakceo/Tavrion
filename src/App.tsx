@@ -8,6 +8,7 @@ import { BooksFeatureRoute } from './components/BooksFeatureRoute';
 import { OrgFeatureGate } from './components/OrgFeatureGate';
 import { LandingPage } from './pages/LandingPage';
 import { Login } from './pages/Login';
+import { TavrionLogo } from './components/TavrionLogo';
 import { Dashboard } from './pages/Dashboard';
 import { Courses } from './pages/Courses';
 import { CourseDetail } from './pages/CourseDetail';
@@ -82,10 +83,26 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: '20px', color: 'red' }}>
-          <h1>Something went wrong</h1>
-          <pre>{this.state.error?.message}</pre>
-          <pre>{this.state.error?.stack}</pre>
+        <div style={{
+          minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 24, background: '#fafafa', fontFamily: '"Geist", "Inter", system-ui, sans-serif',
+        }}>
+          <div style={{
+            maxWidth: 480, width: '100%', background: '#fff', borderRadius: 12, padding: '32px 28px',
+            boxShadow: 'rgba(0,0,0,0.08) 0px 0px 0px 1px',
+          }}>
+            <TavrionLogo size="md" style={{ marginBottom: 20 }} />
+            <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: '#171717', marginBottom: 8 }}>
+              Something went wrong
+            </h1>
+            <p style={{ fontSize: 14, color: '#666', lineHeight: 1.6, marginBottom: 16 }}>
+              Try refreshing the page. If the problem continues, contact your administrator.
+            </p>
+            <pre style={{
+              fontSize: 12, color: '#c0392b', background: '#fff5f5', borderRadius: 8,
+              padding: 12, overflow: 'auto', whiteSpace: 'pre-wrap', margin: 0,
+            }}>{this.state.error?.message}</pre>
+          </div>
         </div>
       );
     }
@@ -107,7 +124,6 @@ function App() {
         <KeepaliveBoot />
         <AuthProvider>
           <Routes>
-            {/* Landing hidden while testing internally — restore LandingPage on "/" when going live again */}
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/landing" element={<LandingPage />} />
             <Route path="/login" element={<Login />} />

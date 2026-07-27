@@ -16,6 +16,7 @@ export const BRAND = {
   muted: '#666666',
   faint: '#a3a3a3',
   surface: '#f5f5f5',
+  tagline: 'Train the world. Scale without limits.',
 };
 
 interface TavrionLogoProps {

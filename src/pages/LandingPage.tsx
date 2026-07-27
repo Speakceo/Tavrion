@@ -321,7 +321,7 @@ export function LandingPage() {
         overflowY: 'auto',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
-          <Link to="/" onClick={() => setMobileNavOpen(false)} style={{ textDecoration: 'none' }}>
+          <Link to="/landing" onClick={() => setMobileNavOpen(false)} style={{ textDecoration: 'none' }}>
             <TavrionLogo size="sm" />
           </Link>
           <button onClick={() => setMobileNavOpen(false)} style={{ padding: 6, background: T.bgSection, border: 'none', borderRadius: 7, cursor: 'pointer', color: T.textMuted }}>
@@ -370,7 +370,7 @@ export function LandingPage() {
         transition: 'all 0.3s',
       }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 20px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Link to="/" style={{ textDecoration: 'none' }}>
+          <Link to="/landing" style={{ textDecoration: 'none' }}>
             <TavrionLogo size="md" />
           </Link>
 
@@ -1042,7 +1042,10 @@ export function LandingPage() {
       {/* ── FOOTER ── */}
       <footer style={{ borderTop: `1px solid ${T.borderStrong}`, padding: isMobile ? '28px 20px' : '40px 24px' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-          <TavrionLogo size="sm" />
+          <div>
+            <TavrionLogo size="sm" />
+            <p style={{ fontSize: 11, color: T.textFaint, marginTop: 8, marginBottom: 0 }}>Train the world. Scale without limits.</p>
+          </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? 16 : 24 }}>
             <button type="button" onClick={() => scrollTo('product')} style={{ fontSize: 12, color: T.textFaint, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Product</button>
             <button type="button" onClick={() => scrollTo('platform')} style={{ fontSize: 12, color: T.textFaint, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Platform</button>
