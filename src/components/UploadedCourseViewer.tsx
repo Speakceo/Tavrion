@@ -11,11 +11,16 @@ export type UploadedCourseViewerProps = {
   alreadyCompleted?: boolean;
   onClose: () => void;
   onComplete: () => void | Promise<void>;
+  onProgress?: (progressPercentage: number) => void | Promise<void>;
   onDownload?: () => void | Promise<void>;
 };
 
 function isVideoType(fileType?: string) {
   return ['mp4', 'mov', 'webm', 'avi'].includes(fileType || '');
+}
+
+function isAudioType(fileType?: string) {
+  return ['mp3', 'wav', 'm4a', 'aac', 'ogg', 'oga'].includes(fileType || '');
 }
 
 function isImageType(fileType?: string) {
@@ -46,6 +51,7 @@ export function UploadedCourseViewer({
   alreadyCompleted = false,
   onClose,
   onComplete,
+  onProgress,
   onDownload,
 }: UploadedCourseViewerProps) {
   const [url, setUrl] = useState<string | null>(null);
@@ -54,9 +60,25 @@ export function UploadedCourseViewer({
   const [error, setError] = useState('');
   const [completing, setCompleting] = useState(false);
   const [officeFailed, setOfficeFailed] = useState(false);
+  const [progress, setProgress] = useState(alreadyCompleted ? 100 : 0);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const contentScrollRef = useRef<HTMLPreElement>(null);
   const onCompleteRef = useRef(onComplete);
+  const onProgressRef = useRef(onProgress);
+  const completionTriggeredRef = useRef(alreadyCompleted);
+  const progressRef = useRef(alreadyCompleted ? 100 : 0);
+  const startedAtRef = useRef(Date.now());
+  const textLengthRef = useRef(0);
   onCompleteRef.current = onComplete;
+  onProgressRef.current = onProgress;
+
+  useEffect(() => {
+    completionTriggeredRef.current = alreadyCompleted;
+    progressRef.current = alreadyCompleted ? 100 : 0;
+    setProgress(alreadyCompleted ? 100 : 0);
+    startedAtRef.current = Date.now();
+  }, [alreadyCompleted, filePath]);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,7 +101,10 @@ export function UploadedCourseViewer({
         try {
           const res = await fetch(signed);
           const text = await res.text();
-          if (!cancelled) setTextContent(text);
+          if (!cancelled) {
+            textLengthRef.current = text.length;
+            setTextContent(text);
+          }
         } catch {
           if (!cancelled) setError('Could not load text content.');
         }
@@ -92,8 +117,18 @@ export function UploadedCourseViewer({
     };
   }, [filePath, fileType]);
 
+  const updateProgress = async (nextProgress: number) => {
+    const clamped = Math.max(progressRef.current, Math.min(100, Math.round(nextProgress)));
+    if (clamped === progressRef.current) return;
+    progressRef.current = clamped;
+    setProgress(clamped);
+    await onProgressRef.current?.(clamped);
+  };
+
   const markComplete = async () => {
-    if (alreadyCompleted || completing) return;
+    if (completionTriggeredRef.current || alreadyCompleted || completing) return;
+    completionTriggeredRef.current = true;
+    await updateProgress(100);
     setCompleting(true);
     try {
       await onCompleteRef.current();
@@ -103,6 +138,62 @@ export function UploadedCourseViewer({
   };
 
   const formatLabel = getCourseFormatLabel(fileType);
+  const minimumReadSeconds = isPdfType(fileType)
+    ? 20
+    : isOfficeType(fileType)
+      ? 25
+      : isTextType(fileType)
+        ? Math.min(45, Math.max(12, Math.ceil(textLengthRef.current / 900)))
+        : isImageType(fileType)
+          ? 10
+          : 15;
+
+  useEffect(() => {
+    if (alreadyCompleted || loading || error) return undefined;
+    if (isVideoType(fileType) || isAudioType(fileType) || isTextType(fileType)) return undefined;
+
+    const timer = window.setInterval(() => {
+      const elapsedSeconds = (Date.now() - startedAtRef.current) / 1000;
+      const timeProgress = Math.min(1, elapsedSeconds / minimumReadSeconds);
+      void updateProgress(timeProgress * 90);
+      if (timeProgress >= 1) {
+        void markComplete();
+      }
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [alreadyCompleted, loading, error, fileType, minimumReadSeconds]);
+
+  useEffect(() => {
+    if (alreadyCompleted || !isTextType(fileType)) return undefined;
+    const el = contentScrollRef.current;
+    if (!el) return undefined;
+
+    const onScroll = () => {
+      const scrollable = el.scrollHeight - el.clientHeight;
+      const ratio = scrollable <= 0 ? 1 : (el.scrollTop + el.clientHeight) / el.scrollHeight;
+      const elapsedSeconds = (Date.now() - startedAtRef.current) / 1000;
+      const timeProgress = Math.min(1, elapsedSeconds / minimumReadSeconds);
+      const combined = Math.max(timeProgress * 60, ratio * 100);
+      void updateProgress(combined);
+      if (ratio >= 0.9 && timeProgress >= 0.7) {
+        void markComplete();
+      }
+    };
+
+    el.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [alreadyCompleted, fileType, minimumReadSeconds, textContent]);
+
+  const handleMediaProgress = (element: HTMLMediaElement | null) => {
+    if (!element || !Number.isFinite(element.duration) || element.duration <= 0) return;
+    const ratio = element.currentTime / element.duration;
+    void updateProgress(ratio * 100);
+    if (ratio >= 0.9) {
+      void markComplete();
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-5">
@@ -128,20 +219,14 @@ export function UploadedCourseViewer({
                 <Download size={14} /> Download
               </button>
             )}
-            {!alreadyCompleted && (
-              <button
-                type="button"
-                onClick={() => void markComplete()}
-                disabled={completing}
-                className="lt-btn-primary inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm"
-              >
-                <CheckCircle2 size={14} />
-                {completing ? 'Saving…' : 'Mark complete'}
-              </button>
-            )}
             {alreadyCompleted && (
               <span className="lt-badge lt-badge-success inline-flex items-center gap-1">
                 <CheckCircle2 size={12} /> Completed
+              </span>
+            )}
+            {!alreadyCompleted && (
+              <span className="lt-badge inline-flex items-center gap-1">
+                {completing ? 'Saving…' : `${progress}% viewed`}
               </span>
             )}
             <button
@@ -189,12 +274,29 @@ export function UploadedCourseViewer({
                 src={url}
                 controls
                 className="max-h-full max-w-full"
-                onEnded={() => {
-                  if (!alreadyCompleted) void markComplete();
-                }}
+                onTimeUpdate={() => handleMediaProgress(videoRef.current)}
+                onEnded={() => { void markComplete(); }}
               >
                 Your browser does not support video playback.
               </video>
+            </div>
+          )}
+
+          {!loading && !error && url && isAudioType(fileType) && (
+            <div className="flex h-full items-center justify-center p-6">
+              <div className="w-full max-w-3xl rounded-2xl bg-white p-8 shadow-sm">
+                <p className="mb-4 text-sm font-medium text-gray-500">Listen through at least 90% to complete this lesson.</p>
+                <audio
+                  ref={audioRef}
+                  src={url}
+                  controls
+                  className="w-full"
+                  onTimeUpdate={() => handleMediaProgress(audioRef.current)}
+                  onEnded={() => { void markComplete(); }}
+                >
+                  Your browser does not support audio playback.
+                </audio>
+              </div>
             </div>
           )}
 
@@ -230,15 +332,15 @@ export function UploadedCourseViewer({
           )}
 
           {!loading && !error && isTextType(fileType) && (
-            <pre className="h-full overflow-auto whitespace-pre-wrap p-5 text-sm leading-relaxed text-gray-800">
+            <pre ref={contentScrollRef} className="h-full overflow-auto whitespace-pre-wrap p-5 text-sm leading-relaxed text-gray-800">
               {textContent ?? 'No content.'}
             </pre>
           )}
 
-          {!loading && !error && url && !isPdfType(fileType) && !isVideoType(fileType) && !isImageType(fileType) && !isOfficeType(fileType) && !isTextType(fileType) && (
+          {!loading && !error && url && !isPdfType(fileType) && !isVideoType(fileType) && !isAudioType(fileType) && !isImageType(fileType) && !isOfficeType(fileType) && !isTextType(fileType) && (
             <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
               <p className="max-w-md text-sm text-gray-600">
-                Preview isn’t available for this file type. Open or download the file, then mark the course complete when finished.
+                Preview isn’t available for this file type. Open or download the file and keep it open long enough for progress to be recorded automatically.
               </p>
               <div className="flex flex-wrap justify-center gap-2">
                 <a
@@ -265,8 +367,10 @@ export function UploadedCourseViewer({
 
         {!alreadyCompleted && (
           <div className="shrink-0 border-t px-4 py-3 text-xs text-gray-500 sm:px-5" style={{ borderColor: '#ebebeb' }}>
-            Review the material in the LMS, then click <strong>Mark complete</strong>
-            {isVideoType(fileType) ? ' (or finish the video)' : ''} so progress is recorded.
+            Completion is tracked automatically from content consumption.
+            {isVideoType(fileType) || isAudioType(fileType)
+              ? ' Finish at least 90% of the media to unlock completion.'
+              : ' Keep the material open long enough to record review progress.'}
           </div>
         )}
       </div>

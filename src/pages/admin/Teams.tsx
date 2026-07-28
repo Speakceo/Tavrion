@@ -3,7 +3,8 @@ import { Layout } from '../../components/Layout';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { applyOrgUserScope } from '../../utils/orgUsers';
-import { Users, Plus, Trash2, X } from 'lucide-react';
+import JSZip from 'jszip';
+import { Users, Plus, Trash2, Upload, X } from 'lucide-react';
 
 interface Team {
   id: string;
@@ -31,6 +32,111 @@ interface User {
   email: string;
 }
 
+interface BulkUploadPreview {
+  emails: string[];
+  matchedUsers: User[];
+  missingEmails: string[];
+}
+
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+function parseCsvLikeEmails(text: string): string[] {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (!lines.length) return [];
+
+  const firstCols = lines[0].split(/,|\t/).map((col) => col.trim().toLowerCase());
+  const emailIdx = firstCols.findIndex((col) => col === 'email' || col.includes('email'));
+  const startIndex = emailIdx >= 0 ? 1 : 0;
+  const values: string[] = [];
+
+  for (let i = startIndex; i < lines.length; i += 1) {
+    const cols = lines[i].split(/,|\t/).map((col) => col.trim());
+    const raw = emailIdx >= 0 ? cols[emailIdx] : cols[0];
+    const email = normalizeEmail(raw || '');
+    if (email && email.includes('@')) values.push(email);
+  }
+
+  return [...new Set(values)];
+}
+
+function columnLabelToIndex(label: string) {
+  return label.split('').reduce((acc, ch) => (acc * 26) + ch.charCodeAt(0) - 64, 0) - 1;
+}
+
+async function parseXlsxEmails(file: File): Promise<string[]> {
+  const buffer = await file.arrayBuffer();
+  const zip = await JSZip.loadAsync(buffer);
+  const parser = new DOMParser();
+
+  const sharedStringsXml = await zip.file('xl/sharedStrings.xml')?.async('text');
+  const sharedStrings: string[] = [];
+  if (sharedStringsXml) {
+    const sharedDoc = parser.parseFromString(sharedStringsXml, 'application/xml');
+    sharedDoc.querySelectorAll('si').forEach((si) => {
+      const text = Array.from(si.querySelectorAll('t')).map((node) => node.textContent || '').join('');
+      sharedStrings.push(text);
+    });
+  }
+
+  const sheetEntry = Object.keys(zip.files)
+    .filter((name) => /^xl\/worksheets\/sheet\d+\.xml$/i.test(name))
+    .sort()[0];
+  if (!sheetEntry) throw new Error('No worksheet found in the Excel file.');
+
+  const sheetXml = await zip.file(sheetEntry)?.async('text');
+  if (!sheetXml) throw new Error('Could not read the first worksheet.');
+
+  const sheetDoc = parser.parseFromString(sheetXml, 'application/xml');
+  const rows = Array.from(sheetDoc.querySelectorAll('sheetData > row')).map((row) => {
+    const cells: string[] = [];
+    row.querySelectorAll('c').forEach((cell) => {
+      const ref = cell.getAttribute('r') || '';
+      const colLetters = (ref.match(/[A-Z]+/i) || ['A'])[0].toUpperCase();
+      const idx = columnLabelToIndex(colLetters);
+      const type = cell.getAttribute('t');
+      let value = '';
+      if (type === 'inlineStr') {
+        value = Array.from(cell.querySelectorAll('is t')).map((node) => node.textContent || '').join('');
+      } else {
+        const raw = cell.querySelector('v')?.textContent || '';
+        value = type === 's' ? (sharedStrings[Number(raw)] || '') : raw;
+      }
+      cells[idx] = value.trim();
+    });
+    return cells;
+  }).filter((row) => row.some(Boolean));
+
+  if (!rows.length) return [];
+
+  const header = rows[0].map((cell) => cell.trim().toLowerCase());
+  const emailIdx = header.findIndex((col) => col === 'email' || col.includes('email'));
+  const startIndex = emailIdx >= 0 ? 1 : 0;
+  const values: string[] = [];
+
+  for (let i = startIndex; i < rows.length; i += 1) {
+    const raw = emailIdx >= 0 ? rows[i][emailIdx] : rows[i][0];
+    const email = normalizeEmail(raw || '');
+    if (email && email.includes('@')) values.push(email);
+  }
+
+  return [...new Set(values)];
+}
+
+async function parseBulkEmailFile(file: File): Promise<string[]> {
+  const lower = file.name.toLowerCase();
+  if (lower.endsWith('.xlsx')) {
+    return parseXlsxEmails(file);
+  }
+  const text = await file.text();
+  return parseCsvLikeEmails(text);
+}
+
 export function Teams() {
   const { profile } = useAuth();
   const [teams, setTeams] = useState<Team[]>([]);
@@ -45,6 +151,9 @@ export function Teams() {
     description: '',
   });
   const [selectedUserId, setSelectedUserId] = useState('');
+  const [bulkPreview, setBulkPreview] = useState<BulkUploadPreview | null>(null);
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkAdding, setBulkAdding] = useState(false);
 
   useEffect(() => {
     if (profile && ['super_admin', 'admin'].includes(profile.role)) {
@@ -221,6 +330,66 @@ export function Teams() {
     }
   };
 
+  const handleBulkFile = async (file: File) => {
+    try {
+      setBulkLoading(true);
+      const emails = await parseBulkEmailFile(file);
+      if (!emails.length) {
+        alert('No valid email addresses were found in that file.');
+        setBulkPreview(null);
+        return;
+      }
+
+      const availableByEmail = new Map(
+        availableUsers
+          .filter((user) => user.email)
+          .map((user) => [normalizeEmail(user.email), user] as const),
+      );
+
+      const matchedUsers: User[] = [];
+      const missingEmails: string[] = [];
+
+      emails.forEach((email) => {
+        const match = availableByEmail.get(email);
+        if (match) matchedUsers.push(match);
+        else missingEmails.push(email);
+      });
+
+      setBulkPreview({ emails, matchedUsers, missingEmails });
+    } catch (error: any) {
+      console.error('Error parsing bulk upload:', error);
+      alert(`Failed to read file: ${error.message || 'Unknown error'}`);
+      setBulkPreview(null);
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const handleBulkAddMembers = async () => {
+    if (!selectedTeam || !bulkPreview?.matchedUsers.length) return;
+
+    try {
+      setBulkAdding(true);
+      const rows = bulkPreview.matchedUsers.map((user) => ({
+        team_id: selectedTeam.id,
+        user_id: user.id,
+        role: 'member',
+      }));
+
+      const { error } = await supabase.from('team_members').insert(rows);
+      if (error) throw error;
+
+      setBulkPreview(null);
+      await loadTeamMembers(selectedTeam.id);
+      await loadTeams();
+    } catch (error: any) {
+      console.error('Error bulk adding team members:', error);
+      alert('Failed to add bulk members: ' + error.message);
+    } finally {
+      setBulkAdding(false);
+    }
+  };
+
   const handleRemoveMember = async (memberId: string) => {
     if (!selectedTeam || !confirm('Remove this member from the team?')) return;
 
@@ -241,6 +410,7 @@ export function Teams() {
     setSelectedTeam(team);
     setTeamMembers([]);
     setSelectedUserId('');
+    setBulkPreview(null);
     setShowMembersModal(true);
     loadTeamMembers(team.id);
   };
@@ -363,6 +533,60 @@ export function Teams() {
                     <button onClick={handleAddMember} disabled={!selectedUserId} className="lt-btn-primary"
                       style={{ padding: '8px 14px' }}>Add</button>
                   </div>
+                </div>
+                <div style={{ marginBottom: 20, background: '#fafafa', borderRadius: 8, padding: 14, boxShadow: 'rgba(0,0,0,0.06) 0px 0px 0px 1px' }}>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#666666', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Bulk Upload by Email</label>
+                  <p style={{ fontSize: 12, color: '#808080', marginBottom: 10 }}>
+                    Upload a CSV or Excel `.xlsx` file with an `email` column. Matching existing users in this organisation will be added to the team.
+                  </p>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <label className="lt-btn-secondary" style={{ padding: '8px 14px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <Upload size={13} />
+                      {bulkLoading ? 'Reading file…' : 'Choose file'}
+                      <input
+                        type="file"
+                        accept=".csv,.txt,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        hidden
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) void handleBulkFile(file);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                    {bulkPreview && (
+                      <button
+                        onClick={handleBulkAddMembers}
+                        disabled={!bulkPreview.matchedUsers.length || bulkAdding}
+                        className="lt-btn-primary"
+                        style={{ padding: '8px 14px' }}
+                      >
+                        {bulkAdding ? 'Adding…' : `Add ${bulkPreview.matchedUsers.length} matched users`}
+                      </button>
+                    )}
+                  </div>
+                  {bulkPreview && (
+                    <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: 8 }}>
+                      <div style={{ background: '#fff', borderRadius: 8, padding: '10px 12px', boxShadow: 'rgba(0,0,0,0.05) 0px 0px 0px 1px' }}>
+                        <div style={{ fontSize: 18, fontWeight: 700, color: '#171717' }}>{bulkPreview.emails.length}</div>
+                        <div style={{ fontSize: 11, color: '#808080' }}>emails found</div>
+                      </div>
+                      <div style={{ background: '#fff', borderRadius: 8, padding: '10px 12px', boxShadow: 'rgba(0,0,0,0.05) 0px 0px 0px 1px' }}>
+                        <div style={{ fontSize: 18, fontWeight: 700, color: '#16a34a' }}>{bulkPreview.matchedUsers.length}</div>
+                        <div style={{ fontSize: 11, color: '#808080' }}>matched users</div>
+                      </div>
+                      <div style={{ background: '#fff', borderRadius: 8, padding: '10px 12px', boxShadow: 'rgba(0,0,0,0.05) 0px 0px 0px 1px' }}>
+                        <div style={{ fontSize: 18, fontWeight: 700, color: bulkPreview.missingEmails.length ? '#d97706' : '#171717' }}>{bulkPreview.missingEmails.length}</div>
+                        <div style={{ fontSize: 11, color: '#808080' }}>not found</div>
+                      </div>
+                    </div>
+                  )}
+                  {bulkPreview?.missingEmails.length ? (
+                    <div style={{ marginTop: 10, fontSize: 12, color: '#a16207', lineHeight: 1.5 }}>
+                      Not found: {bulkPreview.missingEmails.slice(0, 8).join(', ')}
+                      {bulkPreview.missingEmails.length > 8 ? ` +${bulkPreview.missingEmails.length - 8} more` : ''}
+                    </div>
+                  ) : null}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {teamMembers.length === 0 ? (

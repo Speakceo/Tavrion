@@ -110,6 +110,17 @@ export function Courses() {
     }
   };
 
+  const handleCourseProgress = async (assignmentId: string, progressPercentage: number) => {
+    await supabase
+      .from('uploaded_course_assignments')
+      .update({
+        status: 'in_progress',
+        viewed_at: new Date().toISOString(),
+        progress_percentage: Math.min(99, Math.max(1, Math.round(progressPercentage))),
+      })
+      .eq('id', assignmentId);
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -296,6 +307,9 @@ export function Courses() {
               refresh();
             }}
             onDownload={() => handleDownloadCourse(viewingCourse)}
+            onProgress={(progressPercentage) =>
+              handleCourseProgress(viewingCourse.id, progressPercentage)
+            }
             onComplete={() =>
               handleCourseComplete(viewingCourse.id, viewingCourse.course.id, viewingCourse.course.title)
             }

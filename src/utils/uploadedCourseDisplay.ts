@@ -9,6 +9,7 @@ export function isInteractiveCourse(fileType?: string) {
   return [
     'pdf',
     'mp4', 'mov', 'webm', 'avi',
+    'mp3', 'wav', 'm4a', 'aac', 'ogg', 'oga',
     'ppt', 'pptx',
     'doc', 'docx',
     'xls', 'xlsx',
@@ -29,6 +30,13 @@ export function getCourseFormatLabel(fileType?: string) {
     case 'webm':
     case 'avi':
       return 'Video';
+    case 'mp3':
+    case 'wav':
+    case 'm4a':
+    case 'aac':
+    case 'ogg':
+    case 'oga':
+      return 'Audio';
     case 'ppt':
     case 'pptx':
       return 'Presentation';
