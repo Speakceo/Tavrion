@@ -3,8 +3,14 @@ import { Layout } from '../components/Layout';
 import { AppModal } from '../components/AppModal';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { Calendar, MapPin, Users, Plus, Check, X, Trash2, Clock, Link as LinkIcon } from 'lucide-react';
+import { Calendar, MapPin, Users, Plus, Check, X, Trash2, Clock, Link as LinkIcon, Video } from 'lucide-react';
 import { applyOrgScope, orgIdForInsert } from '../utils/orgScope';
+import {
+  getEventJoinOpensAt,
+  getJoinAvailability,
+  normalizeMeetingUrl,
+  openEventMeeting,
+} from '../utils/eventJoin';
 
 interface Event {
   id: string;
@@ -22,6 +28,7 @@ interface Event {
   };
   attendees_count: number;
   user_status?: string;
+  user_joined_at?: string;
 }
 
 export function Events() {
@@ -34,9 +41,11 @@ export function Events() {
     title: '',
     description: '',
     event_date: '',
+    end_date: '',
     location: '',
     virtual_link: '',
   });
+  const [joiningEventId, setJoiningEventId] = useState<string | null>(null);
 
   useEffect(() => {
     loadEvents();
@@ -46,10 +55,13 @@ export function Events() {
     try {
       setLoading(true);
 
+      const nowIso = new Date().toISOString();
+      const lookbackIso = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
+
       let query = supabase
         .from('events')
         .select('*')
-        .gte('event_date', new Date().toISOString())
+        .or(`end_date.gte.${nowIso},and(end_date.is.null,event_date.gte.${lookbackIso})`)
         .order('event_date', { ascending: true });
 
       query = applyOrgScope(query, profile);
@@ -62,7 +74,7 @@ export function Events() {
         const [creatorData, attendeesCount, userStatus] = await Promise.all([
           supabase.from('user_profiles').select('full_name').eq('id', event.created_by).maybeSingle(),
           supabase.from('event_attendees').select('id', { count: 'exact', head: true }).eq('event_id', event.id).eq('status', 'attending'),
-          supabase.from('event_attendees').select('status').eq('event_id', event.id).eq('user_id', profile?.id || '').maybeSingle(),
+          supabase.from('event_attendees').select('status, joined_at').eq('event_id', event.id).eq('user_id', profile?.id || '').maybeSingle(),
         ]);
 
         return {
@@ -70,6 +82,7 @@ export function Events() {
           creator: creatorData.data || { full_name: 'Unknown' },
           attendees_count: attendeesCount.count || 0,
           user_status: userStatus.data?.status,
+          user_joined_at: userStatus.data?.joined_at,
         };
       }));
 
@@ -90,6 +103,7 @@ export function Events() {
     try {
       const { error } = await supabase.from('events').insert({
         ...newEvent,
+        end_date: newEvent.end_date || null,
         created_by: profile?.id,
         organization_id: orgIdForInsert(profile),
       });
@@ -97,11 +111,27 @@ export function Events() {
       if (error) throw error;
 
       setShowCreateModal(false);
-      setNewEvent({ title: '', description: '', event_date: '', location: '', virtual_link: '' });
+      setNewEvent({ title: '', description: '', event_date: '', end_date: '', location: '', virtual_link: '' });
       loadEvents();
     } catch (error) {
       console.error('Error creating event:', error);
       alert('Failed to create event');
+    }
+  };
+
+  const handleJoinEvent = async (event: Event) => {
+    if (!profile?.id || !event.virtual_link || joiningEventId) return;
+
+    setJoiningEventId(event.id);
+    try {
+      await openEventMeeting(event, profile.id);
+      setEvents((prev) => prev.map((item) => (
+        item.id === event.id
+          ? { ...item, user_status: 'attending', user_joined_at: new Date().toISOString() }
+          : item
+      )));
+    } finally {
+      setJoiningEventId(null);
     }
   };
 
@@ -209,13 +239,58 @@ export function Events() {
                           <span>{event.location}</span>
                         </div>
                       )}
+                      {event.virtual_link && (
+                        <div className="flex items-center gap-2">
+                          <LinkIcon className="w-4 h-4 shrink-0" />
+                          <a
+                            href={normalizeMeetingUrl(event.virtual_link)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => {
+                              if (!profile?.id) return;
+                              e.preventDefault();
+                              void handleJoinEvent(event);
+                            }}
+                            className="text-[#171717] hover:underline truncate"
+                          >
+                            {event.location ? 'Join virtual meeting' : 'Open meeting link'}
+                          </a>
+                        </div>
+                      )}
                       <div className="flex items-center gap-2">
                         <Users className="w-4 h-4" />
                         <span>{event.attendees_count} attending</span>
                       </div>
                     </div>
 
-                    <div className="flex gap-2">
+                    {event.virtual_link && (
+                      <div className="mb-4">
+                        {getJoinAvailability(event) === 'join' ? (
+                          <button
+                            type="button"
+                            onClick={() => handleJoinEvent(event)}
+                            disabled={joiningEventId === event.id}
+                            className="lt-btn-primary inline-flex items-center gap-2"
+                            style={{ padding: '10px 16px', borderRadius: 8 }}
+                          >
+                            <Video className="w-4 h-4" />
+                            {joiningEventId === event.id ? 'Opening meeting...' : 'Join now'}
+                          </button>
+                        ) : getJoinAvailability(event) === 'soon' ? (
+                          <p className="text-sm text-gray-500">
+                            Join opens at{' '}
+                            {getEventJoinOpensAt(event).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        ) : null}
+                        {event.user_joined_at && (
+                          <p className="mt-2 text-xs font-medium text-green-700">
+                            Attendance recorded
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex gap-2 flex-wrap">
                       <button
                         onClick={() => handleRSVP(event.id, 'attending')}
                         className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${
@@ -309,6 +384,19 @@ export function Events() {
                         type="datetime-local"
                         value={newEvent.event_date}
                         onChange={(e) => setNewEvent({ ...newEvent, event_date: e.target.value })}
+                        className="w-full rounded-xl border border-gray-300 py-3 pl-11 pr-4 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">End Date & Time</label>
+                    <div className="relative">
+                      <Clock className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="datetime-local"
+                        value={newEvent.end_date}
+                        onChange={(e) => setNewEvent({ ...newEvent, end_date: e.target.value })}
                         className="w-full rounded-xl border border-gray-300 py-3 pl-11 pr-4 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>

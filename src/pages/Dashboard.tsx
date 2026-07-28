@@ -13,6 +13,11 @@ import { tryCompleteUploadedCourse } from '../utils/courseCompletion';
 import { CourseCompletionCelebration } from '../components/CourseCompletionCelebration';
 import { useLearnerCourses } from '../hooks/useLearnerCourses';
 import { isPendingStatus, statusLabel } from '../utils/learnerCourses';
+import {
+  getJoinAvailability,
+  openEventMeeting,
+} from '../utils/eventJoin';
+import { applyOrgScope } from '../utils/orgScope';
 import { getCourseFormatLabel } from '../utils/uploadedCourseDisplay';
 
 const T = {
@@ -56,6 +61,7 @@ export function Dashboard() {
   const [aiStats, setAiStats] = useState({ mockCalls: 0, tutorSessions: 0, avgScore: 0 });
   const [topPerformers, setTopPerformers] = useState<any[]>([]);
   const [recentQuizzes, setRecentQuizzes] = useState<any[]>([]);
+  const [joiningEventId, setJoiningEventId] = useState<string | null>(null);
 
   useEffect(() => { if (profile) fetchAll(); }, [profile]);
 
@@ -96,13 +102,35 @@ export function Dashboard() {
   const fetchCourses = refreshCourses;
 
   const fetchEvents = async () => {
-    const { data } = await supabase
+    const nowIso = new Date().toISOString();
+    const lookbackIso = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
+
+    let query = supabase
       .from('events')
-      .select('id, title, event_date, location, virtual_link, description')
-      .gte('event_date', new Date().toISOString())
+      .select('id, title, event_date, end_date, location, virtual_link, description')
+      .or(`end_date.gte.${nowIso},and(end_date.is.null,event_date.gte.${lookbackIso})`)
       .order('event_date', { ascending: true })
       .limit(4);
+
+    query = applyOrgScope(query, profile);
+    const { data } = await query;
     if (data) setUpcomingEvents(data);
+  };
+
+  const handleJoinEvent = async (event: {
+    id: string;
+    event_date: string;
+    end_date?: string | null;
+    virtual_link?: string | null;
+  }) => {
+    if (!profile?.id || !event.virtual_link || joiningEventId) return;
+
+    setJoiningEventId(event.id);
+    try {
+      await openEventMeeting(event, profile.id);
+    } finally {
+      setJoiningEventId(null);
+    }
   };
 
   const fetchActivityFeed = async () => {
@@ -487,17 +515,33 @@ export function Dashboard() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-[#f5f5f5]">
               {upcomingEvents.map((event) => (
-                <Link key={event.id} to="/events" style={{ textDecoration: 'none', padding: '14px 18px', transition: 'background 0.1s', display: 'block' }}
-                  onMouseEnter={e => { e.currentTarget.style.background = T.bgSubtle; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                <div
+                  key={event.id}
+                  style={{ padding: '14px 18px', transition: 'background 0.1s', display: 'block' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = T.bgSubtle; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
                 >
-                  <div style={{ display: 'inline-block', background: T.bgSection, borderRadius: 6, padding: '2px 8px', fontSize: 10, fontWeight: 700, color: T.muted, marginBottom: 8, boxShadow: T.shadow }}>
-                    {formatDate(event.event_date)}
-                  </div>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: T.text, marginBottom: 4, lineHeight: 1.3 }}>{event.title}</p>
-                  {event.location && <p style={{ fontSize: 11, color: T.faint, display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={9} /> {event.location}</p>}
-                  {event.virtual_link && !event.location && <p style={{ fontSize: 11, color: T.faint }}>Virtual event</p>}
-                </Link>
+                  <Link to="/events" style={{ textDecoration: 'none', display: 'block' }}>
+                    <div style={{ display: 'inline-block', background: T.bgSection, borderRadius: 6, padding: '2px 8px', fontSize: 10, fontWeight: 700, color: T.muted, marginBottom: 8, boxShadow: T.shadow }}>
+                      {formatDate(event.event_date)}
+                    </div>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: T.text, marginBottom: 4, lineHeight: 1.3 }}>{event.title}</p>
+                    {event.location && <p style={{ fontSize: 11, color: T.faint, display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={9} /> {event.location}</p>}
+                    {event.virtual_link && !event.location && <p style={{ fontSize: 11, color: T.faint }}>Virtual event</p>}
+                  </Link>
+                  {event.virtual_link && getJoinAvailability(event) === 'join' && (
+                    <button
+                      type="button"
+                      onClick={() => handleJoinEvent(event)}
+                      disabled={joiningEventId === event.id}
+                      className="lt-btn-primary"
+                      style={{ marginTop: 10, width: '100%', padding: '8px 12px', borderRadius: 8, fontSize: 12, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                    >
+                      <Play size={12} />
+                      {joiningEventId === event.id ? 'Opening...' : 'Join now'}
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           </div>
