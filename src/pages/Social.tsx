@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -7,6 +8,7 @@ import {
   Heart, MessageCircle, Share2, Send, MoreHorizontal, Bookmark,
   Image as ImageIcon, Video, X, Trash2, Pencil,
 } from 'lucide-react';
+import { scrollToHashTarget } from '../utils/deepLinkScroll';
 
 function SocialAvatar({ name, size = 'md' }: { name?: string; size?: 'sm' | 'md' }) {
   const sizeClass = size === 'sm' ? 'w-8 h-8 text-xs' : 'w-10 h-10 text-sm';
@@ -54,6 +56,7 @@ interface Comment {
 
 export function Social() {
   const { profile } = useAuth();
+  const location = useLocation();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [newPost, setNewPost] = useState('');
@@ -77,6 +80,10 @@ export function Social() {
   useEffect(() => {
     loadPosts();
   }, [profile]);
+
+  useEffect(() => {
+    scrollToHashTarget('post', loading);
+  }, [loading, posts, location.hash]);
 
   useEffect(() => {
     if (!menuOpenId) return;

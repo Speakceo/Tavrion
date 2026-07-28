@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { AppModal } from '../components/AppModal';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
@@ -6,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import { BarChart3, Plus, Check, Trash2, Bookmark } from 'lucide-react';
 import { applyOrgScope, orgIdForInsert } from '../utils/orgScope';
 import { fetchSavedItemIds, toggleSavedItem } from '../utils/savedItems';
+import { scrollToHashTarget } from '../utils/deepLinkScroll';
 
 interface Poll {
   id: string;
@@ -33,6 +35,7 @@ interface PollOption {
 
 export function Polls() {
   const { profile } = useAuth();
+  const location = useLocation();
   const [polls, setPolls] = useState<Poll[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -48,6 +51,10 @@ export function Polls() {
   useEffect(() => {
     loadPolls();
   }, [profile]);
+
+  useEffect(() => {
+    scrollToHashTarget('poll', loading);
+  }, [loading, polls, location.hash]);
 
   const loadPolls = async () => {
     try {
@@ -261,7 +268,7 @@ export function Polls() {
               const hasVoted = poll.user_votes.length > 0;
 
               return (
-                <div key={poll.id} className="lt-card p-6">
+                <div key={poll.id} id={`poll-${poll.id}`} className="lt-card p-6">
                   <div className="flex items-start justify-between mb-4 gap-3">
                     <div className="flex-1">
                       <h3 className="text-xl font-semibold text-gray-900 mb-2">{poll.title}</h3>

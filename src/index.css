@@ -149,6 +149,13 @@
     animation: social-like-pop 0.35s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
+  .saved-hash-target {
+    outline: 2px solid #171717;
+    outline-offset: 4px;
+    border-radius: 12px;
+    transition: outline-color 0.2s ease;
+  }
+
   /* Landing page — subtle motion */
   @media (prefers-reduced-motion: no-preference) {
     .lp-hero-in {

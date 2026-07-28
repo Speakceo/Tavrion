@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { AppModal } from '../components/AppModal';
 import { useAuth } from '../contexts/AuthContext';
@@ -14,6 +15,7 @@ import {
   openEventMeeting,
 } from '../utils/eventJoin';
 import { fetchSavedItemIds, toggleSavedItem } from '../utils/savedItems';
+import { scrollToHashTarget } from '../utils/deepLinkScroll';
 
 interface Event {
   id: string;
@@ -37,6 +39,7 @@ interface Event {
 
 export function Events() {
   const { profile } = useAuth();
+  const location = useLocation();
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -56,6 +59,10 @@ export function Events() {
   useEffect(() => {
     loadEvents();
   }, [profile]);
+
+  useEffect(() => {
+    scrollToHashTarget('event', loading);
+  }, [loading, events, location.hash]);
 
   const loadEvents = async () => {
     try {
@@ -248,7 +255,7 @@ export function Events() {
         ) : (
           <div className="grid grid-cols-1 gap-6">
             {events.map((event) => (
-              <div key={event.id} className="lt-card p-6">
+              <div key={event.id} id={`event-${event.id}`} className="lt-card p-6">
                 <div className="flex gap-6">
                   <div className="flex flex-col items-center justify-center bg-blue-50 rounded-lg p-4 min-w-[100px]">
                     <span className="text-3xl font-bold text-blue-600">
