@@ -6,6 +6,7 @@ import { Course, Module, Lesson } from '../../types';
 import { BookOpen, Plus, Trash2, Save, ArrowLeft, GripVertical, Sparkles, Users } from 'lucide-react';
 import { OpenAIService } from '../../services/openai';
 import { applyOrgUserScope, filterByDepartment, uniqueSortedStrings } from '../../utils/orgUsers';
+import { applyOrgScope } from '../../utils/orgScope';
 
 interface ModuleFormData extends Omit<Module, 'id' | 'course_id' | 'created_at' | 'updated_at'> {
   id?: string;
@@ -14,6 +15,37 @@ interface ModuleFormData extends Omit<Module, 'id' | 'course_id' | 'created_at' 
 
 interface LessonFormData extends Omit<Lesson, 'id' | 'module_id' | 'created_at' | 'updated_at'> {
   id?: string;
+}
+
+type UploadedCourseOption = {
+  id: string;
+  title: string;
+  description?: string;
+  file_name: string;
+  file_path: string;
+  file_type: string;
+};
+
+function normalizeLessonForEditor(lesson: Lesson): LessonFormData {
+  if (lesson.type === 'quiz' && lesson.content && typeof lesson.content !== 'string') {
+    return {
+      ...lesson,
+      content: JSON.stringify(lesson.content, null, 2),
+    };
+  }
+
+  return lesson;
+}
+
+function parseQuizContent(rawContent: unknown) {
+  if (!rawContent) return {};
+  if (typeof rawContent === 'string') {
+    return JSON.parse(rawContent);
+  }
+  if (typeof rawContent === 'object') {
+    return rawContent as Record<string, any>;
+  }
+  return {};
 }
 
 export default function CourseEditor() {
@@ -25,6 +57,7 @@ export default function CourseEditor() {
   const [aiEnhancing, setAiEnhancing] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
+  const [uploadedCourseOptions, setUploadedCourseOptions] = useState<UploadedCourseOption[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [departmentFilter, setDepartmentFilter] = useState('');
 
@@ -45,7 +78,10 @@ export default function CourseEditor() {
     if (courseId) {
       loadCourse();
     }
-    if (profile) loadUsers();
+    if (profile) {
+      loadUsers();
+      loadUploadedCourses();
+    }
   }, [courseId, profile]);
 
   const loadCourse = async () => {
@@ -78,7 +114,7 @@ export default function CourseEditor() {
 
           return {
             ...module,
-            lessons: lessons || [],
+            lessons: (lessons || []).map(normalizeLessonForEditor),
           };
         })
       );
@@ -108,6 +144,21 @@ export default function CourseEditor() {
       setUsers(data || []);
     } catch (error: any) {
       console.error('Error loading users:', error);
+    }
+  };
+
+  const loadUploadedCourses = async () => {
+    try {
+      let query = supabase
+        .from('uploaded_courses')
+        .select('id, title, description, file_name, file_path, file_type')
+        .order('title');
+      query = applyOrgScope(query, profile);
+      const { data, error } = await query;
+      if (error) throw error;
+      setUploadedCourseOptions(data || []);
+    } catch (error) {
+      console.error('Error loading uploaded courses:', error);
     }
   };
 
@@ -244,13 +295,14 @@ export default function CourseEditor() {
         if (moduleError) throw moduleError;
 
         for (const lesson of module.lessons) {
+          const lessonContent = buildLessonPayload(lesson);
           const { error: lessonError } = await supabase
             .from('lessons')
             .insert({
               module_id: savedModule.id,
               title: lesson.title,
               type: lesson.type,
-              content: lesson.content,
+              content: lessonContent,
               duration_minutes: lesson.duration_minutes,
               order_index: lesson.order_index,
             });
@@ -314,11 +366,94 @@ export default function CourseEditor() {
     value: any
   ) => {
     const updated = [...modules];
+    const currentLesson = updated[moduleIndex].lessons[lessonIndex];
+    const nextContent = field === 'type'
+      ? value === 'uploaded_course'
+        ? (currentLesson.type === 'uploaded_course' && currentLesson.content && typeof currentLesson.content === 'object'
+          ? currentLesson.content
+          : {})
+        : value === 'quiz'
+          ? (typeof currentLesson.content === 'string'
+            ? currentLesson.content
+            : JSON.stringify({ questions: [], pass_threshold: 70 }, null, 2))
+          : typeof currentLesson.content === 'string'
+            ? currentLesson.content
+            : ''
+      : currentLesson.content;
     updated[moduleIndex].lessons[lessonIndex] = {
-      ...updated[moduleIndex].lessons[lessonIndex],
+      ...currentLesson,
+      content: nextContent,
       [field]: value,
     };
     setModules(updated);
+  };
+
+  const updateLinkedCourse = (moduleIndex: number, lessonIndex: number, uploadedCourseId: string) => {
+    const selectedCourse = uploadedCourseOptions.find((course) => course.id === uploadedCourseId);
+    const updated = [...modules];
+    updated[moduleIndex].lessons[lessonIndex] = {
+      ...updated[moduleIndex].lessons[lessonIndex],
+      content: selectedCourse
+        ? {
+            uploaded_course_id: selectedCourse.id,
+            title: selectedCourse.title,
+            description: selectedCourse.description || '',
+            file_name: selectedCourse.file_name,
+            file_path: selectedCourse.file_path,
+            file_type: selectedCourse.file_type,
+          }
+        : {},
+    };
+    setModules(updated);
+  };
+
+  const getQuizPassThreshold = (lesson: LessonFormData) => {
+    if (lesson.type !== 'quiz') return 70;
+    try {
+      const parsed = parseQuizContent(lesson.content);
+      return Number(parsed.pass_threshold) || 70;
+    } catch {
+      return 70;
+    }
+  };
+
+  const updateQuizPassThreshold = (moduleIndex: number, lessonIndex: number, passThreshold: number) => {
+    const updated = [...modules];
+    try {
+      const parsed = parseQuizContent(updated[moduleIndex].lessons[lessonIndex].content);
+      parsed.pass_threshold = passThreshold;
+      if (!Array.isArray(parsed.questions)) parsed.questions = [];
+      updated[moduleIndex].lessons[lessonIndex] = {
+        ...updated[moduleIndex].lessons[lessonIndex],
+        content: JSON.stringify(parsed, null, 2),
+      };
+      setModules(updated);
+    } catch (error) {
+      alert('Quiz JSON is invalid. Fix it before updating the passing score.');
+    }
+  };
+
+  const buildLessonPayload = (lesson: LessonFormData) => {
+    if (lesson.type === 'uploaded_course') {
+      const content = lesson.content && typeof lesson.content === 'object' ? lesson.content : {};
+      if (!content.uploaded_course_id || !content.file_path || !content.file_type) {
+        throw new Error(`Select an uploaded course for lesson "${lesson.title || 'Untitled lesson'}".`);
+      }
+      return content;
+    }
+
+    if (lesson.type === 'quiz') {
+      try {
+        const parsed = parseQuizContent(lesson.content);
+        if (!Array.isArray(parsed.questions)) parsed.questions = [];
+        if (!parsed.pass_threshold) parsed.pass_threshold = 70;
+        return parsed;
+      } catch (error) {
+        throw new Error(`Quiz content for "${lesson.title || 'Untitled lesson'}" must be valid JSON.`);
+      }
+    }
+
+    return lesson.content;
   };
 
   const deleteLesson = (moduleIndex: number, lessonIndex: number) => {
@@ -593,6 +728,7 @@ export default function CourseEditor() {
                               <option value="slides">Slides</option>
                               <option value="quiz">Quiz</option>
                               <option value="mock_call">Mock Call</option>
+                              <option value="uploaded_course">Uploaded / SCORM</option>
                             </select>
                             <input
                               type="number"
@@ -609,26 +745,58 @@ export default function CourseEditor() {
                               className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
                             />
                           </div>
-                          <textarea
-                            value={lesson.content}
-                            onChange={(e) =>
-                              updateLesson(moduleIndex, lessonIndex, 'content', e.target.value)
-                            }
-                            placeholder={lesson.type === 'quiz' ? 'Quiz content (JSON format: {"questions": [{"question": "...", "options": ["A", "B", "C", "D"], "correct": 0}]})' : 'Lesson Content'}
-                            rows={lesson.type === 'quiz' ? 8 : 4}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono"
-                          />
+                          {lesson.type === 'uploaded_course' ? (
+                            <div className="space-y-2 rounded-lg border border-gray-200 bg-white p-3">
+                              <select
+                                value={(lesson.content && typeof lesson.content === 'object' && lesson.content.uploaded_course_id) || ''}
+                                onChange={(e) => updateLinkedCourse(moduleIndex, lessonIndex, e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                              >
+                                <option value="">Select uploaded content or SCORM</option>
+                                {uploadedCourseOptions.map((course) => (
+                                  <option key={course.id} value={course.id}>
+                                    {course.title} ({course.file_type.toUpperCase()})
+                                  </option>
+                                ))}
+                              </select>
+                              <p className="text-xs text-gray-500">
+                                Link an item from Uploaded Courses, including SCORM packages, PDFs, videos, docs, or audio.
+                              </p>
+                            </div>
+                          ) : (
+                            <textarea
+                              value={typeof lesson.content === 'string' ? lesson.content : JSON.stringify(lesson.content ?? {}, null, 2)}
+                              onChange={(e) =>
+                                updateLesson(moduleIndex, lessonIndex, 'content', e.target.value)
+                              }
+                              placeholder={lesson.type === 'quiz' ? 'Quiz content (JSON format: {"pass_threshold": 70, "questions": [{"question": "...", "options": ["A", "B", "C", "D"], "correct_answer": "Option A"}]})' : 'Lesson Content'}
+                              rows={lesson.type === 'quiz' ? 8 : 4}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono"
+                            />
+                          )}
                           {lesson.type === 'quiz' && (
                             <div className="mt-2">
+                              <div className="mb-3 max-w-xs">
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Passing score (%)</label>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  value={getQuizPassThreshold(lesson)}
+                                  onChange={(e) => updateQuizPassThreshold(moduleIndex, lessonIndex, parseInt(e.target.value || '0', 10))}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                />
+                              </div>
                               <button
                                 type="button"
                                 onClick={() => {
                                   const sampleQuiz = JSON.stringify({
+                                    pass_threshold: 70,
                                     questions: [
                                       {
                                         question: "Sample question?",
                                         options: ["Option A", "Option B", "Option C", "Option D"],
-                                        correct: 0,
+                                        correct_answer: "Option A",
                                         explanation: "Explanation for correct answer"
                                       }
                                     ]

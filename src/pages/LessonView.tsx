@@ -6,8 +6,10 @@ import { Layout } from '../components/Layout';
 import { ArrowLeft, CheckCircle } from 'lucide-react';
 import { Lesson } from '../types';
 import { ScormPlayer } from '../components/ScormPlayer';
+import { UploadedCourseViewer } from '../components/UploadedCourseViewer';
 import { CourseCompletionCelebration } from '../components/CourseCompletionCelebration';
 import { tryCompleteCourse } from '../utils/courseCompletion';
+import { getCourseFormatLabel, isScormCourse } from '../utils/uploadedCourseDisplay';
 
 type QuizQuestion = {
   id: string;
@@ -180,12 +182,12 @@ export function LessonView() {
 
       const contentQs = (lesson?.content as any)?.questions;
       if (Array.isArray(contentQs) && contentQs.length) {
-        setQuizMeta({ id: 'inline', pass_threshold: 70 });
+        setQuizMeta({ id: 'inline', pass_threshold: Number((lesson?.content as any)?.pass_threshold) || 70 });
         setQuizQuestions(contentQs.map((q: any, i: number) => ({
           id: `inline-${i}`,
           question_text: q.question || q.question_text,
           options: q.options || [],
-          correct_answer: q.correct_answer || q.answer || '',
+          correct_answer: q.correct_answer || q.answer || (typeof q.correct === 'number' ? q.options?.[q.correct] || '' : ''),
         })));
         setQuizStarted(true);
         return;
@@ -253,6 +255,17 @@ export function LessonView() {
       </Layout>
     );
   }
+
+  const linkedUploadedCourse = lesson.type === 'uploaded_course' && lesson.content && typeof lesson.content === 'object'
+    ? lesson.content as {
+        uploaded_course_id?: string;
+        title?: string;
+        description?: string;
+        file_name?: string;
+        file_path?: string;
+        file_type?: string;
+      }
+    : null;
 
   return (
     <Layout>
@@ -348,6 +361,33 @@ export function LessonView() {
               </>
             )}
 
+            {lesson.type === 'uploaded_course' && linkedUploadedCourse?.file_path && linkedUploadedCourse?.file_type && (
+              <>
+                {isScormCourse(linkedUploadedCourse.file_type) ? (
+                  <ScormPlayer
+                    courseId={lesson.module?.course?.id || ''}
+                    courseTitle={linkedUploadedCourse.title || lesson.title}
+                    filePath={linkedUploadedCourse.file_path}
+                    subtitle={getCourseFormatLabel(linkedUploadedCourse.file_type)}
+                    onClose={() => navigate(-1)}
+                    onComplete={() => markComplete()}
+                  />
+                ) : (
+                  <UploadedCourseViewer
+                    courseTitle={linkedUploadedCourse.title || lesson.title}
+                    filePath={linkedUploadedCourse.file_path}
+                    fileName={linkedUploadedCourse.file_name}
+                    fileType={linkedUploadedCourse.file_type}
+                    alreadyCompleted={false}
+                    onClose={() => navigate(-1)}
+                    onComplete={() => {
+                      void markComplete();
+                    }}
+                  />
+                )}
+              </>
+            )}
+
             {lesson.type === 'quiz' && (
               <div className="py-6">
                 {!quizStarted ? (
@@ -426,7 +466,7 @@ export function LessonView() {
           </div>
 
           <div className="p-8 border-t border-gray-200 flex justify-end">
-            {lesson.type !== 'quiz' && (
+            {lesson.type !== 'quiz' && lesson.type !== 'uploaded_course' && (
               <button
                 onClick={() => markComplete()}
                 className="flex items-center space-x-2 px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700"

@@ -74,6 +74,7 @@ export function CourseDetail() {
       case 'slides': return PlayCircle;
       case 'quiz': return HelpCircle;
       case 'mock_call': return Phone;
+      case 'uploaded_course': return PlayCircle;
       default: return FileText;
     }
   };

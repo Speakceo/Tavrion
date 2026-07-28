@@ -2,7 +2,7 @@ export type UserRole = 'super_admin' | 'admin' | 'trainer' | 'employee' | 'partn
 
 export type CourseStatus = 'draft' | 'published' | 'archived';
 
-export type LessonType = 'text' | 'slides' | 'quiz' | 'mock_call' | 'scorm';
+export type LessonType = 'text' | 'slides' | 'quiz' | 'mock_call' | 'scorm' | 'uploaded_course';
 
 export type QuestionType = 'mcq' | 'subjective' | 'scenario';
 
