@@ -30,15 +30,71 @@ type UploadedCourseOption = {
   file_type: string;
 };
 
-function parseQuizContent(rawContent: unknown) {
-  if (!rawContent) return {};
-  if (typeof rawContent === 'string') {
-    return JSON.parse(rawContent);
+type QuizQuestionForm = {
+  question: string;
+  options: [string, string, string, string];
+  correct_answer: string;
+};
+
+type QuizContentForm = {
+  pass_threshold: number;
+  questions: QuizQuestionForm[];
+};
+
+function emptyQuizQuestion(): QuizQuestionForm {
+  return { question: '', options: ['', '', '', ''], correct_answer: '' };
+}
+
+function emptyQuizContent(passThreshold = 70): QuizContentForm {
+  return { pass_threshold: passThreshold, questions: [emptyQuizQuestion()] };
+}
+
+function parseQuizContent(rawContent: unknown): QuizContentForm {
+  try {
+    const parsed = typeof rawContent === 'string'
+      ? JSON.parse(rawContent)
+      : (rawContent && typeof rawContent === 'object' ? rawContent as Record<string, any> : {});
+    const questions = Array.isArray(parsed.questions) && parsed.questions.length
+      ? parsed.questions.map((q: any) => {
+          const options: [string, string, string, string] = [
+            q?.options?.[0] || '',
+            q?.options?.[1] || '',
+            q?.options?.[2] || '',
+            q?.options?.[3] || '',
+          ];
+          const correct = q?.correct_answer
+            || q?.answer
+            || (typeof q?.correct === 'number' ? options[q.correct] || '' : '')
+            || '';
+          return {
+            question: q?.question || q?.question_text || '',
+            options,
+            correct_answer: correct,
+          } as QuizQuestionForm;
+        })
+      : [emptyQuizQuestion()];
+    return {
+      pass_threshold: Number(parsed.pass_threshold) || 70,
+      questions,
+    };
+  } catch {
+    return emptyQuizContent();
   }
-  if (typeof rawContent === 'object') {
-    return rawContent as Record<string, any>;
-  }
-  return {};
+}
+
+function buildCourseSavePayload(courseData: Partial<Course>, profileId?: string) {
+  return {
+    title: courseData.title?.trim() || '',
+    description: courseData.description?.trim() || '',
+    target_role: courseData.target_role || null,
+    country: courseData.country || null,
+    is_mandatory: !!courseData.is_mandatory,
+    status: courseData.status || 'draft',
+    version: courseData.version || 1,
+    passing_score: Number((courseData as any).passing_score) || 70,
+    requires_quiz_pass: !!(courseData as any).requires_quiz_pass,
+    ...(profileId && !courseData.id ? { created_by: profileId } : {}),
+  };
 }
 
 export default function CourseEditor() {
@@ -54,13 +110,15 @@ export default function CourseEditor() {
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [departmentFilter, setDepartmentFilter] = useState('');
 
-  const [courseData, setCourseData] = useState<Partial<Course>>({
+  const [courseData, setCourseData] = useState<Partial<Course> & { passing_score?: number; requires_quiz_pass?: boolean }>({
     title: '',
     description: '',
-    category: 'sales',
-    difficulty_level: 'beginner',
-    estimated_duration: 60,
+    target_role: '',
+    country: '',
+    is_mandatory: false,
     status: 'draft',
+    passing_score: 70,
+    requires_quiz_pass: true,
   });
 
   const [modules, setModules] = useState<ModuleFormData[]>([]);
@@ -234,8 +292,8 @@ export default function CourseEditor() {
   };
 
   const handleSave = async () => {
-    if (!courseData.title || !courseData.description) {
-      alert('Please enter course title and description');
+    if (!courseData.title?.trim()) {
+      alert('Please enter a course title');
       return;
     }
 
@@ -244,22 +302,29 @@ export default function CourseEditor() {
       return;
     }
 
+    const hasUntitledModule = modules.some((module) => !module.title?.trim());
+    if (hasUntitledModule) {
+      alert('Please give every module a title');
+      return;
+    }
+
     try {
       setSaving(true);
 
+      const payload = buildCourseSavePayload(courseData, profile?.id);
       let savedCourseId = courseId;
 
       if (courseId) {
         const { error } = await supabase
           .from('courses')
-          .update(courseData)
+          .update({ ...payload, updated_at: new Date().toISOString() })
           .eq('id', courseId);
         if (error) throw error;
       } else {
         const { data, error } = await supabase
           .from('courses')
-          .insert(courseData)
-          .select()
+          .insert(payload)
+          .select('id')
           .single();
         if (error) throw error;
         savedCourseId = data.id;
@@ -273,31 +338,34 @@ export default function CourseEditor() {
         if (deleteModulesError) throw deleteModulesError;
       }
 
-      for (const module of modules) {
+      for (const [moduleIndex, module] of modules.entries()) {
         const { data: savedModule, error: moduleError } = await supabase
           .from('modules')
           .insert({
             course_id: savedCourseId,
-            title: module.title,
-            description: module.description,
-            order_index: module.order_index,
+            title: module.title.trim(),
+            description: module.description || '',
+            order_index: moduleIndex,
           })
-          .select()
+          .select('id')
           .single();
 
         if (moduleError) throw moduleError;
 
-        for (const lesson of module.lessons) {
+        for (const [lessonIndex, lesson] of module.lessons.entries()) {
+          if (!lesson.title?.trim()) {
+            throw new Error(`Lesson ${lessonIndex + 1} in module "${module.title}" needs a title`);
+          }
           const { type, content } = buildLessonPayload(lesson);
           const { error: lessonError } = await supabase
             .from('lessons')
             .insert({
               module_id: savedModule.id,
-              title: lesson.title,
+              title: lesson.title.trim(),
               type,
               content,
-              duration_minutes: lesson.duration_minutes,
-              order_index: lesson.order_index,
+              duration_minutes: Number(lesson.duration_minutes) || 15,
+              order_index: lessonIndex,
             });
 
           if (lessonError) throw lessonError;
@@ -308,7 +376,7 @@ export default function CourseEditor() {
       navigate('/admin/courses');
     } catch (error: any) {
       console.error('Error saving course:', error);
-      alert('Failed to save course: ' + error.message);
+      alert('Failed to save course: ' + (error?.message || 'Unknown error'));
     } finally {
       setSaving(false);
     }
@@ -364,7 +432,7 @@ export default function CourseEditor() {
     const content = type === 'uploaded_course'
       ? {}
       : type === 'quiz'
-        ? JSON.stringify({ pass_threshold: 70, questions: [] }, null, 2)
+        ? emptyQuizContent()
         : '';
     updated[moduleIndex].lessons.push({
       title: type === 'uploaded_course'
@@ -403,17 +471,7 @@ export default function CourseEditor() {
     nextModules[moduleIndex].lessons.push({
       title: `Quiz ${nextModules[moduleIndex].lessons.filter((l) => l.type === 'quiz').length + 1}`,
       type: 'quiz',
-      content: JSON.stringify({
-        pass_threshold: 70,
-        questions: [
-          {
-            question: 'Sample question?',
-            options: ['Option A', 'Option B', 'Option C', 'Option D'],
-            correct_answer: 'Option A',
-            explanation: 'Explanation for correct answer',
-          },
-        ],
-      }, null, 2),
+      content: emptyQuizContent(),
       duration_minutes: 10,
       order_index: nextModules[moduleIndex].lessons.length,
     });
@@ -434,9 +492,7 @@ export default function CourseEditor() {
           ? currentLesson.content
           : {})
         : value === 'quiz'
-          ? (typeof currentLesson.content === 'string'
-            ? currentLesson.content
-            : JSON.stringify({ questions: [], pass_threshold: 70 }, null, 2))
+          ? parseQuizContent(currentLesson.type === 'quiz' ? currentLesson.content : emptyQuizContent())
           : typeof currentLesson.content === 'string'
             ? currentLesson.content
             : ''
@@ -469,42 +525,89 @@ export default function CourseEditor() {
     setModules(updated);
   };
 
-  const getQuizPassThreshold = (lesson: LessonFormData) => {
-    if (lesson.type !== 'quiz') return 70;
-    try {
-      const parsed = parseQuizContent(lesson.content);
-      return Number(parsed.pass_threshold) || 70;
-    } catch {
-      return 70;
-    }
+  const getQuizPassThreshold = (lesson: LessonFormData) => parseQuizContent(lesson.content).pass_threshold;
+
+  const updateQuizContent = (moduleIndex: number, lessonIndex: number, next: QuizContentForm) => {
+    const updated = [...modules];
+    updated[moduleIndex].lessons[lessonIndex] = {
+      ...updated[moduleIndex].lessons[lessonIndex],
+      content: next,
+    };
+    setModules(updated);
   };
 
   const updateQuizPassThreshold = (moduleIndex: number, lessonIndex: number, passThreshold: number) => {
-    const updated = [...modules];
-    try {
-      const parsed = parseQuizContent(updated[moduleIndex].lessons[lessonIndex].content);
-      parsed.pass_threshold = passThreshold;
-      if (!Array.isArray(parsed.questions)) parsed.questions = [];
-      updated[moduleIndex].lessons[lessonIndex] = {
-        ...updated[moduleIndex].lessons[lessonIndex],
-        content: JSON.stringify(parsed, null, 2),
-      };
-      setModules(updated);
-    } catch (error) {
-      alert('Quiz JSON is invalid. Fix it before updating the passing score.');
-    }
+    const quiz = parseQuizContent(modules[moduleIndex].lessons[lessonIndex].content);
+    updateQuizContent(moduleIndex, lessonIndex, { ...quiz, pass_threshold: passThreshold });
+  };
+
+  const addQuizQuestion = (moduleIndex: number, lessonIndex: number) => {
+    const quiz = parseQuizContent(modules[moduleIndex].lessons[lessonIndex].content);
+    updateQuizContent(moduleIndex, lessonIndex, {
+      ...quiz,
+      questions: [...quiz.questions, emptyQuizQuestion()],
+    });
+  };
+
+  const updateQuizQuestion = (
+    moduleIndex: number,
+    lessonIndex: number,
+    questionIndex: number,
+    patch: Partial<QuizQuestionForm>,
+  ) => {
+    const quiz = parseQuizContent(modules[moduleIndex].lessons[lessonIndex].content);
+    const questions = quiz.questions.map((question, idx) => {
+      if (idx !== questionIndex) return question;
+      const next = { ...question, ...patch };
+      if (patch.options && !patch.options.includes(next.correct_answer)) {
+        next.correct_answer = patch.options.find((opt) => opt.trim()) || '';
+      }
+      return next;
+    });
+    updateQuizContent(moduleIndex, lessonIndex, { ...quiz, questions });
+  };
+
+  const removeQuizQuestion = (moduleIndex: number, lessonIndex: number, questionIndex: number) => {
+    const quiz = parseQuizContent(modules[moduleIndex].lessons[lessonIndex].content);
+    const questions = quiz.questions.filter((_, idx) => idx !== questionIndex);
+    updateQuizContent(moduleIndex, lessonIndex, {
+      ...quiz,
+      questions: questions.length ? questions : [emptyQuizQuestion()],
+    });
   };
 
   const buildLessonPayload = (lesson: LessonFormData) => {
     if (lesson.type === 'quiz') {
-      try {
-        const parsed = parseQuizContent(lesson.content);
-        if (!Array.isArray(parsed.questions)) parsed.questions = [];
-        if (!parsed.pass_threshold) parsed.pass_threshold = 70;
-        return { type: lesson.type, content: parsed };
-      } catch {
-        throw new Error(`Quiz content for "${lesson.title || 'Untitled lesson'}" must be valid JSON.`);
+      const parsed = parseQuizContent(lesson.content);
+      const questions = parsed.questions
+        .map((q) => ({
+          question: q.question.trim(),
+          options: q.options.map((opt) => opt.trim()).filter(Boolean),
+          correct_answer: q.correct_answer.trim(),
+        }))
+        .filter((q) => q.question && q.options.length >= 2 && q.correct_answer);
+
+      if (questions.length === 0) {
+        throw new Error(`Add at least one complete quiz question for "${lesson.title || 'Untitled quiz'}".`);
       }
+
+      for (const question of questions) {
+        if (!question.options.includes(question.correct_answer)) {
+          throw new Error(`Select a correct option for: "${question.question}"`);
+        }
+      }
+
+      return {
+        type: lesson.type,
+        content: {
+          pass_threshold: parsed.pass_threshold || 70,
+          questions,
+        },
+      };
+    }
+
+    if (lesson.type === 'video') {
+      throw new Error('Video is not a supported lesson type. Use Uploaded / SCORM for video files.');
     }
 
     return buildPersistedLesson(lesson);
@@ -606,42 +709,34 @@ export default function CourseEditor() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-              <select
-                value={courseData.category}
-                onChange={(e) => setCourseData({ ...courseData, category: e.target.value })}
+              <label className="block text-sm font-medium text-gray-700 mb-1">Target role</label>
+              <input
+                type="text"
+                value={courseData.target_role || ''}
+                onChange={(e) => setCourseData({ ...courseData, target_role: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="sales">Sales</option>
-                <option value="customer_service">Customer Service</option>
-                <option value="product">Product</option>
-                <option value="compliance">Compliance</option>
-                <option value="leadership">Leadership</option>
-                <option value="technical">Technical</option>
-                <option value="soft_skills">Soft Skills</option>
-              </select>
+                placeholder="e.g. sales, support"
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Difficulty</label>
-              <select
-                value={courseData.difficulty_level}
-                onChange={(e) => setCourseData({ ...courseData, difficulty_level: e.target.value })}
+              <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+              <input
+                type="text"
+                value={courseData.country || ''}
+                onChange={(e) => setCourseData({ ...courseData, country: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="beginner">Beginner</option>
-                <option value="intermediate">Intermediate</option>
-                <option value="advanced">Advanced</option>
-              </select>
+                placeholder="Optional"
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Duration (minutes)
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Course passing score (%)</label>
               <input
                 type="number"
-                value={courseData.estimated_duration}
+                min={0}
+                max={100}
+                value={courseData.passing_score ?? 70}
                 onChange={(e) =>
-                  setCourseData({ ...courseData, estimated_duration: parseInt(e.target.value) })
+                  setCourseData({ ...courseData, passing_score: parseInt(e.target.value || '0', 10) })
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
@@ -657,6 +752,24 @@ export default function CourseEditor() {
                 <option value="published">Published</option>
                 <option value="archived">Archived</option>
               </select>
+            </div>
+            <div className="col-span-2 flex flex-wrap gap-6">
+              <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={!!courseData.is_mandatory}
+                  onChange={(e) => setCourseData({ ...courseData, is_mandatory: e.target.checked })}
+                />
+                Mandatory course
+              </label>
+              <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={!!courseData.requires_quiz_pass}
+                  onChange={(e) => setCourseData({ ...courseData, requires_quiz_pass: e.target.checked })}
+                />
+                Require quiz pass to complete
+              </label>
             </div>
           </div>
         </div>
@@ -830,7 +943,6 @@ export default function CourseEditor() {
                               <option value="uploaded_course">Uploaded / SCORM</option>
                               <option value="quiz">Quiz</option>
                               <option value="text">Text</option>
-                              <option value="video">Video</option>
                               <option value="slides">Slides</option>
                               <option value="mock_call">Mock Call</option>
                             </select>
@@ -867,20 +979,9 @@ export default function CourseEditor() {
                                 Link an item from Uploaded Courses, including SCORM packages, PDFs, videos, docs, or audio.
                               </p>
                             </div>
-                          ) : (
-                            <textarea
-                              value={typeof lesson.content === 'string' ? lesson.content : JSON.stringify(lesson.content ?? {}, null, 2)}
-                              onChange={(e) =>
-                                updateLesson(moduleIndex, lessonIndex, 'content', e.target.value)
-                              }
-                              placeholder={lesson.type === 'quiz' ? 'Quiz content (JSON format: {"pass_threshold": 70, "questions": [{"question": "...", "options": ["A", "B", "C", "D"], "correct_answer": "Option A"}]})' : 'Lesson Content'}
-                              rows={lesson.type === 'quiz' ? 8 : 4}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono"
-                            />
-                          )}
-                          {lesson.type === 'quiz' && (
-                            <div className="mt-2">
-                              <div className="mb-3 max-w-xs">
+                          ) : lesson.type === 'quiz' ? (
+                            <div className="space-y-4 rounded-lg border border-gray-200 bg-white p-4">
+                              <div className="max-w-xs">
                                 <label className="block text-xs font-medium text-gray-700 mb-1">Passing score (%)</label>
                                 <input
                                   type="number"
@@ -891,27 +992,79 @@ export default function CourseEditor() {
                                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                                 />
                               </div>
+
+                              {parseQuizContent(lesson.content).questions.map((question, questionIndex) => (
+                                <div key={questionIndex} className="rounded-lg border border-gray-100 bg-gray-50 p-3 space-y-3">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <p className="text-sm font-semibold text-gray-800">Question {questionIndex + 1}</p>
+                                    <button
+                                      type="button"
+                                      onClick={() => removeQuizQuestion(moduleIndex, lessonIndex, questionIndex)}
+                                      className="text-xs text-red-600 hover:text-red-700"
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                  <input
+                                    type="text"
+                                    value={question.question}
+                                    onChange={(e) => updateQuizQuestion(moduleIndex, lessonIndex, questionIndex, { question: e.target.value })}
+                                    placeholder="Enter the question"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                  />
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                    {question.options.map((option, optionIndex) => (
+                                      <div key={optionIndex} className="flex items-center gap-2">
+                                        <span className="text-xs font-semibold text-gray-500 w-5">{String.fromCharCode(65 + optionIndex)}</span>
+                                        <input
+                                          type="text"
+                                          value={option}
+                                          onChange={(e) => {
+                                            const options = [...question.options] as QuizQuestionForm['options'];
+                                            options[optionIndex] = e.target.value;
+                                            updateQuizQuestion(moduleIndex, lessonIndex, questionIndex, { options });
+                                          }}
+                                          placeholder={`Option ${String.fromCharCode(65 + optionIndex)}`}
+                                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                        />
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">Correct option</label>
+                                    <select
+                                      value={question.correct_answer}
+                                      onChange={(e) => updateQuizQuestion(moduleIndex, lessonIndex, questionIndex, { correct_answer: e.target.value })}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                    >
+                                      <option value="">Select correct answer</option>
+                                      {question.options.filter((opt) => opt.trim()).map((opt) => (
+                                        <option key={opt} value={opt}>{opt}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+                              ))}
+
                               <button
                                 type="button"
-                                onClick={() => {
-                                  const sampleQuiz = JSON.stringify({
-                                    pass_threshold: 70,
-                                    questions: [
-                                      {
-                                        question: "Sample question?",
-                                        options: ["Option A", "Option B", "Option C", "Option D"],
-                                        correct_answer: "Option A",
-                                        explanation: "Explanation for correct answer"
-                                      }
-                                    ]
-                                  }, null, 2);
-                                  updateLesson(moduleIndex, lessonIndex, 'content', sampleQuiz);
-                                }}
-                                className="text-xs text-blue-600 hover:text-blue-700"
+                                onClick={() => addQuizQuestion(moduleIndex, lessonIndex)}
+                                className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700"
                               >
-                                Insert Sample Quiz Format
+                                <Plus className="w-4 h-4" />
+                                Add question
                               </button>
                             </div>
+                          ) : (
+                            <textarea
+                              value={typeof lesson.content === 'string' ? lesson.content : JSON.stringify(lesson.content ?? {}, null, 2)}
+                              onChange={(e) =>
+                                updateLesson(moduleIndex, lessonIndex, 'content', e.target.value)
+                              }
+                              placeholder="Lesson Content"
+                              rows={4}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                            />
                           )}
                         </div>
                         <button

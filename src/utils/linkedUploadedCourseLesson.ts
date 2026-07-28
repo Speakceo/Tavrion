@@ -37,10 +37,29 @@ export function normalizeLessonForEditor(lesson: Lesson) {
     };
   }
 
-  if (lesson.type === 'quiz' && lesson.content && typeof lesson.content !== 'string') {
+  if (lesson.type === 'quiz') {
+    const content = lesson.content && typeof lesson.content === 'object'
+      ? lesson.content as Record<string, any>
+      : {};
+    const questions = Array.isArray(content.questions)
+      ? content.questions.map((q: any) => ({
+          question: q.question || q.question_text || '',
+          options: Array.isArray(q.options) && q.options.length
+            ? [q.options[0] || '', q.options[1] || '', q.options[2] || '', q.options[3] || '']
+            : ['', '', '', ''],
+          correct_answer: q.correct_answer
+            || q.answer
+            || (typeof q.correct === 'number' ? q.options?.[q.correct] || '' : '')
+            || '',
+        }))
+      : [{ question: '', options: ['', '', '', ''], correct_answer: '' }];
+
     return {
       ...lesson,
-      content: JSON.stringify(lesson.content, null, 2),
+      content: {
+        pass_threshold: Number(content.pass_threshold) || 70,
+        questions,
+      },
     };
   }
 
@@ -61,7 +80,7 @@ export function buildPersistedLesson(lesson: {
     }
 
     return {
-      type: 'scorm',
+      type: 'uploaded_course',
       content: {
         ...content,
         kind: 'uploaded_course',
