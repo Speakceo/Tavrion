@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { Layout } from '../components/Layout';
 import { BookOpen, PlayCircle, FileText, HelpCircle, Phone, CheckCircle } from 'lucide-react';
 import { Course, Module, Lesson, LessonProgress } from '../types';
+import { isLinkedUploadedCourseLesson } from '../utils/linkedUploadedCourseLesson';
 
 export function CourseDetail() {
   const { courseId } = useParams<{ courseId: string }>();
@@ -68,8 +69,10 @@ export function CourseDetail() {
     }
   };
 
-  const getLessonIcon = (type: string) => {
-    switch (type) {
+  const getLessonIcon = (lesson: Lesson) => {
+    if (isLinkedUploadedCourseLesson(lesson.type, lesson.content)) return PlayCircle;
+
+    switch (lesson.type) {
       case 'text': return FileText;
       case 'slides': return PlayCircle;
       case 'quiz': return HelpCircle;
@@ -145,7 +148,7 @@ export function CourseDetail() {
               </div>
               <div className="divide-y divide-gray-200">
                 {module.lessons.map((lesson, lessonIndex) => {
-                  const Icon = getLessonIcon(lesson.type);
+                  const Icon = getLessonIcon(lesson);
                   const isCompleted = lesson.progress?.status === 'completed';
 
                   return (

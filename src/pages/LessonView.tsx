@@ -10,6 +10,10 @@ import { UploadedCourseViewer } from '../components/UploadedCourseViewer';
 import { CourseCompletionCelebration } from '../components/CourseCompletionCelebration';
 import { tryCompleteCourse } from '../utils/courseCompletion';
 import { getCourseFormatLabel, isScormCourse } from '../utils/uploadedCourseDisplay';
+import {
+  getLinkedUploadedCourseContent,
+  isLinkedUploadedCourseLesson,
+} from '../utils/linkedUploadedCourseLesson';
 
 type QuizQuestion = {
   id: string;
@@ -256,15 +260,8 @@ export function LessonView() {
     );
   }
 
-  const linkedUploadedCourse = lesson.type === 'uploaded_course' && lesson.content && typeof lesson.content === 'object'
-    ? lesson.content as {
-        uploaded_course_id?: string;
-        title?: string;
-        description?: string;
-        file_name?: string;
-        file_path?: string;
-        file_type?: string;
-      }
+  const linkedUploadedCourse = isLinkedUploadedCourseLesson(lesson.type, lesson.content)
+    ? getLinkedUploadedCourseContent(lesson.content)
     : null;
 
   return (
@@ -317,7 +314,7 @@ export function LessonView() {
               </div>
             )}
 
-            {lesson.type === 'scorm' && lesson.content?.scorm_url && (
+            {lesson.type === 'scorm' && lesson.content?.scorm_url && !linkedUploadedCourse && (
               <>
                 {lesson.content.scorm_url.endsWith('.html') || lesson.content.scorm_url.endsWith('.htm') ? (
                   <div className="relative w-full bg-white" style={{ height: 'calc(100vh - 400px)', minHeight: '600px' }}>
@@ -361,7 +358,7 @@ export function LessonView() {
               </>
             )}
 
-            {lesson.type === 'uploaded_course' && linkedUploadedCourse?.file_path && linkedUploadedCourse?.file_type && (
+            {linkedUploadedCourse && (
               <>
                 {isScormCourse(linkedUploadedCourse.file_type) ? (
                   <ScormPlayer
@@ -466,7 +463,7 @@ export function LessonView() {
           </div>
 
           <div className="p-8 border-t border-gray-200 flex justify-end">
-            {lesson.type !== 'quiz' && lesson.type !== 'uploaded_course' && (
+            {lesson.type !== 'quiz' && !linkedUploadedCourse && (
               <button
                 onClick={() => markComplete()}
                 className="flex items-center space-x-2 px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700"

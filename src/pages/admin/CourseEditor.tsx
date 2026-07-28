@@ -7,6 +7,10 @@ import { BookOpen, Plus, Trash2, Save, ArrowLeft, GripVertical, Sparkles, Users 
 import { OpenAIService } from '../../services/openai';
 import { applyOrgUserScope, filterByDepartment, uniqueSortedStrings } from '../../utils/orgUsers';
 import { applyOrgScope } from '../../utils/orgScope';
+import {
+  buildPersistedLesson,
+  normalizeLessonForEditor,
+} from '../../utils/linkedUploadedCourseLesson';
 
 interface ModuleFormData extends Omit<Module, 'id' | 'course_id' | 'created_at' | 'updated_at'> {
   id?: string;
@@ -25,17 +29,6 @@ type UploadedCourseOption = {
   file_path: string;
   file_type: string;
 };
-
-function normalizeLessonForEditor(lesson: Lesson): LessonFormData {
-  if (lesson.type === 'quiz' && lesson.content && typeof lesson.content !== 'string') {
-    return {
-      ...lesson,
-      content: JSON.stringify(lesson.content, null, 2),
-    };
-  }
-
-  return lesson;
-}
 
 function parseQuizContent(rawContent: unknown) {
   if (!rawContent) return {};
@@ -295,14 +288,14 @@ export default function CourseEditor() {
         if (moduleError) throw moduleError;
 
         for (const lesson of module.lessons) {
-          const lessonContent = buildLessonPayload(lesson);
+          const { type, content } = buildLessonPayload(lesson);
           const { error: lessonError } = await supabase
             .from('lessons')
             .insert({
               module_id: savedModule.id,
               title: lesson.title,
-              type: lesson.type,
-              content: lessonContent,
+              type,
+              content,
               duration_minutes: lesson.duration_minutes,
               order_index: lesson.order_index,
             });
@@ -395,6 +388,7 @@ export default function CourseEditor() {
       ...updated[moduleIndex].lessons[lessonIndex],
       content: selectedCourse
         ? {
+            kind: 'uploaded_course',
             uploaded_course_id: selectedCourse.id,
             title: selectedCourse.title,
             description: selectedCourse.description || '',
@@ -434,26 +428,18 @@ export default function CourseEditor() {
   };
 
   const buildLessonPayload = (lesson: LessonFormData) => {
-    if (lesson.type === 'uploaded_course') {
-      const content = lesson.content && typeof lesson.content === 'object' ? lesson.content : {};
-      if (!content.uploaded_course_id || !content.file_path || !content.file_type) {
-        throw new Error(`Select an uploaded course for lesson "${lesson.title || 'Untitled lesson'}".`);
-      }
-      return content;
-    }
-
     if (lesson.type === 'quiz') {
       try {
         const parsed = parseQuizContent(lesson.content);
         if (!Array.isArray(parsed.questions)) parsed.questions = [];
         if (!parsed.pass_threshold) parsed.pass_threshold = 70;
-        return parsed;
-      } catch (error) {
+        return { type: lesson.type, content: parsed };
+      } catch {
         throw new Error(`Quiz content for "${lesson.title || 'Untitled lesson'}" must be valid JSON.`);
       }
     }
 
-    return lesson.content;
+    return buildPersistedLesson(lesson);
   };
 
   const deleteLesson = (moduleIndex: number, lessonIndex: number) => {
