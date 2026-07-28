@@ -3,14 +3,17 @@ import { Layout } from '../components/Layout';
 import { AppModal } from '../components/AppModal';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { Calendar, MapPin, Users, Plus, Check, X, Trash2, Clock, Link as LinkIcon, Video } from 'lucide-react';
+import { Calendar, MapPin, Users, Plus, Check, X, Trash2, Clock, Link as LinkIcon, Video, Bookmark } from 'lucide-react';
 import { applyOrgScope, orgIdForInsert } from '../utils/orgScope';
 import {
   getEventJoinOpensAt,
   getJoinAvailability,
+  isUpcomingEvent,
+  localDatetimeToIso,
   normalizeMeetingUrl,
   openEventMeeting,
 } from '../utils/eventJoin';
+import { fetchSavedItemIds, toggleSavedItem } from '../utils/savedItems';
 
 interface Event {
   id: string;
@@ -29,6 +32,7 @@ interface Event {
   attendees_count: number;
   user_status?: string;
   user_joined_at?: string;
+  is_saved?: boolean;
 }
 
 export function Events() {
@@ -46,6 +50,8 @@ export function Events() {
     virtual_link: '',
   });
   const [joiningEventId, setJoiningEventId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [savingEventId, setSavingEventId] = useState<string | null>(null);
 
   useEffect(() => {
     loadEvents();
@@ -55,13 +61,9 @@ export function Events() {
     try {
       setLoading(true);
 
-      const nowIso = new Date().toISOString();
-      const lookbackIso = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
-
       let query = supabase
         .from('events')
         .select('*')
-        .or(`end_date.gte.${nowIso},and(end_date.is.null,event_date.gte.${lookbackIso})`)
         .order('event_date', { ascending: true });
 
       query = applyOrgScope(query, profile);
@@ -70,7 +72,13 @@ export function Events() {
 
       if (eventsError) throw eventsError;
 
-      const eventsWithAttendees = await Promise.all((eventsData || []).map(async (event) => {
+      const upcoming = (eventsData || []).filter((event) => isUpcomingEvent(event));
+      const eventIds = upcoming.map((event) => event.id);
+      const savedIds = profile?.id
+        ? await fetchSavedItemIds(profile.id, 'event', eventIds)
+        : new Set<string>();
+
+      const eventsWithAttendees = await Promise.all(upcoming.map(async (event) => {
         const [creatorData, attendeesCount, userStatus] = await Promise.all([
           supabase.from('user_profiles').select('full_name').eq('id', event.created_by).maybeSingle(),
           supabase.from('event_attendees').select('id', { count: 'exact', head: true }).eq('event_id', event.id).eq('status', 'attending'),
@@ -83,12 +91,14 @@ export function Events() {
           attendees_count: attendeesCount.count || 0,
           user_status: userStatus.data?.status,
           user_joined_at: userStatus.data?.joined_at,
+          is_saved: savedIds.has(event.id),
         };
       }));
 
       setEvents(eventsWithAttendees);
     } catch (error) {
       console.error('Error loading events:', error);
+      setEvents([]);
     } finally {
       setLoading(false);
     }
@@ -100,10 +110,23 @@ export function Events() {
       return;
     }
 
+    const eventDateIso = localDatetimeToIso(newEvent.event_date);
+    if (!eventDateIso) {
+      alert('Please enter a valid start date and time');
+      return;
+    }
+
+    const endDateIso = localDatetimeToIso(newEvent.end_date);
+
     try {
+      setCreating(true);
       const { error } = await supabase.from('events').insert({
-        ...newEvent,
-        end_date: newEvent.end_date || null,
+        title: newEvent.title.trim(),
+        description: newEvent.description.trim() || null,
+        event_date: eventDateIso,
+        end_date: endDateIso,
+        location: newEvent.location.trim() || null,
+        virtual_link: newEvent.virtual_link.trim() || null,
         created_by: profile?.id,
         organization_id: orgIdForInsert(profile),
       });
@@ -112,10 +135,36 @@ export function Events() {
 
       setShowCreateModal(false);
       setNewEvent({ title: '', description: '', event_date: '', end_date: '', location: '', virtual_link: '' });
-      loadEvents();
-    } catch (error) {
+      await loadEvents();
+    } catch (error: any) {
       console.error('Error creating event:', error);
-      alert('Failed to create event');
+      alert(error?.message || 'Failed to create event');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleSaveEvent = async (eventId: string, isSaved: boolean) => {
+    if (!profile?.id) {
+      alert('You must be logged in to save events');
+      return;
+    }
+
+    setEvents((prev) => prev.map((event) => (
+      event.id === eventId ? { ...event, is_saved: !isSaved } : event
+    )));
+    setSavingEventId(eventId);
+
+    try {
+      await toggleSavedItem(profile.id, 'event', eventId, isSaved);
+    } catch (error: any) {
+      console.error('Error saving event:', error);
+      setEvents((prev) => prev.map((event) => (
+        event.id === eventId ? { ...event, is_saved: isSaved } : event
+      )));
+      alert(error?.message || 'Could not save this event');
+    } finally {
+      setSavingEventId(null);
     }
   };
 
@@ -211,17 +260,33 @@ export function Events() {
                   </div>
 
                   <div className="flex-1">
-                    <div className="flex items-start justify-between mb-2">
-                      <h3 className="text-xl font-semibold text-gray-900">{event.title}</h3>
-                      {isAdmin && (
+                    <div className="flex items-start justify-between mb-2 gap-3">
+                      <h3 className="text-xl font-semibold text-gray-900 flex-1">{event.title}</h3>
+                      <div className="flex items-center gap-1 shrink-0">
                         <button
-                          onClick={() => handleDeleteEvent(event.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Delete event (Admin)"
+                          type="button"
+                          onClick={() => handleSaveEvent(event.id, !!event.is_saved)}
+                          disabled={savingEventId === event.id}
+                          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            event.is_saved
+                              ? 'bg-[#171717] text-white'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                          aria-label={event.is_saved ? 'Remove from saved' : 'Save event'}
                         >
-                          <Trash2 className="w-5 h-5" />
+                          <Bookmark className={`w-4 h-4 ${event.is_saved ? 'fill-current' : ''}`} />
+                          {event.is_saved ? 'Saved' : 'Save'}
                         </button>
-                      )}
+                        {isAdmin && (
+                          <button
+                            onClick={() => handleDeleteEvent(event.id)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Delete event (Admin)"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <p className="text-gray-600 mb-4">{event.description}</p>
 
@@ -331,8 +396,9 @@ export function Events() {
           </div>
         )}
 
-        <AppModal open={showCreateModal} onClose={() => setShowCreateModal(false)}>
-              <div style={{ padding: '22px 24px 18px', borderBottom: '1px solid #ebebeb', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+        <AppModal open={showCreateModal} onClose={() => setShowCreateModal(false)} maxHeight="min(92vh, 860px)">
+          <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 'min(92vh, 860px)' }}>
+              <div style={{ padding: '22px 24px 18px', borderBottom: '1px solid #ebebeb', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexShrink: 0 }}>
                 <div>
                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 700, color: '#0a72ef', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>
                     <Calendar size={12} />
@@ -352,7 +418,7 @@ export function Events() {
                 </button>
               </div>
 
-              <div style={{ padding: 24, overflowY: 'auto', maxHeight: 'calc(min(88vh, 820px) - 154px)' }}>
+              <div style={{ padding: 24, overflowY: 'auto', flex: 1, minHeight: 0 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 18 }}>
                   <div style={{ gridColumn: '1 / -1' }}>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Event Title *</label>
@@ -432,11 +498,12 @@ export function Events() {
                 </div>
               </div>
 
-              <div style={{ padding: '18px 24px 24px', borderTop: '1px solid #ebebeb', display: 'flex', gap: 12, justifyContent: 'flex-end', background: '#fafafa' }}>
+              <div style={{ padding: '18px 24px 24px', borderTop: '1px solid #ebebeb', display: 'flex', gap: 12, justifyContent: 'flex-end', background: '#fafafa', flexShrink: 0 }}>
                 <button
                   onClick={() => setShowCreateModal(false)}
                   className="lt-btn-secondary"
                   style={{ minWidth: 120, padding: '10px 16px', borderRadius: 10 }}
+                  disabled={creating}
                 >
                   Cancel
                 </button>
@@ -444,10 +511,12 @@ export function Events() {
                   onClick={handleCreateEvent}
                   className="lt-btn-primary"
                   style={{ minWidth: 160, padding: '10px 16px', borderRadius: 10 }}
+                  disabled={creating}
                 >
-                  Create Event
+                  {creating ? 'Creating...' : 'Create Event'}
                 </button>
               </div>
+          </div>
         </AppModal>
       </div>
     </Layout>

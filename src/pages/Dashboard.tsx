@@ -15,6 +15,7 @@ import { useLearnerCourses } from '../hooks/useLearnerCourses';
 import { isPendingStatus, statusLabel } from '../utils/learnerCourses';
 import {
   getJoinAvailability,
+  isUpcomingEvent,
   openEventMeeting,
 } from '../utils/eventJoin';
 import { applyOrgScope } from '../utils/orgScope';
@@ -102,19 +103,17 @@ export function Dashboard() {
   const fetchCourses = refreshCourses;
 
   const fetchEvents = async () => {
-    const nowIso = new Date().toISOString();
-    const lookbackIso = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
-
     let query = supabase
       .from('events')
       .select('id, title, event_date, end_date, location, virtual_link, description')
-      .or(`end_date.gte.${nowIso},and(end_date.is.null,event_date.gte.${lookbackIso})`)
       .order('event_date', { ascending: true })
-      .limit(4);
+      .limit(12);
 
     query = applyOrgScope(query, profile);
     const { data } = await query;
-    if (data) setUpcomingEvents(data);
+    if (data) {
+      setUpcomingEvents(data.filter((event) => isUpcomingEvent(event)).slice(0, 4));
+    }
   };
 
   const handleJoinEvent = async (event: {

@@ -3,8 +3,9 @@ import { AppModal } from '../components/AppModal';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { BarChart3, Plus, Check, Trash2 } from 'lucide-react';
+import { BarChart3, Plus, Check, Trash2, Bookmark } from 'lucide-react';
 import { applyOrgScope, orgIdForInsert } from '../utils/orgScope';
+import { fetchSavedItemIds, toggleSavedItem } from '../utils/savedItems';
 
 interface Poll {
   id: string;
@@ -20,6 +21,7 @@ interface Poll {
   };
   options: PollOption[];
   user_votes: string[];
+  is_saved?: boolean;
 }
 
 interface PollOption {
@@ -34,6 +36,7 @@ export function Polls() {
   const [polls, setPolls] = useState<Poll[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [savingPollId, setSavingPollId] = useState<string | null>(null);
   const [newPoll, setNewPoll] = useState({
     title: '',
     description: '',
@@ -61,6 +64,11 @@ export function Polls() {
 
       if (pollsError) throw pollsError;
 
+      const pollIds = (pollsData || []).map((poll) => poll.id);
+      const savedIds = profile?.id
+        ? await fetchSavedItemIds(profile.id, 'poll', pollIds)
+        : new Set<string>();
+
       const pollsWithOptions = await Promise.all((pollsData || []).map(async (poll) => {
         const [creatorData, optionsData, votesData] = await Promise.all([
           supabase.from('user_profiles').select('full_name').eq('id', poll.created_by).maybeSingle(),
@@ -85,6 +93,7 @@ export function Polls() {
           creator: creatorData.data || { full_name: 'Unknown' },
           options: optionsWithCounts,
           user_votes: votesData.data?.map(v => v.option_id) || [],
+          is_saved: savedIds.has(poll.id),
         };
       }));
 
@@ -182,6 +191,30 @@ export function Polls() {
     }
   };
 
+  const handleSavePoll = async (pollId: string, isSaved: boolean) => {
+    if (!profile?.id) {
+      alert('You must be logged in to save polls');
+      return;
+    }
+
+    setPolls((prev) => prev.map((poll) => (
+      poll.id === pollId ? { ...poll, is_saved: !isSaved } : poll
+    )));
+    setSavingPollId(pollId);
+
+    try {
+      await toggleSavedItem(profile.id, 'poll', pollId, isSaved);
+    } catch (error: any) {
+      console.error('Error saving poll:', error);
+      setPolls((prev) => prev.map((poll) => (
+        poll.id === pollId ? { ...poll, is_saved: isSaved } : poll
+      )));
+      alert(error?.message || 'Could not save this poll');
+    } finally {
+      setSavingPollId(null);
+    }
+  };
+
   const isAdmin = ['super_admin', 'admin'].includes(profile?.role || '');
 
   return (
@@ -229,7 +262,7 @@ export function Polls() {
 
               return (
                 <div key={poll.id} className="lt-card p-6">
-                  <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-start justify-between mb-4 gap-3">
                     <div className="flex-1">
                       <h3 className="text-xl font-semibold text-gray-900 mb-2">{poll.title}</h3>
                       {poll.description && (
@@ -239,15 +272,31 @@ export function Polls() {
                         Created by {poll.creator?.full_name || 'Unknown'} • {new Date(poll.created_at).toLocaleDateString()}
                       </p>
                     </div>
-                    {isAdmin && (
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
-                        onClick={() => handleDeletePoll(poll.id)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Delete poll (Admin)"
+                        type="button"
+                        onClick={() => handleSavePoll(poll.id, !!poll.is_saved)}
+                        disabled={savingPollId === poll.id}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          poll.is_saved
+                            ? 'bg-[#171717] text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                        aria-label={poll.is_saved ? 'Remove from saved' : 'Save poll'}
                       >
-                        <Trash2 className="w-5 h-5" />
+                        <Bookmark className={`w-4 h-4 ${poll.is_saved ? 'fill-current' : ''}`} />
+                        {poll.is_saved ? 'Saved' : 'Save'}
                       </button>
-                    )}
+                      {isAdmin && (
+                        <button
+                          onClick={() => handleDeletePoll(poll.id)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete poll (Admin)"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="space-y-3">
@@ -297,10 +346,13 @@ export function Polls() {
           </div>
         )}
 
-        <AppModal open={showCreateModal} onClose={() => setShowCreateModal(false)} maxWidth={720}>
-            <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <h3 className="text-2xl font-semibold mb-6">Create New Poll</h3>
+        <AppModal open={showCreateModal} onClose={() => setShowCreateModal(false)} maxWidth={720} maxHeight="min(92vh, 860px)">
+          <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 'min(92vh, 860px)' }}>
+            <div style={{ padding: '22px 24px 18px', borderBottom: '1px solid #ebebeb', flexShrink: 0 }}>
+              <h3 className="text-2xl font-semibold">Create New Poll</h3>
+            </div>
 
+            <div style={{ padding: 24, overflowY: 'auto', flex: 1, minHeight: 0 }}>
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -388,23 +440,25 @@ export function Polls() {
                   </label>
                 </div>
               </div>
-
-              <div className="flex gap-3 mt-6">
-                <button
-                  onClick={() => setShowCreateModal(false)}
-                  className="flex-1 px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCreatePoll}
-                  className="lt-btn-primary flex-1"
-                  style={{padding:'9px 16px',borderRadius:8}}
-                >
-                  Create Poll
-                </button>
-              </div>
             </div>
+
+            <div style={{ padding: '18px 24px 24px', borderTop: '1px solid #ebebeb', display: 'flex', gap: 12, background: '#fafafa', flexShrink: 0 }}>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="lt-btn-secondary flex-1"
+                style={{ padding: '10px 16px', borderRadius: 10 }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreatePoll}
+                className="lt-btn-primary flex-1"
+                style={{ padding: '10px 16px', borderRadius: 10 }}
+              >
+                Create Poll
+              </button>
+            </div>
+          </div>
         </AppModal>
       </div>
     </Layout>

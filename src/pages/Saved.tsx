@@ -45,8 +45,13 @@ export function Saved() {
 
       const rows = data || [];
       const postIds = rows.filter((r) => r.item_type === 'post').map((r) => r.item_id);
+      const pollIds = rows.filter((r) => r.item_type === 'poll').map((r) => r.item_id);
+      const eventIds = rows.filter((r) => r.item_type === 'event').map((r) => r.item_id);
 
       let postsById: Record<string, { content?: string }> = {};
+      let pollsById: Record<string, { title?: string }> = {};
+      let eventsById: Record<string, { title?: string }> = {};
+
       if (postIds.length) {
         const { data: posts } = await supabase
           .from('social_posts')
@@ -55,16 +60,37 @@ export function Saved() {
         for (const p of posts || []) postsById[p.id] = p;
       }
 
+      if (pollIds.length) {
+        const { data: polls } = await supabase
+          .from('polls')
+          .select('id, title')
+          .in('id', pollIds);
+        for (const p of polls || []) pollsById[p.id] = p;
+      }
+
+      if (eventIds.length) {
+        const { data: events } = await supabase
+          .from('events')
+          .select('id, title')
+          .in('id', eventIds);
+        for (const e of events || []) eventsById[e.id] = e;
+      }
+
       setSavedItems(
         rows.map((item) => {
           const post = postsById[item.item_id];
+          const poll = pollsById[item.item_id];
+          const event = eventsById[item.item_id];
           const content = (post?.content || '').trim();
+          const title = event?.title || poll?.title || (
+            content
+              ? content.slice(0, 80) + (content.length > 80 ? '…' : '')
+              : `${item.item_type.charAt(0).toUpperCase()}${item.item_type.slice(1)}`
+          );
           return {
             ...item,
-            title: content
-              ? content.slice(0, 80) + (content.length > 80 ? '…' : '')
-              : `${item.item_type.charAt(0).toUpperCase()}${item.item_type.slice(1)}`,
-            preview: content || undefined,
+            title,
+            preview: content || poll?.title || event?.title || undefined,
           };
         }),
       );
@@ -122,7 +148,7 @@ export function Saved() {
       <div className="max-w-4xl mx-auto space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Saved Items</h1>
-          <p className="text-gray-600 mt-1">Posts and content you bookmarked</p>
+          <p className="text-gray-600 mt-1">Posts, polls, and events you bookmarked</p>
         </div>
 
         {error && (
@@ -138,7 +164,7 @@ export function Saved() {
           <div className="lt-card p-12 text-center">
             <Bookmark className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">No saved items yet</h3>
-            <p className="text-gray-600 mb-4">Bookmark a post from Social to see it here.</p>
+            <p className="text-gray-600 mb-4">Save posts from Social, or bookmark polls and events from their pages.</p>
             <Link to="/social" className="lt-btn-primary inline-flex px-4 py-2 text-sm">
               Go to Social
             </Link>

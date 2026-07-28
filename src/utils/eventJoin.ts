@@ -10,6 +10,18 @@ export interface EventJoinInfo {
 const JOIN_EARLY_MS = 15 * 60 * 1000;
 const DEFAULT_DURATION_MS = 2 * 60 * 60 * 1000;
 
+/** Convert `<input type="datetime-local">` value to ISO for timestamptz columns. */
+export function localDatetimeToIso(value: string): string | null {
+  if (!value?.trim()) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+}
+
+export function isUpcomingEvent(event: EventJoinInfo, now = new Date()): boolean {
+  return now <= getEventEndTime(event);
+}
+
 export function normalizeMeetingUrl(url: string): string {
   const trimmed = url.trim();
   if (!trimmed) return '';

@@ -625,7 +625,8 @@ export function Social() {
                 </div>
               )}
 
-              <div className="flex items-center gap-6 pt-4 border-t border-gray-200">
+              <div className="flex items-center justify-between gap-3 pt-4 border-t border-gray-200 flex-wrap">
+                <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
                 <button
                   type="button"
                   onClick={() => handleLike(post.id, post.is_liked)}
@@ -662,12 +663,20 @@ export function Social() {
                   <Share2 className="w-5 h-5" />
                   <span className="text-sm font-medium">Share</span>
                 </button>
+                </div>
 
                 <button
+                  type="button"
                   onClick={() => handleSave(post.id, post.is_saved)}
-                  className={`flex items-center gap-2 ml-auto ${post.is_saved ? 'text-blue-600' : 'text-gray-600 hover:text-blue-600'} transition-colors`}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    post.is_saved
+                      ? 'bg-[#171717] text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                  aria-label={post.is_saved ? 'Remove from saved' : 'Save post'}
                 >
-                  <Bookmark className={`w-5 h-5 ${post.is_saved ? 'fill-current' : ''}`} />
+                  <Bookmark className={`w-4 h-4 ${post.is_saved ? 'fill-current' : ''}`} />
+                  {post.is_saved ? 'Saved' : 'Save'}
                 </button>
               </div>
 
