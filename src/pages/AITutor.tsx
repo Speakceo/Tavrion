@@ -12,14 +12,19 @@ export function AITutor() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesViewportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     clearAndStartFresh();
   }, [profile]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!messages.length) return;
+    const viewport = messagesViewportRef.current;
+    if (!viewport) return;
+    requestAnimationFrame(() => {
+      viewport.scrollTo({ top: viewport.scrollHeight, behavior: 'smooth' });
+    });
   }, [messages]);
 
   const clearAndStartFresh = async () => {
@@ -106,7 +111,7 @@ export function AITutor() {
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col h-[calc(100vh-16rem)]">
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <div ref={messagesViewportRef} className="flex-1 overflow-y-auto p-6 space-y-4">
             {messages.length === 0 ? (
               <div className="text-center py-12">
                 <Bot className="w-16 h-16 text-gray-400 mx-auto mb-4" />
@@ -157,7 +162,6 @@ export function AITutor() {
                 </div>
               </div>
             )}
-            <div ref={messagesEndRef} />
           </div>
 
           <form onSubmit={sendMessage} className="p-6 border-t border-gray-200">

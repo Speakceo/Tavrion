@@ -192,7 +192,7 @@ export function TavrionBot() {
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const [sessionId, setSessionId] = useState(() => crypto.randomUUID());
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatViewportRef = useRef<HTMLDivElement>(null);
 
   const [waPhoneId, setWaPhoneId] = useState('');
   const [waToken, setWaToken] = useState('');
@@ -202,7 +202,12 @@ export function TavrionBot() {
   const [crawlStep, setCrawlStep] = useState(0);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!messages.length) return;
+    const viewport = chatViewportRef.current;
+    if (!viewport) return;
+    requestAnimationFrame(() => {
+      viewport.scrollTo({ top: viewport.scrollHeight, behavior: 'smooth' });
+    });
   }, [messages]);
 
   useEffect(() => {
@@ -634,7 +639,7 @@ export function TavrionBot() {
             <div style={{ padding: 24 }}>
               {tab === 'test' && (
                 <div style={{ display: 'flex', flexDirection: 'column', height: 400 }}>
-                  <div style={{ flex: 1, overflowY: 'auto', marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div ref={chatViewportRef} style={{ flex: 1, overflowY: 'auto', marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {messages.map((m, i) => (
                       <ChatMessageBubble
                         key={i}
@@ -658,7 +663,6 @@ export function TavrionBot() {
                         })()}
                       </div>
                     )}
-                    <div ref={chatEndRef} />
                   </div>
                   <form onSubmit={sendChat} style={{ display: 'flex', gap: 8 }}>
                     <input

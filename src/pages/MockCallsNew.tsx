@@ -174,7 +174,7 @@ export function MockCallsNew() {
   const [callStartTime, setCallStartTime] = useState<Date | null>(null);
   const [showResults, setShowResults] = useState(false);
   const [evaluation, setEvaluation] = useState<any>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesViewportRef = useRef<HTMLDivElement>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const mediaRecorderRef = useRef<any>(null);
@@ -200,7 +200,11 @@ export function MockCallsNew() {
   }, [messages]);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const viewport = messagesViewportRef.current;
+    if (!viewport) return;
+    requestAnimationFrame(() => {
+      viewport.scrollTo({ top: viewport.scrollHeight, behavior: 'smooth' });
+    });
   };
 
   const handleRecordToggle = async () => {
@@ -626,7 +630,7 @@ export function MockCallsNew() {
               </div>
             </div>
 
-            <div className="h-96 overflow-y-auto p-6 bg-gray-50 space-y-4">
+            <div ref={messagesViewportRef} className="h-96 overflow-y-auto p-6 bg-gray-50 space-y-4">
               {messages.map((msg, idx) => (
                 <div
                   key={idx}
@@ -657,7 +661,6 @@ export function MockCallsNew() {
                   </div>
                 </div>
               )}
-              <div ref={messagesEndRef} />
             </div>
 
             <div className="p-6 bg-white border-t border-gray-200">
