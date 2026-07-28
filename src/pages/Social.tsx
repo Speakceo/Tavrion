@@ -8,6 +8,21 @@ import {
   Image as ImageIcon, Video, X, Trash2, Pencil,
 } from 'lucide-react';
 
+function SocialAvatar({ name, size = 'md' }: { name?: string; size?: 'sm' | 'md' }) {
+  const sizeClass = size === 'sm' ? 'w-8 h-8 text-xs' : 'w-10 h-10 text-sm';
+  const initial = (name?.trim()?.charAt(0) || 'U').toUpperCase();
+
+  return (
+    <div
+      className={`${sizeClass} shrink-0 rounded-lg flex items-center justify-center font-semibold bg-[#171717] text-white`}
+      style={{ letterSpacing: '-0.02em' }}
+      aria-hidden
+    >
+      {initial}
+    </div>
+  );
+}
+
 interface Post {
   id: string;
   user_id: string;
@@ -431,9 +446,7 @@ export function Social() {
           <div style={{marginBottom:24}}><p style={{fontSize:11,fontWeight:700,color:'#808080',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:4}}>COMMUNITY</p><h1 style={{fontSize:22,fontWeight:700,letterSpacing:'-0.03em',color:'#171717',marginBottom:4}}>Social Feed</h1></div>
 
           <div className="flex gap-3">
-            <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
-              {profile?.full_name?.charAt(0) || 'U'}
-            </div>
+            <SocialAvatar name={profile?.full_name} />
             <div className="flex-1">
               <textarea
                 value={newPost}
@@ -511,9 +524,7 @@ export function Social() {
             <div key={post.id} id={`post-${post.id}`} className="lt-card p-6">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white font-semibold">
-                    {post.user?.full_name?.charAt(0) || 'U'}
-                  </div>
+                  <SocialAvatar name={post.user?.full_name} />
                   <div>
                     <p className="font-semibold text-gray-900">{post.user?.full_name || 'Unknown User'}</p>
                     <p className="text-sm text-gray-500">
@@ -613,9 +624,7 @@ export function Social() {
                 <div className="mt-4 pt-4 border-t border-gray-200 space-y-4">
                   {comments[post.id]?.map((comment) => (
                     <div key={comment.id} className="flex gap-3">
-                      <div className="w-8 h-8 bg-gray-500 rounded-full flex items-center justify-center text-white text-sm font-semibold">
-                        {comment.user?.full_name?.charAt(0) || 'U'}
-                      </div>
+                      <SocialAvatar name={comment.user?.full_name} size="sm" />
                       <div className="flex-1 bg-gray-50 rounded-lg p-3">
                         <p className="font-semibold text-sm text-gray-900">{comment.user?.full_name || 'Unknown User'}</p>
                         <p className="text-gray-800 text-sm mt-1">{comment.content}</p>
@@ -624,9 +633,7 @@ export function Social() {
                   ))}
 
                   <div className="flex gap-3 mt-4">
-                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-semibold">
-                      {profile?.full_name?.charAt(0) || 'U'}
-                    </div>
+                    <SocialAvatar name={profile?.full_name} size="sm" />
                     <div className="flex-1 flex gap-2">
                       <input
                         type="text"
