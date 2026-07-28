@@ -74,6 +74,7 @@ export function TestLayout({ children, wide }: { children: React.ReactNode; wide
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
   const orgLogo = getOrgLogoUrl(organization);
 
   const isWide = wide ?? WIDE_PATH_PREFIXES.some((p) =>
@@ -82,6 +83,10 @@ export function TestLayout({ children, wide }: { children: React.ReactNode; wide
 
   useEffect(() => {
     setMobileOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   }, [location.pathname]);
 
   useEffect(() => {
@@ -204,7 +209,7 @@ export function TestLayout({ children, wide }: { children: React.ReactNode; wide
           />
         )}
 
-        <main className={`test-layout-main${isWide ? ' test-layout-main--wide' : ''}`}>
+        <main ref={mainRef} className={`test-layout-main${isWide ? ' test-layout-main--wide' : ''}`}>
           {children}
         </main>
       </div>

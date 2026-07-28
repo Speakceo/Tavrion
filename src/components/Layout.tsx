@@ -76,6 +76,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
   const width = useWindowWidth();
   const isMobile = width < 768;
 
@@ -93,6 +94,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setMobileSidebarOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   }, [location.pathname]);
 
   useEffect(() => {
@@ -532,7 +537,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </aside>
 
         {/* ── MAIN ── */}
-        <main style={{ flex: 1, padding: isMobile ? '14px 14px 20px' : 24, overflowY: 'auto', minHeight: `calc(100dvh - ${navOffset}px)`, maxWidth: isMobile ? '100%' : 'calc(100vw - 220px)' }}>
+        <main ref={mainRef} style={{ flex: 1, padding: isMobile ? '14px 14px 20px' : 24, overflowY: 'auto', minHeight: `calc(100dvh - ${navOffset}px)`, maxWidth: isMobile ? '100%' : 'calc(100vw - 220px)' }}>
           {children}
         </main>
       </div>

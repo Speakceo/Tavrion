@@ -1,5 +1,5 @@
 import { Component, ErrorInfo, ReactNode, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { pingSupabaseKeepalive } from './lib/supabaseKeepalive';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -117,10 +117,21 @@ function KeepaliveBoot() {
   return null;
 }
 
+function ScrollToTop() {
+  const location = useLocation();
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [location.pathname]);
+
+  return null;
+}
+
 function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
+        <ScrollToTop />
         <KeepaliveBoot />
         <AuthProvider>
           <Routes>
