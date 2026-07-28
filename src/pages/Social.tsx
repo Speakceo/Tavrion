@@ -70,6 +70,8 @@ export function Social() {
   const [editMediaPreview, setEditMediaPreview] = useState<string | null>(null);
   const [removeExistingMedia, setRemoveExistingMedia] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [likingPosts, setLikingPosts] = useState<Record<string, boolean>>({});
+  const [likeAnimPostId, setLikeAnimPostId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -226,15 +228,52 @@ export function Social() {
   };
 
   const handleLike = async (postId: string, isLiked: boolean) => {
+    if (!profile?.id || likingPosts[postId]) return;
+
+    setPosts((prev) => prev.map((p) => {
+      if (p.id !== postId) return p;
+      return {
+        ...p,
+        is_liked: !isLiked,
+        likes_count: isLiked ? Math.max(0, p.likes_count - 1) : p.likes_count + 1,
+      };
+    }));
+
+    if (!isLiked) {
+      setLikeAnimPostId(postId);
+      window.setTimeout(() => {
+        setLikeAnimPostId((current) => (current === postId ? null : current));
+      }, 350);
+    }
+
+    setLikingPosts((prev) => ({ ...prev, [postId]: true }));
+
     try {
       if (isLiked) {
-        await supabase.from('social_likes').delete().eq('post_id', postId).eq('user_id', profile?.id);
+        const { error } = await supabase
+          .from('social_likes')
+          .delete()
+          .eq('post_id', postId)
+          .eq('user_id', profile.id);
+        if (error) throw error;
       } else {
-        await supabase.from('social_likes').insert({ post_id: postId, user_id: profile?.id });
+        const { error } = await supabase
+          .from('social_likes')
+          .insert({ post_id: postId, user_id: profile.id });
+        if (error) throw error;
       }
-      loadPosts();
     } catch (error) {
       console.error('Error toggling like:', error);
+      setPosts((prev) => prev.map((p) => {
+        if (p.id !== postId) return p;
+        return {
+          ...p,
+          is_liked: isLiked,
+          likes_count: isLiked ? p.likes_count + 1 : Math.max(0, p.likes_count - 1),
+        };
+      }));
+    } finally {
+      setLikingPosts((prev) => ({ ...prev, [postId]: false }));
     }
   };
 
@@ -588,11 +627,23 @@ export function Social() {
 
               <div className="flex items-center gap-6 pt-4 border-t border-gray-200">
                 <button
+                  type="button"
                   onClick={() => handleLike(post.id, post.is_liked)}
-                  className={`flex items-center gap-2 ${post.is_liked ? 'text-red-600' : 'text-gray-600 hover:text-red-600'} transition-colors`}
+                  disabled={!!likingPosts[post.id]}
+                  className={`flex items-center gap-2 transition-colors ${
+                    post.is_liked ? 'text-red-600' : 'text-gray-600 hover:text-red-600'
+                  } ${likingPosts[post.id] ? 'opacity-80' : ''}`}
+                  aria-label={post.is_liked ? 'Unlike post' : 'Like post'}
+                  aria-busy={!!likingPosts[post.id]}
                 >
-                  <Heart className={`w-5 h-5 ${post.is_liked ? 'fill-current' : ''}`} />
-                  <span className="text-sm font-medium">{post.likes_count}</span>
+                  <Heart
+                    className={`w-5 h-5 transition-transform duration-200 ${
+                      post.is_liked ? 'fill-current scale-110' : ''
+                    } ${likeAnimPostId === post.id ? 'social-like-pop' : ''}`}
+                  />
+                  <span className="text-sm font-medium tabular-nums transition-all duration-200">
+                    {post.likes_count}
+                  </span>
                 </button>
 
                 <button

@@ -140,6 +140,15 @@
   }
   @keyframes lt-spin { to { transform: rotate(360deg); } }
 
+  @keyframes social-like-pop {
+    0% { transform: scale(1); }
+    45% { transform: scale(1.35); }
+    100% { transform: scale(1.1); }
+  }
+  .social-like-pop {
+    animation: social-like-pop 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
   /* Landing page — subtle motion */
   @media (prefers-reduced-motion: no-preference) {
     .lp-hero-in {
