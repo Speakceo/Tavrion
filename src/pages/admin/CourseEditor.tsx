@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { Course, Module, Lesson } from '../../types';
-import { BookOpen, Plus, Trash2, Save, ArrowLeft, GripVertical, Sparkles, Users } from 'lucide-react';
+import { BookOpen, Plus, Trash2, Save, ArrowLeft, GripVertical, Sparkles, Users, Package, HelpCircle } from 'lucide-react';
 import { OpenAIService } from '../../services/openai';
 import { applyOrgUserScope, filterByDepartment, uniqueSortedStrings } from '../../utils/orgUsers';
 import { applyOrgScope } from '../../utils/orgScope';
@@ -314,16 +314,37 @@ export default function CourseEditor() {
     }
   };
 
+  const ensureModuleAndExpand = () => {
+    if (modules.length > 0) {
+      const index = modules.length - 1;
+      setExpandedModules((prev) => new Set(prev).add(String(index)));
+      return { modules: [...modules], moduleIndex: index };
+    }
+
+    const nextModules: ModuleFormData[] = [
+      {
+        title: 'Course sequence',
+        description: 'Uploaded content and quizzes in order',
+        order_index: 0,
+        lessons: [],
+      },
+    ];
+    setExpandedModules(new Set(['0']));
+    return { modules: nextModules, moduleIndex: 0 };
+  };
+
   const addModule = () => {
+    const nextIndex = modules.length;
     setModules([
       ...modules,
       {
         title: '',
         description: '',
-        order_index: modules.length,
+        order_index: nextIndex,
         lessons: [],
       },
     ]);
+    setExpandedModules((prev) => new Set(prev).add(String(nextIndex)));
   };
 
   const updateModule = (index: number, field: keyof ModuleFormData, value: any) => {
@@ -338,18 +359,65 @@ export default function CourseEditor() {
     }
   };
 
-  const addLesson = (moduleIndex: number) => {
+  const addLesson = (moduleIndex: number, type: LessonFormData['type'] = 'text') => {
     const updated = [...modules];
+    const content = type === 'uploaded_course'
+      ? {}
+      : type === 'quiz'
+        ? JSON.stringify({ pass_threshold: 70, questions: [] }, null, 2)
+        : '';
     updated[moduleIndex].lessons.push({
-      title: '',
-      type: 'text',
-      content: '',
-      duration_minutes: 15,
+      title: type === 'uploaded_course'
+        ? `Content ${updated[moduleIndex].lessons.filter((l) => l.type === 'uploaded_course').length + 1}`
+        : type === 'quiz'
+          ? `Quiz ${updated[moduleIndex].lessons.filter((l) => l.type === 'quiz').length + 1}`
+          : '',
+      type,
+      content,
+      duration_minutes: type === 'quiz' ? 10 : 30,
       order_index: updated[moduleIndex].lessons.length,
     });
     setModules(updated);
-    expandedModules.add(moduleIndex.toString());
-    setExpandedModules(new Set(expandedModules));
+    setExpandedModules((prev) => new Set(prev).add(String(moduleIndex)));
+  };
+
+  const addUploadedContentLesson = () => {
+    if (uploadedCourseOptions.length === 0) {
+      alert('No uploaded courses found. Upload SCORM or files under Uploaded Courses first, then come back here.');
+      return;
+    }
+    const { modules: nextModules, moduleIndex } = ensureModuleAndExpand();
+    const content = {};
+    nextModules[moduleIndex].lessons.push({
+      title: `Day ${nextModules[moduleIndex].lessons.filter((l) => l.type === 'uploaded_course').length + 1}`,
+      type: 'uploaded_course',
+      content,
+      duration_minutes: 30,
+      order_index: nextModules[moduleIndex].lessons.length,
+    });
+    setModules(nextModules);
+  };
+
+  const addQuizLessonQuick = () => {
+    const { modules: nextModules, moduleIndex } = ensureModuleAndExpand();
+    nextModules[moduleIndex].lessons.push({
+      title: `Quiz ${nextModules[moduleIndex].lessons.filter((l) => l.type === 'quiz').length + 1}`,
+      type: 'quiz',
+      content: JSON.stringify({
+        pass_threshold: 70,
+        questions: [
+          {
+            question: 'Sample question?',
+            options: ['Option A', 'Option B', 'Option C', 'Option D'],
+            correct_answer: 'Option A',
+            explanation: 'Explanation for correct answer',
+          },
+        ],
+      }, null, 2),
+      duration_minutes: 10,
+      order_index: nextModules[moduleIndex].lessons.length,
+    });
+    setModules(nextModules);
   };
 
   const updateLesson = (
@@ -615,9 +683,52 @@ export default function CourseEditor() {
           </button>
         </div>
 
+        <div className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-blue-100">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="rounded-lg bg-blue-50 p-2">
+              <Package className="w-5 h-5 text-blue-600" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-xl font-semibold text-gray-900">Bundle uploaded / SCORM content</h2>
+              <p className="text-gray-600 mt-1 text-sm">
+                Build one assignable course from items already in Uploaded Courses.
+                Example: Day 1 SCORM → quiz → Day 2 SCORM → quiz. {uploadedCourseOptions.length} uploaded item{uploadedCourseOptions.length === 1 ? '' : 's'} available.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={addUploadedContentLesson}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              <Package className="w-4 h-4" />
+              Add uploaded / SCORM lesson
+            </button>
+            <button
+              type="button"
+              onClick={addQuizLessonQuick}
+              className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              <HelpCircle className="w-4 h-4" />
+              Add quiz after it
+            </button>
+          </div>
+          {uploadedCourseOptions.length === 0 && (
+            <p className="mt-3 text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+              No uploaded content yet. Upload SCORM/PDF/video under Admin → Uploaded Courses first.
+            </p>
+          )}
+        </div>
+
         <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Modules & Lessons</h2>
+            <div>
+              <h2 className="text-xl font-semibold">Modules & Lessons</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Or add lessons manually and set type to <span className="font-medium text-gray-700">Uploaded / SCORM</span>.
+              </p>
+            </div>
             <button
               onClick={addModule}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -630,7 +741,7 @@ export default function CourseEditor() {
           {modules.length === 0 && (
             <div className="text-center py-12 text-gray-500">
               <BookOpen className="w-16 h-16 mx-auto mb-4 opacity-50" />
-              <p>No modules yet. Add a module or use AI to generate content.</p>
+              <p>No modules yet. Use the buttons above to bundle SCORM content, or add a module manually.</p>
             </div>
           )}
 
@@ -657,7 +768,14 @@ export default function CourseEditor() {
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => addLesson(moduleIndex)}
+                      onClick={() => addLesson(moduleIndex, 'uploaded_course')}
+                      className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                      title="Add uploaded / SCORM lesson"
+                    >
+                      <Package className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => addLesson(moduleIndex, 'text')}
                       className="p-2 text-blue-600 hover:bg-blue-50 rounded"
                       title="Add Lesson"
                     >
@@ -709,12 +827,12 @@ export default function CourseEditor() {
                               }
                               className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
                             >
+                              <option value="uploaded_course">Uploaded / SCORM</option>
+                              <option value="quiz">Quiz</option>
                               <option value="text">Text</option>
                               <option value="video">Video</option>
                               <option value="slides">Slides</option>
-                              <option value="quiz">Quiz</option>
                               <option value="mock_call">Mock Call</option>
-                              <option value="uploaded_course">Uploaded / SCORM</option>
                             </select>
                             <input
                               type="number"

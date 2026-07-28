@@ -3,10 +3,13 @@
  * Apply all supabase/migrations/*.sql to the linked remote project
  * via Supabase Management API (no interactive DB password required).
  */
+import dotenv from 'dotenv';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-const PROJECT_REF = 'jilehijfjayayfumbrsl';
+dotenv.config({ override: true });
+
+const PROJECT_REF = process.env.SUPABASE_PROJECT_REF || 'jilehijfjayayfumbrsl';
 const API = `https://api.supabase.com/v1/projects/${PROJECT_REF}`;
 const TOKEN = process.env.SUPABASE_ACCESS_TOKEN;
 

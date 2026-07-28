@@ -143,7 +143,7 @@ export function AdminCourses() {
           <div>
             <p style={{ fontSize: 11, fontWeight: 700, color: '#808080', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Admin</p>
             <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: '#171717', marginBottom: 4 }}>Course Management</h1>
-            <p style={{ fontSize: 14, color: '#4d4d4d' }}>Create and manage learning content</p>
+            <p style={{ fontSize: 14, color: '#4d4d4d' }}>Create courses, or bundle uploaded SCORM / files into one assignable course</p>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <Link

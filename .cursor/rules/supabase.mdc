@@ -1,0 +1,28 @@
+---
+description: Use local Supabase credentials from .env for DB, scripts, and migrations
+alwaysApply: true
+---
+
+# Supabase (Tavrion)
+
+Project ref: `jilehijfjayayfumbrsl`
+
+## Credentials
+
+Load from the repo root `.env` (gitignored). Never commit or paste secrets into tracked files.
+
+| Variable | Use |
+|----------|-----|
+| `SUPABASE_URL` | Direct API URL for server/scripts |
+| `VITE_SUPABASE_URL` | Browser proxy path (`/api/sb`) |
+| `SUPABASE_ANON_KEY` / `VITE_SUPABASE_ANON_KEY` | Public anon key (RLS enforced) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-only; bypasses RLS |
+| `SUPABASE_ACCESS_TOKEN` | Dashboard access token for migrations / CLI (Management API) |
+| `SUPABASE_PROJECT_REF` | CLI / Management API project id |
+
+## Agent workflow
+
+- For Node scripts: `import dotenv from 'dotenv'; dotenv.config();` then read env vars.
+- For migrations: run `node scripts/apply-uploaded-course-enum.mjs` or `node scripts/run-migrations.mjs` — both read `SUPABASE_ACCESS_TOKEN` from `.env` via dotenv.
+- For data checks: use `@supabase/supabase-js` with `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`.
+- Never put `service_role` in frontend code or commit it to git.

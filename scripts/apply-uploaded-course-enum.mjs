@@ -2,7 +2,11 @@
 /**
  * Apply the uploaded_course lesson enum migration to the linked remote project.
  */
-const PROJECT_REF = 'jilehijfjayayfumbrsl';
+import dotenv from 'dotenv';
+
+dotenv.config({ override: true });
+
+const PROJECT_REF = process.env.SUPABASE_PROJECT_REF || 'jilehijfjayayfumbrsl';
 const API = `https://api.supabase.com/v1/projects/${PROJECT_REF}`;
 const TOKEN = process.env.SUPABASE_ACCESS_TOKEN;
 const SQL = "ALTER TYPE lesson_type ADD VALUE IF NOT EXISTS 'uploaded_course';";
