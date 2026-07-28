@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { AppModal } from '../components/AppModal';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -373,8 +374,7 @@ export function Vault() {
           </div>
         )}
 
-        {showCreateModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <AppModal open={showCreateModal} onClose={() => setShowCreateModal(false)} maxWidth={760}>
             <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-2xl font-semibold">Add Vault Item</h3>
@@ -505,8 +505,7 @@ export function Vault() {
                 </button>
               </div>
             </div>
-          </div>
-        )}
+        </AppModal>
 
         {viewingPdf && pdfUrl && (
           <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">

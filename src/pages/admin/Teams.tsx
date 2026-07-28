@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { AppModal } from '../../components/AppModal';
 import { Layout } from '../../components/Layout';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -485,8 +486,7 @@ export function Teams() {
           </div>
         )}
 
-        {showCreateModal && (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
+        <AppModal open={showCreateModal} onClose={() => setShowCreateModal(false)} maxWidth={440}>
             <div className="lt-card" style={{ maxWidth: 440, width: '100%' }}>
               <div style={{ padding: '20px 24px', borderBottom: '1px solid #ebebeb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <h3 style={{ fontSize: 16, fontWeight: 700, color: '#171717' }}>Create Team</h3>
@@ -509,11 +509,10 @@ export function Teams() {
                 <button onClick={handleCreateTeam} className="lt-btn-primary" style={{ padding: '9px 16px' }}>Create Team</button>
               </div>
             </div>
-          </div>
-        )}
+        </AppModal>
 
-        {showMembersModal && selectedTeam && (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
+        {selectedTeam && (
+        <AppModal open={showMembersModal} onClose={() => setShowMembersModal(false)} maxWidth={560}>
             <div className="lt-card" style={{ maxWidth: 560, width: '100%', maxHeight: '88vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
               <div style={{ padding: '20px 24px', borderBottom: '1px solid #ebebeb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <h3 style={{ fontSize: 16, fontWeight: 700, color: '#171717' }}>{selectedTeam.name} Members</h3>
@@ -611,7 +610,7 @@ export function Teams() {
                 </div>
               </div>
             </div>
-          </div>
+        </AppModal>
         )}
       </div>
     </Layout>

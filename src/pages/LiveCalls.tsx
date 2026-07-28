@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { AppModal } from '../components/AppModal';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Layout } from '../components/Layout';
@@ -876,8 +877,7 @@ export function LiveCalls() {
           </div>
         )}
 
-        {showRatingModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <AppModal open={showRatingModal} onClose={() => setShowRatingModal(false)} maxWidth={480}>
             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 animate-in">
               <div className="text-center mb-6">
                 <div className="bg-gradient-to-br from-orange-100 to-pink-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -917,8 +917,7 @@ export function LiveCalls() {
                 Skip Rating
               </button>
             </div>
-          </div>
-        )}
+        </AppModal>
       </div>
     </Layout>
   );

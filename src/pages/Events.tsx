@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Layout } from '../components/Layout';
+import { AppModal } from '../components/AppModal';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { Calendar, MapPin, Users, Plus, Check, X, Trash2 } from 'lucide-react';
+import { Calendar, MapPin, Users, Plus, Check, X, Trash2, Clock, Link as LinkIcon } from 'lucide-react';
 import { applyOrgScope, orgIdForInsert } from '../utils/orgScope';
 
 interface Event {
@@ -255,85 +256,111 @@ export function Events() {
           </div>
         )}
 
-        {showCreateModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg p-6 max-w-2xl w-full">
-              <h3 className="text-2xl font-semibold mb-6">Create New Event</h3>
-
-              <div className="space-y-4">
+        <AppModal open={showCreateModal} onClose={() => setShowCreateModal(false)}>
+              <div style={{ padding: '22px 24px 18px', borderBottom: '1px solid #ebebeb', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Event Title *</label>
-                  <input
-                    type="text"
-                    value={newEvent.title}
-                    onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Event name"
-                  />
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 700, color: '#0a72ef', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>
+                    <Calendar size={12} />
+                    Events
+                  </div>
+                  <h3 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.04em', color: '#171717', marginBottom: 6 }}>Create New Event</h3>
+                  <p style={{ fontSize: 14, color: '#666666', lineHeight: 1.6 }}>
+                    Share the details clearly so learners know when and where to join.
+                  </p>
                 </div>
+                <button
+                  onClick={() => setShowCreateModal(false)}
+                  style={{ padding: 8, color: '#808080', background: '#fafafa', border: '1px solid #ebebeb', borderRadius: 10, cursor: 'pointer', flexShrink: 0 }}
+                  aria-label="Close create event modal"
+                >
+                  <X size={16} />
+                </button>
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                  <textarea
-                    value={newEvent.description}
-                    onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })}
-                    rows={3}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Event details..."
-                  />
-                </div>
+              <div style={{ padding: 24, overflowY: 'auto', maxHeight: 'calc(min(88vh, 820px) - 154px)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 18 }}>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Event Title *</label>
+                    <input
+                      type="text"
+                      value={newEvent.title}
+                      onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Quarterly kickoff, workshop, town hall..."
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Date & Time *</label>
-                  <input
-                    type="datetime-local"
-                    value={newEvent.event_date}
-                    onChange={(e) => setNewEvent({ ...newEvent, event_date: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                    <textarea
+                      value={newEvent.description}
+                      onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })}
+                      rows={4}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="What is this event about, who should attend, and what should they prepare?"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
-                  <input
-                    type="text"
-                    value={newEvent.location}
-                    onChange={(e) => setNewEvent({ ...newEvent, location: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Event location"
-                  />
-                </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Date & Time *</label>
+                    <div className="relative">
+                      <Clock className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="datetime-local"
+                        value={newEvent.event_date}
+                        onChange={(e) => setNewEvent({ ...newEvent, event_date: e.target.value })}
+                        className="w-full rounded-xl border border-gray-300 py-3 pl-11 pr-4 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Virtual Link</label>
-                  <input
-                    type="url"
-                    value={newEvent.virtual_link}
-                    onChange={(e) => setNewEvent({ ...newEvent, virtual_link: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Meeting link (optional)"
-                  />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
+                    <div className="relative">
+                      <MapPin className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="text"
+                        value={newEvent.location}
+                        onChange={(e) => setNewEvent({ ...newEvent, location: e.target.value })}
+                        className="w-full rounded-xl border border-gray-300 py-3 pl-11 pr-4 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Office, auditorium, campus..."
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Virtual Link</label>
+                    <div className="relative">
+                      <LinkIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="url"
+                        value={newEvent.virtual_link}
+                        onChange={(e) => setNewEvent({ ...newEvent, virtual_link: e.target.value })}
+                        className="w-full rounded-xl border border-gray-300 py-3 pl-11 pr-4 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="https://meet.google.com/... or Zoom link"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex gap-3 mt-6">
+              <div style={{ padding: '18px 24px 24px', borderTop: '1px solid #ebebeb', display: 'flex', gap: 12, justifyContent: 'flex-end', background: '#fafafa' }}>
                 <button
                   onClick={() => setShowCreateModal(false)}
-                  className="flex-1 px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
+                  className="lt-btn-secondary"
+                  style={{ minWidth: 120, padding: '10px 16px', borderRadius: 10 }}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleCreateEvent}
-                  className="lt-btn-primary flex-1"
-                  style={{padding:'9px 16px',borderRadius:8}}
+                  className="lt-btn-primary"
+                  style={{ minWidth: 160, padding: '10px 16px', borderRadius: 10 }}
                 >
                   Create Event
                 </button>
               </div>
-            </div>
-          </div>
-        )}
+        </AppModal>
       </div>
     </Layout>
   );
