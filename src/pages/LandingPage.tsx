@@ -34,20 +34,20 @@ const STATS = [
 const PIPELINE = [
   { step: 'Learn', desc: 'Assign courses, SCORM content, and AI-personalised paths to every learner worldwide.', accent: T.blue, icon: BookOpen },
   { step: 'Practice', desc: 'AI mock calls, live coaching sessions, and real-time feedback loops graded automatically.', accent: T.pink, icon: Phone },
-  { step: 'Measure', desc: 'Live dashboards plus skills assessments — completion, scores, hiring signals, and ROI in one view.', accent: T.red, icon: BarChart3 },
+  { step: 'Measure', desc: 'Live dashboards plus skills assessments: completion, scores, hiring signals, and ROI in one view.', accent: T.red, icon: BarChart3 },
 ];
 
 const FEATURES = [
   { icon: Brain, title: 'AI-Powered Paths', body: 'Adaptive learning that responds to each learner\'s velocity, style, and performance signals in real time.', accent: T.blue },
   { icon: Phone, title: 'Call Intelligence', body: 'AI-graded mock calls with transcript scoring, tone analysis, and manager roll-up across regions.', accent: T.pink },
   { icon: Globe2, title: 'Global by Default', body: 'Deploy to 150+ countries with localisation, timezone scheduling, and regional compliance baked in.', accent: T.red },
-  { icon: Shield, title: 'Enterprise Security', body: 'SOC 2 compliant. Role-based access, SSO, and end-to-end encryption — zero friction.', accent: T.blue },
+  { icon: Shield, title: 'Enterprise Security', body: 'SOC 2 compliant. Role-based access, SSO, and end-to-end encryption. Zero friction.', accent: T.blue },
   { icon: Video, title: 'SCORM + xAPI', body: 'Full SCORM 1.2/2004 support. Import existing content in minutes. No rebuild required.', accent: T.pink },
   { icon: BarChart3, title: 'Deep Analytics', body: 'Surface completion, performance, and ROI signals across every market from a single dashboard.', accent: T.red },
   { icon: Mail, title: 'Email Nudges', body: 'Automated reminders and drip campaigns that lift completion without manual chasing from managers.', accent: T.blue },
-  { icon: Award, title: 'Certificates', body: 'Issue branded completion certificates with audit trails — ready for compliance and regulator reviews.', accent: T.pink },
+  { icon: Award, title: 'Certificates', body: 'Issue branded completion certificates with audit trails, ready for compliance and regulator reviews.', accent: T.pink },
   { icon: Workflow, title: 'Assignment Rules', body: 'Auto-assign courses by role, department, or region. Onboard new hires on day one, globally.', accent: T.red },
-  { icon: ClipboardCheck, title: 'Skills Assessments', body: 'Role-based tests with public candidate links, AI scoring, and manual grading — for hiring and certifications.', accent: T.blue },
+  { icon: ClipboardCheck, title: 'Skills Assessments', body: 'Role-based tests with public candidate links, AI scoring, and manual grading for hiring and certifications.', accent: T.blue },
 ];
 
 const PRODUCT_MODULES = [
@@ -55,11 +55,11 @@ const PRODUCT_MODULES = [
   { icon: Brain, title: 'AI Tutor', body: '24/7 coaching grounded in your course content and company policies.', href: '/login', tag: 'Learning', accent: T.blue, span: 1 },
   { icon: Video, title: 'Live Call Coaching', body: 'Record, review, and score real customer calls with manager feedback loops.', href: '/login', tag: 'Coaching', accent: T.red, span: 1 },
   { icon: BookOpen, title: 'SCORM Courses', body: 'Upload SCORM packages or build modules in the editor. Track every interaction.', href: '/login', tag: 'Content', accent: T.blue, span: 1 },
-  { icon: Library, title: 'Books Library', body: 'PDF libraries with in-app reader — ideal for playbooks, policies, and product docs.', href: '/login', tag: 'Resources', accent: T.pink, span: 1 },
+  { icon: Library, title: 'Books Library', body: 'PDF libraries with in-app reader for playbooks, policies, and product docs.', href: '/login', tag: 'Resources', accent: T.pink, span: 1 },
   { icon: Sparkles, title: 'DNA Studio', body: 'Extract brand DNA from any URL and generate on-brand social campaigns with AI.', href: '/dna-studio', tag: 'Marketing', accent: T.red, span: 1 },
   { icon: Bot, title: 'Tavrion Bot', body: 'Turn any website into a RAG-powered chatbot widget in minutes.', href: '/tavrion-bot', tag: 'Support', accent: T.blue, span: 1 },
-  { icon: ClipboardCheck, title: 'Tavrion Test', body: 'Role-based assessments with public candidate links, AI scoring, and manual grading — for hiring, certifications, and skills benchmarks.', href: '/login', tag: 'Hiring', accent: T.red, span: 2 },
-  { icon: BarChart3, title: 'Analytics Hub', body: 'Completion, scores, leaderboards, and course reports — one dashboard for every org.', href: '/login', tag: 'Insights', accent: T.pink, span: 2 },
+  { icon: ClipboardCheck, title: 'Tavrion Test', body: 'Role-based assessments with public candidate links, AI scoring, and manual grading for hiring, certifications, and skills benchmarks.', href: '/login', tag: 'Hiring', accent: T.red, span: 2 },
+  { icon: BarChart3, title: 'Analytics Hub', body: 'Completion, scores, leaderboards, and course reports in one dashboard for every org.', href: '/login', tag: 'Insights', accent: T.pink, span: 2 },
 ];
 
 const INTEGRATIONS = [
@@ -94,11 +94,11 @@ const FAQS = [
   },
   {
     q: 'How does AI mock call training work?',
-    a: 'Learners run simulated sales or support calls. Tavrion\'s AI analyses transcripts for objection handling, tone, product knowledge, and call structure — then surfaces coaching feedback and manager dashboards.',
+    a: 'Learners run simulated sales or support calls. Tavrion\'s AI analyses transcripts for objection handling, tone, product knowledge, and call structure, then surfaces coaching feedback and manager dashboards.',
   },
   {
     q: 'Can we run hiring or certification tests?',
-    a: 'Yes. Tavrion Test lets you build or use role-based assessment templates, share public candidate links (no login required), auto-score responses with AI, and review results in a manual grading queue — ideal for hiring, certifications, and skills benchmarks.',
+    a: 'Yes. Tavrion Test lets you build or use role-based assessment templates, share public candidate links (no login required), auto-score responses with AI, and review results in a manual grading queue. Ideal for hiring, certifications, and skills benchmarks.',
   },
   {
     q: 'Is there a free plan?',
@@ -146,7 +146,7 @@ const SOLUTIONS = [
 const ENTERPRISE_FEATURES = [
   { icon: Lock, title: 'SOC 2 Type II', body: 'Independently audited. Your data is encrypted at rest and in transit.' },
   { icon: Shield, title: 'SSO & SAML', body: 'Integrate with Okta, Azure AD, Google Workspace, or any SAML 2.0 provider.' },
-  { icon: Globe, title: 'Data Residency', body: 'Choose where your data lives — EU, US, APAC, or a private cloud deployment.' },
+  { icon: Globe, title: 'Data Residency', body: 'Choose where your data lives: EU, US, APAC, or a private cloud deployment.' },
   { icon: Users, title: 'RBAC', body: 'Granular role-based access control across every org, team, and content type.' },
   { icon: Activity, title: '99.99% SLA', body: 'Enterprise-grade uptime with dedicated support and 24/7 incident response.' },
   { icon: Layers, title: 'API & Webhooks', body: 'Deep integrations with your HRIS, CRM, and existing tech stack via REST API.' },
@@ -155,7 +155,7 @@ const ENTERPRISE_FEATURES = [
 const TESTIMONIALS = [
   { quote: 'Tavrion transformed how we onboard across 30 markets. Completion jumped from 64% to 96% in six months.', name: 'Sarah Mitchell', role: 'Head of L&D, Global Fintech', avatar: 'SM' },
   { quote: 'The mock call AI is extraordinary. Our reps close 23% more deals after four weeks on the platform.', name: 'James Okonkwo', role: 'VP Sales Enablement, EMEA', avatar: 'JO' },
-  { quote: 'Finally a platform built for genuine global scale. Real-time analytics across every region — one view.', name: 'Priya Sharma', role: 'Chief People Officer, TechScale', avatar: 'PS' },
+  { quote: 'Finally a platform built for genuine global scale. Real-time analytics across every region in one view.', name: 'Priya Sharma', role: 'Chief People Officer, TechScale', avatar: 'PS' },
 ];
 
 const LOGOS = ['Meridian', 'NovaPay', 'AtlasOps', 'TechScale', 'GlobalBank', 'Stellar'];
@@ -476,7 +476,7 @@ export function LandingPage() {
               animationDelay: '80ms',
             }}>
               Train, coach, and assess<br />
-              <span style={{ color: T.textMuted }}>every team — in one platform.</span>
+              <span style={{ color: T.textMuted }}>every team, in one platform.</span>
             </h1>
 
             <p className="lp-hero-in" style={{
@@ -486,7 +486,7 @@ export function LandingPage() {
               letterSpacing: '-0.01em',
               animationDelay: '160ms',
             }}>
-              From onboarding and compliance to AI coaching and hiring assessments — Tavrion helps L&D, people, and ops teams build capability and prove it, worldwide.
+              From onboarding and compliance to AI coaching and hiring assessments. Tavrion helps L&D, people, and ops teams build capability and prove it, worldwide.
             </p>
 
             <div className="lp-hero-in" style={{
@@ -547,14 +547,12 @@ export function LandingPage() {
             )}
           </div>
 
-          {/* Right — app screenshot carousel */}
+          {/* Right: app screenshot carousel */}
           <div className="lp-hero-in" style={{
             width: '100%',
             maxWidth: isTablet ? 640 : 'none',
             margin: isTablet ? '0 auto' : 0,
             animationDelay: '320ms',
-            transform: isTablet ? 'none' : 'perspective(1200px) rotateY(-4deg) rotateX(2deg)',
-            transformOrigin: 'center left',
           }}>
             <LandingHeroCarousel compact={isMobile} />
           </div>
@@ -610,7 +608,7 @@ export function LandingPage() {
               One platform. Every workflow.
             </h2>
             <p style={{ fontSize: isMobile ? 15 : 17, color: T.textBody, maxWidth: 560, margin: '0 auto', lineHeight: 1.7 }}>
-              From course delivery to AI coaching and brand tools — every module shares the same learner data, org structure, and analytics layer.
+              From course delivery to AI coaching and brand tools. Every module shares the same learner data, org structure, and analytics layer.
             </p>
           </div>
           </Reveal>
@@ -739,7 +737,7 @@ export function LandingPage() {
               Built for every team
             </h2>
             <p style={{ fontSize: isMobile ? 15 : 17, color: T.textBody, maxWidth: 480, margin: '0 auto', lineHeight: 1.7 }}>
-              From sales floors to compliance departments — Tavrion adapts to your workflow.
+              From sales floors to compliance departments. Tavrion adapts to your workflow.
             </p>
           </div>
 
@@ -896,7 +894,7 @@ export function LandingPage() {
               ))}
               <div style={{ marginTop: 14, padding: 12, background: T.bgSubtle, borderRadius: 8, boxShadow: T.shadowBorder }}>
                 <p style={{ fontSize: 11, fontWeight: 600, color: T.textFaint, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>AI Coach Feedback</p>
-                <p style={{ fontSize: 13, color: T.textBody, lineHeight: 1.65 }}>"Strong product knowledge. Work on structure — open with rapport before discovery."</p>
+                <p style={{ fontSize: 13, color: T.textBody, lineHeight: 1.65 }}>"Strong product knowledge. Work on structure. Open with rapport before discovery."</p>
               </div>
             </div>
           </div>

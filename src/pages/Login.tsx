@@ -204,7 +204,7 @@ export function Login() {
               <span style={{ color: T.textMuted }}>Scale without limits.</span>
             </h1>
             <p style={{ fontSize: 15, color: T.textBody, lineHeight: 1.7, maxWidth: 360 }}>
-              The enterprise learning and assessment platform — courses, AI coaching, skills tests, and analytics for every team.
+              The enterprise learning and assessment platform: courses, AI coaching, skills tests, and analytics for every team.
             </p>
           </div>
 

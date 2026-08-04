@@ -8,21 +8,21 @@ export const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.svg`;
 
 export const SEO = {
   home: {
-    title: 'Tavrion — Enterprise Learning & Assessment Platform',
+    title: 'Tavrion | Enterprise Learning & Assessment Platform',
     description:
-      'Enterprise learning and assessment platform for global teams. Deliver SCORM courses, run AI coaching and live call practice, issue certificates, and assess talent for hiring and upskilling — all in one system across 150+ countries.',
+      'Enterprise learning and assessment platform for global teams. Deliver SCORM courses, run AI coaching and live call practice, issue certificates, and assess talent for hiring and upskilling, all in one system across 150+ countries.',
     keywords:
       'enterprise learning platform, learning and assessment platform, skills assessment software, hiring assessment platform, SCORM LMS, AI coaching, mock call training, employee onboarding, compliance training, candidate assessment, multi-tenant LMS, learning analytics',
     path: '/',
   },
   dnaStudio: {
-    title: 'DNA Studio — AI Brand & Campaign Generator | Tavrion',
+    title: 'DNA Studio | AI Brand & Campaign Generator | Tavrion',
     description:
-      'Paste any URL to extract brand DNA, colors, and tone — then generate on-brand social campaigns and images with AI. Free brand analysis tool by Tavrion.',
+      'Paste any URL to extract brand DNA, colors, and tone, then generate on-brand social campaigns and images with AI. Free brand analysis tool by Tavrion.',
     path: '/dna-studio',
   },
   tavrionBot: {
-    title: 'Tavrion Bot — AI Website Chatbot with RAG | Tavrion',
+    title: 'Tavrion Bot | AI Website Chatbot with RAG | Tavrion',
     description:
       'Turn any website into an AI chatbot in minutes. Crawl your site, embed a branded widget, and answer visitor questions with grounded RAG responses.',
     path: '/tavrion-bot',
@@ -30,7 +30,7 @@ export const SEO = {
   login: {
     title: 'Sign In | Tavrion',
     description:
-      'Sign in to Tavrion — the enterprise learning and assessment platform with AI coaching, SCORM courses, skills tests, and team analytics.',
+      'Sign in to Tavrion, the enterprise learning and assessment platform with AI coaching, SCORM courses, skills tests, and team analytics.',
     path: '/login',
     noindex: true,
   },

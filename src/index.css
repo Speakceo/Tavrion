@@ -167,6 +167,15 @@
     animation-fill-mode: forwards;
   }
 
+  @keyframes lp-carousel-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+
+  .lp-hero-carousel-stage {
+    animation: lp-carousel-float 5.5s ease-in-out infinite;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .lp-hero-carousel-track {
       transition: none !important;
@@ -174,6 +183,9 @@
     .lp-carousel-progress {
       animation: none !important;
       transform: scaleX(1) !important;
+    }
+    .lp-hero-carousel-stage {
+      animation: none !important;
     }
   }
 

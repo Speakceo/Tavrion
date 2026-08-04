@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import {
   Award, BarChart3, BookOpen, Calendar, CheckCircle, Home, MessageSquare,
   Phone, TrendingUp, Users, Video, Zap,
@@ -243,7 +243,7 @@ function MockCallsSlide({ compact }: { compact: boolean }) {
           <span style={{ fontSize: 11, fontWeight: 600, color: T.text }}>AI coaching tip</span>
         </div>
         <p style={{ fontSize: 11, color: T.textBody, lineHeight: 1.5 }}>
-          Strong discovery. Next: quantify pain before presenting pricing — ask for the cost of delay.
+          Strong discovery. Next: quantify pain before presenting pricing. Ask for the cost of delay.
         </p>
       </div>
     </Shell>
@@ -429,7 +429,9 @@ export function LandingHeroCarousel({ compact = false }: { compact?: boolean }) 
   const [paused, setPaused] = useState(false);
   const [animate, setAnimate] = useState(true);
   const [progressKey, setProgressKey] = useState(0);
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const trackRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
 
   const displayIndex = index % SLIDES.length;
   const slide = SLIDES[displayIndex];
@@ -453,7 +455,8 @@ export function LandingHeroCarousel({ compact = false }: { compact?: boolean }) 
     const track = trackRef.current;
     if (!track) return undefined;
 
-    const onEnd = () => {
+    const onEnd = (event: TransitionEvent) => {
+      if (event.propertyName !== 'transform') return;
       if (index < SLIDES.length) return;
       setAnimate(false);
       setIndex(0);
@@ -472,75 +475,146 @@ export function LandingHeroCarousel({ compact = false }: { compact?: boolean }) 
     setProgressKey((key) => key + 1);
   };
 
+  const handlePointerMove = (event: MouseEvent<HTMLDivElement>) => {
+    if (compact) return;
+    const stage = stageRef.current;
+    if (!stage) return;
+    const rect = stage.getBoundingClientRect();
+    const px = (event.clientX - rect.left) / rect.width;
+    const py = (event.clientY - rect.top) / rect.height;
+    setTilt({
+      x: (0.5 - py) * 10,
+      y: (px - 0.5) * 14,
+    });
+  };
+
+  const resetTilt = () => setTilt({ x: 0, y: 0 });
+
+  const frameTransform = compact
+    ? 'none'
+    : `perspective(1400px) rotateX(${6 + tilt.x}deg) rotateY(${-12 + tilt.y}deg) translateZ(0)`;
+
   return (
     <div
       onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
+      onMouseLeave={() => {
+        setPaused(false);
+        resetTilt();
+      }}
       style={{ width: '100%' }}
     >
-      <div style={{
-        background: T.bg,
-        borderRadius: 14,
-        boxShadow: 'rgba(0,0,0,0.08) 0px 0px 0px 1px, rgba(0,0,0,0.06) 0px 8px 24px, rgba(0,0,0,0.04) 0px 24px 48px -12px',
-        overflow: 'hidden',
-        border: `1px solid ${T.borderStrong}`,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '11px 14px', background: T.bgSubtle, borderBottom: `1px solid ${T.borderStrong}` }}>
-          <div style={{ width: 9, height: 9, borderRadius: '50%', background: '#ff5b4f' }} />
-          <div style={{ width: 9, height: 9, borderRadius: '50%', background: '#f59e0b' }} />
-          <div style={{ width: 9, height: 9, borderRadius: '50%', background: '#10b981' }} />
-          <div style={{
-            flex: 1, marginLeft: 8, background: T.bg, border: `1px solid ${T.borderStrong}`,
-            borderRadius: 6, padding: '4px 10px', fontSize: 11, color: T.textFaint, maxWidth: 260,
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            transition: 'opacity 0.3s ease',
-          }}>
-            {slide.url}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 4 }}>
-            <Zap size={11} color={paused ? T.textFaint : T.blue} />
-            <span style={{ fontSize: 9, fontWeight: 600, color: paused ? T.textFaint : T.blue }}>
-              {paused ? 'Paused' : 'Auto'}
-            </span>
-          </div>
-        </div>
+      <div
+        ref={stageRef}
+        onMouseMove={handlePointerMove}
+        className={compact ? undefined : 'lp-hero-carousel-stage'}
+        style={{
+          position: 'relative',
+          padding: compact ? 0 : '8px 10px 28px',
+          perspective: compact ? undefined : 1400,
+        }}
+      >
+        {!compact && (
+          <>
+            <div aria-hidden style={{
+              position: 'absolute', left: '8%', right: '8%', bottom: 8, height: 28,
+              background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.22) 0%, transparent 70%)',
+              filter: 'blur(10px)',
+              transform: 'translateZ(-40px)',
+              pointerEvents: 'none',
+            }} />
+            <div aria-hidden style={{
+              position: 'absolute', inset: '18px 18px auto', height: '70%',
+              borderRadius: 20,
+              background: 'linear-gradient(135deg, rgba(10,114,239,0.12), rgba(222,29,141,0.08))',
+              filter: 'blur(18px)',
+              transform: 'translateZ(-24px) rotateY(-8deg)',
+              pointerEvents: 'none',
+            }} />
+          </>
+        )}
 
-        <div className="lp-hero-carousel-viewport" style={{ position: 'relative', overflow: 'hidden' }}>
-          <div
-            ref={trackRef}
-            className="lp-hero-carousel-track"
-            style={{
-              display: 'flex',
-              width: `${trackSlides.length * 100}%`,
-              transform: `translate3d(-${(index * 100) / trackSlides.length}%, 0, 0)`,
-              transition: animate
-                ? 'transform 0.7s cubic-bezier(0.22, 1, 0.36, 1)'
-                : 'none',
-              willChange: 'transform',
-            }}
-          >
-            {trackSlides.map((SlideView, i) => (
-              <div
-                key={`${trackMeta[i].id}-${i}`}
-                style={{
-                  width: `${100 / trackSlides.length}%`,
-                  flexShrink: 0,
-                  opacity: (i === index || (index === SLIDES.length && i === 0)) ? 1 : 0.72,
-                  transform: (i === index || (index === SLIDES.length && i === 0)) ? 'scale(1)' : 'scale(0.985)',
-                  transition: animate
-                    ? 'opacity 0.55s ease, transform 0.7s cubic-bezier(0.22, 1, 0.36, 1)'
-                    : 'none',
-                }}
-              >
-                <SlideView compact={compact} />
-              </div>
-            ))}
+        <div
+          className={compact ? undefined : 'lp-hero-carousel-frame'}
+          style={{
+            position: 'relative',
+            background: T.bg,
+            borderRadius: 16,
+            overflow: 'hidden',
+            border: `1px solid ${T.borderStrong}`,
+            transform: frameTransform,
+            transformStyle: 'preserve-3d',
+            transformOrigin: 'center center',
+            transition: compact ? undefined : 'transform 0.18s ease-out',
+            boxShadow: compact
+              ? 'rgba(0,0,0,0.08) 0px 0px 0px 1px, rgba(0,0,0,0.06) 0px 8px 24px'
+              : 'rgba(0,0,0,0.1) 0px 0px 0px 1px, rgba(0,0,0,0.08) 0px 12px 28px, rgba(0,0,0,0.12) 0px 32px 64px -16px, rgba(255,255,255,0.7) 0px 1px 0px inset',
+          }}
+        >
+          <div aria-hidden style={{
+            position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 2,
+            background: 'linear-gradient(125deg, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0.05) 28%, transparent 48%)',
+          }} />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '11px 14px', background: T.bgSubtle, borderBottom: `1px solid ${T.borderStrong}`, position: 'relative', zIndex: 1 }}>
+            <div style={{ width: 9, height: 9, borderRadius: '50%', background: '#ff5b4f' }} />
+            <div style={{ width: 9, height: 9, borderRadius: '50%', background: '#f59e0b' }} />
+            <div style={{ width: 9, height: 9, borderRadius: '50%', background: '#10b981' }} />
+            <div style={{
+              flex: 1, marginLeft: 8, background: T.bg, border: `1px solid ${T.borderStrong}`,
+              borderRadius: 6, padding: '4px 10px', fontSize: 11, color: T.textFaint, maxWidth: 260,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              transition: 'opacity 0.3s ease',
+            }}>
+              {slide.url}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 4 }}>
+              <Zap size={11} color={paused ? T.textFaint : T.blue} />
+              <span style={{ fontSize: 9, fontWeight: 600, color: paused ? T.textFaint : T.blue }}>
+                {paused ? 'Paused' : 'Auto'}
+              </span>
+            </div>
+          </div>
+
+          <div className="lp-hero-carousel-viewport" style={{ position: 'relative', overflow: 'hidden', zIndex: 1 }}>
+            <div
+              ref={trackRef}
+              className="lp-hero-carousel-track"
+              style={{
+                display: 'flex',
+                width: `${trackSlides.length * 100}%`,
+                transform: `translate3d(-${(index * 100) / trackSlides.length}%, 0, 0)`,
+                transition: animate
+                  ? 'transform 0.7s cubic-bezier(0.22, 1, 0.36, 1)'
+                  : 'none',
+                willChange: 'transform',
+              }}
+            >
+              {trackSlides.map((SlideView, i) => {
+                const active = i === index || (index === SLIDES.length && i === 0);
+                return (
+                  <div
+                    key={`${trackMeta[i].id}-${i}`}
+                    style={{
+                      width: `${100 / trackSlides.length}%`,
+                      flexShrink: 0,
+                      opacity: active ? 1 : 0.7,
+                      transform: active ? 'scale(1) translateZ(0)' : 'scale(0.97) translateZ(-20px)',
+                      transition: animate
+                        ? 'opacity 0.55s ease, transform 0.7s cubic-bezier(0.22, 1, 0.36, 1)'
+                        : 'none',
+                    }}
+                  >
+                    <SlideView compact={compact} />
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
 
       <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 14,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: compact ? 14 : 6,
       }}>
         {SLIDES.map((item, i) => {
           const active = i === displayIndex;
