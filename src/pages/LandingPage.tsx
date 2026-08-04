@@ -2,14 +2,14 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { animate, onScroll } from 'animejs';
 import { Reveal } from '../components/LandingReveal';
+import { LandingHeroCarousel } from '../components/LandingHeroCarousel';
 import { TavrionLogo } from '../components/TavrionLogo';
 import { SEO, usePageSeo, injectJsonLd, removeJsonLd, SITE_URL } from '../lib/seo';
 import {
-  Globe as Globe2, ArrowRight, CheckCircle, Users, BookOpen, TrendingUp, BarChart3,
+  Globe as Globe2, ArrowRight, CheckCircle, Users, BookOpen, BarChart3,
   Brain, Phone, Shield, Video, Star, ChevronRight, Play, Award, MessageSquare,
   Activity, Zap, Building2, Layers, Target, GraduationCap, Headphones, Lock, Globe,
   Check, Menu, X, Sparkles, Bot, Mail, Workflow, ChevronDown, Library, ClipboardCheck,
-  Home,
 } from 'lucide-react';
 
 const T = {
@@ -546,153 +546,16 @@ export function LandingPage() {
             )}
           </div>
 
-          {/* Right — app screenshot */}
+          {/* Right — app screenshot carousel */}
           <div className="lp-hero-in" style={{
             width: '100%',
             maxWidth: isTablet ? 640 : 'none',
             margin: isTablet ? '0 auto' : 0,
             animationDelay: '320ms',
+            transform: isTablet ? 'none' : 'perspective(1200px) rotateY(-4deg) rotateX(2deg)',
+            transformOrigin: 'center left',
           }}>
-            <div style={{
-              background: T.bg,
-              borderRadius: 14,
-              boxShadow: 'rgba(0,0,0,0.08) 0px 0px 0px 1px, rgba(0,0,0,0.06) 0px 8px 24px, rgba(0,0,0,0.04) 0px 24px 48px -12px',
-              overflow: 'hidden',
-              border: `1px solid ${T.borderStrong}`,
-              transform: isTablet ? 'none' : 'perspective(1200px) rotateY(-4deg) rotateX(2deg)',
-              transformOrigin: 'center left',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '11px 14px', background: T.bgSubtle, borderBottom: `1px solid ${T.borderStrong}` }}>
-                <div style={{ width: 9, height: 9, borderRadius: '50%', background: '#ff5b4f' }} />
-                <div style={{ width: 9, height: 9, borderRadius: '50%', background: '#f59e0b' }} />
-                <div style={{ width: 9, height: 9, borderRadius: '50%', background: '#10b981' }} />
-                <div style={{
-                  flex: 1, marginLeft: 8, background: T.bg, border: `1px solid ${T.borderStrong}`,
-                  borderRadius: 6, padding: '4px 10px', fontSize: 11, color: T.textFaint, maxWidth: 220,
-                }}>
-                  app.jointavrion.com/dashboard
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr', minHeight: isMobile ? 280 : 360 }}>
-                {/* Mini sidebar */}
-                <div style={{
-                  background: T.text, padding: '14px 10px',
-                  display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center',
-                }}>
-                  <div style={{
-                    width: 28, height: 28, borderRadius: 8, background: 'rgba(255,255,255,0.12)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 11, fontWeight: 700, color: '#fff', marginBottom: 8,
-                  }}>T</div>
-                  {[Home, BookOpen, Phone, BarChart3, Users, Award].map((Icon, i) => (
-                      <div key={i} style={{
-                        width: 32, height: 32, borderRadius: 8,
-                        background: i === 0 ? 'rgba(255,255,255,0.14)' : 'transparent',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}>
-                        <Icon size={14} color={i === 0 ? '#fff' : 'rgba(255,255,255,0.45)'} />
-                      </div>
-                  ))}
-                </div>
-
-                {/* Main panel */}
-                <div style={{ background: T.bgSubtle, padding: isMobile ? 12 : 16 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                    <div>
-                      <p style={{ fontSize: 11, color: T.textFaint, marginBottom: 2, fontWeight: 500 }}>Overview</p>
-                      <p style={{ fontSize: 15, fontWeight: 700, color: T.text, letterSpacing: '-0.03em' }}>Learning dashboard</p>
-                    </div>
-                    <div style={{
-                      fontSize: 10, fontWeight: 600, color: T.blue, background: '#ebf5ff',
-                      padding: '4px 8px', borderRadius: 9999,
-                    }}>Live</div>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 12 }}>
-                    {[
-                      { icon: Users, label: 'Learners', value: '12.8k', delta: '+18%', accent: T.blue },
-                      { icon: BookOpen, label: 'Completed', value: '94.2k', delta: '+34%', accent: T.pink },
-                      { icon: TrendingUp, label: 'Avg score', value: '87.4%', delta: '+6%', accent: T.red },
-                    ].map(card => (
-                      <div key={card.label} style={{
-                        background: T.bg, borderRadius: 10, padding: isMobile ? '10px 8px' : '12px 10px',
-                        boxShadow: T.shadowBorder,
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                          <div style={{
-                            width: 24, height: 24, background: T.bgSubtle, borderRadius: 6,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          }}>
-                            <card.icon size={12} style={{ color: card.accent }} />
-                          </div>
-                          <span style={{ fontSize: 9, fontWeight: 600, color: '#10b981' }}>{card.delta}</span>
-                        </div>
-                        <p style={{ fontSize: isMobile ? 14 : 16, fontWeight: 700, letterSpacing: '-0.04em', color: T.text, marginBottom: 1 }}>{card.value}</p>
-                        <p style={{ fontSize: 9, color: T.textFaint }}>{card.label}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div style={{
-                    background: T.bg, borderRadius: 10, padding: isMobile ? 12 : 14,
-                    boxShadow: T.shadowBorder, marginBottom: 10,
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: T.textBody }}>Global completion</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: T.text }}>96.2%</span>
-                    </div>
-                    <div style={{ background: T.bgSection, borderRadius: 100, height: 5, overflow: 'hidden', marginBottom: 8 }}>
-                      <div className="lp-progress-fill" style={{
-                        width: '96.2%', height: '100%',
-                        background: `linear-gradient(90deg, ${T.blue}, ${T.pink})`,
-                        borderRadius: 100,
-                      }} />
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      {['AMER', 'EU', 'APAC', 'MENA'].map(r => (
-                        <span key={r} style={{ fontSize: 9, color: T.textFaint, fontWeight: 500 }}>{r}</span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 8 }}>
-                    <div style={{ background: T.bg, borderRadius: 10, padding: 12, boxShadow: T.shadowBorder }}>
-                      <p style={{ fontSize: 11, fontWeight: 600, color: T.text, marginBottom: 8 }}>Active journeys</p>
-                      {[
-                        { name: 'Sales ramp', pct: 82 },
-                        { name: 'Compliance Q3', pct: 64 },
-                        { name: 'Product update', pct: 91 },
-                      ].map(row => (
-                        <div key={row.name} style={{ marginBottom: 8 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                            <span style={{ fontSize: 10, color: T.textMuted }}>{row.name}</span>
-                            <span style={{ fontSize: 10, fontWeight: 600, color: T.text }}>{row.pct}%</span>
-                          </div>
-                          <div style={{ background: T.bgSection, borderRadius: 100, height: 3, overflow: 'hidden' }}>
-                            <div style={{ width: `${row.pct}%`, height: '100%', background: T.text, borderRadius: 100 }} />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{ background: T.bg, borderRadius: 10, padding: 12, boxShadow: T.shadowBorder }}>
-                      <p style={{ fontSize: 11, fontWeight: 600, color: T.text, marginBottom: 8 }}>AI coaching</p>
-                      <div style={{
-                        background: T.bgSubtle, borderRadius: 8, padding: 10,
-                        border: `1px solid ${T.borderStrong}`,
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                          <Phone size={11} color={T.pink} />
-                          <span style={{ fontSize: 10, fontWeight: 600, color: T.text }}>Mock call score</span>
-                        </div>
-                        <p style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.04em', color: T.text, marginBottom: 2 }}>91</p>
-                        <p style={{ fontSize: 9, color: T.textFaint }}>Objection handling · Tone · Structure</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <LandingHeroCarousel compact={isMobile} />
           </div>
         </div>
       </section>
