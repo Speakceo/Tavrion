@@ -23,18 +23,18 @@
     <circle cx="65.5" cy="53" r="3.8" fill="#ffffff" opacity="0.95"/>
 
     <text x="112" y="58" fill="#171717" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="52" font-weight="700" letter-spacing="-2.2">Tavrion</text>
-    <text x="112" y="96" fill="#666666" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="24" font-weight="500" letter-spacing="-0.4">Train the world. Scale without limits.</text>
+    <text x="112" y="96" fill="#666666" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="22" font-weight="500" letter-spacing="-0.4">Enterprise sales &amp; hiring assessment platform</text>
   </g>
 
   <g transform="translate(96, 330)">
-    <rect x="0" y="0" width="318" height="56" rx="12" fill="#ffffff" stroke="rgba(0,0,0,0.08)" stroke-width="1"/>
-    <text x="20" y="35" fill="#171717" font-family="Inter, system-ui, sans-serif" font-size="18" font-weight="600">AI mock calls &amp; coaching</text>
+    <rect x="0" y="0" width="300" height="56" rx="12" fill="#ffffff" stroke="rgba(0,0,0,0.08)" stroke-width="1"/>
+    <text x="20" y="35" fill="#171717" font-family="Inter, system-ui, sans-serif" font-size="18" font-weight="600">Hiring assessments</text>
 
-    <rect x="334" y="0" width="286" height="56" rx="12" fill="#ffffff" stroke="rgba(0,0,0,0.08)" stroke-width="1"/>
-    <text x="354" y="35" fill="#171717" font-family="Inter, system-ui, sans-serif" font-size="18" font-weight="600">SCORM / xAPI LMS</text>
+    <rect x="316" y="0" width="300" height="56" rx="12" fill="#ffffff" stroke="rgba(0,0,0,0.08)" stroke-width="1"/>
+    <text x="336" y="35" fill="#171717" font-family="Inter, system-ui, sans-serif" font-size="18" font-weight="600">AI mock calls</text>
 
-    <rect x="636" y="0" width="300" height="56" rx="12" fill="#ffffff" stroke="rgba(0,0,0,0.08)" stroke-width="1"/>
-    <text x="656" y="35" fill="#171717" font-family="Inter, system-ui, sans-serif" font-size="18" font-weight="600">Global team analytics</text>
+    <rect x="632" y="0" width="300" height="56" rx="12" fill="#ffffff" stroke="rgba(0,0,0,0.08)" stroke-width="1"/>
+    <text x="652" y="35" fill="#171717" font-family="Inter, system-ui, sans-serif" font-size="18" font-weight="600">Sales training LMS</text>
   </g>
 
   <text x="96" y="560" fill="#808080" font-family="Inter, system-ui, sans-serif" font-size="22" font-weight="500">jointavrion.com</text>

@@ -3,15 +3,16 @@ import { useEffect } from 'react';
 export const SITE_URL = 'https://jointavrion.com';
 export const SITE_NAME = 'Tavrion';
 export const BRAND_TAGLINE = 'Train the world. Scale without limits.';
+export const BRAND_POSITIONING = 'Enterprise sales and hiring assessment platform';
 export const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.svg`;
 
 export const SEO = {
   home: {
-    title: 'Tavrion — Enterprise LMS for Sales Training, AI Coaching & SCORM',
+    title: 'Tavrion — Enterprise Sales & Hiring Assessment Platform',
     description:
-      'All-in-one enterprise learning platform for global teams. AI mock calls, SCORM/xAPI courses, live call coaching, multi-org management, certificates, and real-time analytics — deploy in 150+ countries.',
+      'Enterprise sales and hiring assessment platform for global teams. Role-based skills tests, AI mock calls, SCORM courses, live coaching, certificates, and analytics — hire smarter and train faster in 150+ countries.',
     keywords:
-      'enterprise LMS, learning management system, sales training software, AI mock calls, SCORM LMS, call coaching platform, employee onboarding, compliance training, multi-tenant LMS, learning analytics',
+      'enterprise sales assessment platform, hiring assessment platform, sales skills testing, candidate assessment software, AI mock calls, SCORM LMS, sales training software, call coaching platform, role-based assessments, learning analytics, multi-tenant LMS',
     path: '/',
   },
   dnaStudio: {
@@ -28,7 +29,8 @@ export const SEO = {
   },
   login: {
     title: 'Sign In | Tavrion',
-    description: 'Sign in to your Tavrion enterprise learning platform — AI coaching, SCORM courses, and team analytics.',
+    description:
+      'Sign in to Tavrion — the enterprise sales and hiring assessment platform with AI coaching, SCORM courses, and team analytics.',
     path: '/login',
     noindex: true,
   },

@@ -197,14 +197,14 @@ export function Login() {
           <div style={{ marginTop: 'auto', marginBottom: 52 }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: `${T.blue}12`, boxShadow: `${T.blue}40 0px 0px 0px 1px`, borderRadius: 100, padding: '4px 12px', fontSize: 11, fontWeight: 600, color: T.blue, marginBottom: 24, letterSpacing: '0.04em', textTransform: 'uppercase' as const }}>
               <Zap size={10} />
-              Enterprise learning · Global scale
+              Sales & hiring assessments
             </div>
             <h1 style={{ fontSize: 'clamp(32px, 3.5vw, 48px)', fontWeight: 700, letterSpacing: '-0.04em', lineHeight: 1.08, color: T.text, marginBottom: 16 }}>
               Train the world.<br />
               <span style={{ color: T.textMuted }}>Scale without limits.</span>
             </h1>
             <p style={{ fontSize: 15, color: T.textBody, lineHeight: 1.7, maxWidth: 360 }}>
-              The enterprise platform for global teams — AI-powered coaching, SCORM, analytics, and live call training in one system.
+              The enterprise sales and hiring assessment platform — AI coaching, role-based tests, SCORM, and live call training in one system.
             </p>
           </div>
 
