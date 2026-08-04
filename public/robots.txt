@@ -1,5 +1,5 @@
 User-agent: *
-Allow: /landing
+Allow: /
 Allow: /dna-studio
 Allow: /tavrion-bot
 

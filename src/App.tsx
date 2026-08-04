@@ -135,8 +135,8 @@ function App() {
         <KeepaliveBoot />
         <AuthProvider>
           <Routes>
-            <Route path="/" element={<Navigate to="/login" replace />} />
-            <Route path="/landing" element={<LandingPage />} />
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/landing" element={<Navigate to="/" replace />} />
             <Route path="/login" element={<Login />} />
 
           {/* Public candidate assessment — no auth */}
@@ -732,7 +732,7 @@ function App() {
             }
           />
 
-          <Route path="/home" element={<Navigate to="/login" replace />} />
+          <Route path="/home" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

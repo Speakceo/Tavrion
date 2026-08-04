@@ -12,7 +12,7 @@ export const SEO = {
       'All-in-one enterprise learning platform for global teams. AI mock calls, SCORM/xAPI courses, live call coaching, multi-org management, certificates, and real-time analytics — deploy in 150+ countries.',
     keywords:
       'enterprise LMS, learning management system, sales training software, AI mock calls, SCORM LMS, call coaching platform, employee onboarding, compliance training, multi-tenant LMS, learning analytics',
-    path: '/landing',
+    path: '/',
   },
   dnaStudio: {
     title: 'DNA Studio — AI Brand & Campaign Generator | Tavrion',

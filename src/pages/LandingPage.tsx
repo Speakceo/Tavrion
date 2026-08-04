@@ -321,7 +321,7 @@ export function LandingPage() {
         overflowY: 'auto',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
-          <Link to="/landing" onClick={() => setMobileNavOpen(false)} style={{ textDecoration: 'none' }}>
+          <Link to="/" onClick={() => setMobileNavOpen(false)} style={{ textDecoration: 'none' }}>
             <TavrionLogo size="sm" />
           </Link>
           <button onClick={() => setMobileNavOpen(false)} style={{ padding: 6, background: T.bgSection, border: 'none', borderRadius: 7, cursor: 'pointer', color: T.textMuted }}>
@@ -370,7 +370,7 @@ export function LandingPage() {
         transition: 'all 0.3s',
       }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 20px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Link to="/landing" style={{ textDecoration: 'none' }}>
+          <Link to="/" style={{ textDecoration: 'none' }}>
             <TavrionLogo size="md" />
           </Link>
 
