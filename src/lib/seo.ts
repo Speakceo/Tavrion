@@ -3,16 +3,16 @@ import { useEffect } from 'react';
 export const SITE_URL = 'https://jointavrion.com';
 export const SITE_NAME = 'Tavrion';
 export const BRAND_TAGLINE = 'Train the world. Scale without limits.';
-export const BRAND_POSITIONING = 'Enterprise sales and hiring assessment platform';
+export const BRAND_POSITIONING = 'Enterprise learning and assessment platform';
 export const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.svg`;
 
 export const SEO = {
   home: {
-    title: 'Tavrion — Enterprise Sales & Hiring Assessment Platform',
+    title: 'Tavrion — Enterprise Learning & Assessment Platform',
     description:
-      'Enterprise sales and hiring assessment platform for global teams. Role-based skills tests, AI mock calls, SCORM courses, live coaching, certificates, and analytics — hire smarter and train faster in 150+ countries.',
+      'Enterprise learning and assessment platform for global teams. Deliver SCORM courses, run AI coaching and live call practice, issue certificates, and assess talent for hiring and upskilling — all in one system across 150+ countries.',
     keywords:
-      'enterprise sales assessment platform, hiring assessment platform, sales skills testing, candidate assessment software, AI mock calls, SCORM LMS, sales training software, call coaching platform, role-based assessments, learning analytics, multi-tenant LMS',
+      'enterprise learning platform, learning and assessment platform, skills assessment software, hiring assessment platform, SCORM LMS, AI coaching, mock call training, employee onboarding, compliance training, candidate assessment, multi-tenant LMS, learning analytics',
     path: '/',
   },
   dnaStudio: {
@@ -30,7 +30,7 @@ export const SEO = {
   login: {
     title: 'Sign In | Tavrion',
     description:
-      'Sign in to Tavrion — the enterprise sales and hiring assessment platform with AI coaching, SCORM courses, and team analytics.',
+      'Sign in to Tavrion — the enterprise learning and assessment platform with AI coaching, SCORM courses, skills tests, and team analytics.',
     path: '/login',
     noindex: true,
   },

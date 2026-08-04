@@ -16,7 +16,7 @@ export const BRAND = {
   muted: '#666666',
   faint: '#a3a3a3',
   surface: '#f5f5f5',
-  positioning: 'Enterprise sales and hiring assessment platform',
+  positioning: 'Enterprise learning and assessment platform',
   tagline: 'Train the world. Scale without limits.',
 };
 

@@ -531,7 +531,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <TavrionMark size={18} />
             <div>
               <p style={{ fontSize: 11, fontWeight: 600, color: '#bbb', margin: 0, letterSpacing: '-0.02em' }}>Tavrion</p>
-              <p style={{ fontSize: 9, color: '#ccc', margin: 0, lineHeight: 1.3 }}>Sales & hiring assessments</p>
+              <p style={{ fontSize: 9, color: '#ccc', margin: 0, lineHeight: 1.3 }}>Learn · Coach · Assess</p>
             </div>
           </div>
         </aside>

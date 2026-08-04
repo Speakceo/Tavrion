@@ -82,7 +82,7 @@ const COMPARE_ROWS = [
 const FAQS = [
   {
     q: 'What is Tavrion?',
-    a: 'Tavrion is an enterprise sales and hiring assessment platform built for global teams. It combines role-based skills tests, course delivery, AI mock calls, live coaching, certificates, and analytics in one system.',
+    a: 'Tavrion is an enterprise learning and assessment platform for global teams. Use it to onboard and upskill people with SCORM courses, practice with AI and live call coaching, run hiring and skills assessments, issue certificates, and measure outcomes in one place.',
   },
   {
     q: 'Does Tavrion support SCORM?',
@@ -222,13 +222,13 @@ export function LandingPage() {
         { '@type': 'Offer', name: 'Growth', price: '12', priceCurrency: 'USD', priceSpecification: { '@type': 'UnitPriceSpecification', unitText: 'user/month' } },
       ],
       featureList: [
+        'SCORM Course Delivery',
+        'AI Coaching and Mock Calls',
+        'Live Call Practice',
         'Hiring and Skills Assessments',
-        'Role-based Candidate Testing',
-        'AI Mock Call Training',
-        'SCORM 1.2 and 2004',
-        'Live Call Coaching',
+        'Onboarding and Compliance',
+        'Certificates',
         'Multi-organisation LMS',
-        'Email Nudges',
         'Learning Analytics',
       ],
     });
@@ -462,7 +462,7 @@ export function LandingPage() {
                 fontSize: 12, fontWeight: 500, color: T.blue,
                 background: '#ebf5ff', padding: '4px 12px', borderRadius: 9999,
                 boxShadow: T.shadowBorder,
-              }}>Enterprise sales & hiring assessments</span>
+              }}>Learn · Coach · Assess</span>
               <span style={{ fontSize: 12, fontWeight: 500, color: T.textMuted }}>Deploy in 150+ countries</span>
             </div>
 
@@ -475,18 +475,18 @@ export function LandingPage() {
               marginRight: isTablet ? 'auto' : 0,
               animationDelay: '80ms',
             }}>
-              The enterprise platform<br />
-              <span style={{ color: T.textMuted }}>for sales training & hiring assessments.</span>
+              Train, coach, and assess<br />
+              <span style={{ color: T.textMuted }}>every team — in one platform.</span>
             </h1>
 
             <p className="lp-hero-in" style={{
               fontSize: isMobile ? 15 : 17, fontWeight: 400, color: T.textBody,
-              lineHeight: 1.7, maxWidth: 480,
+              lineHeight: 1.7, maxWidth: 500,
               margin: isTablet ? '0 auto 28px' : '0 0 28px',
               letterSpacing: '-0.01em',
               animationDelay: '160ms',
             }}>
-              Hire smarter and train faster — with role-based assessments, SCORM courses, AI mock calls, live coaching, certificates, and analytics in one SaaS platform.
+              From onboarding and compliance to AI coaching and hiring assessments — Tavrion helps L&D, people, and ops teams build capability and prove it, worldwide.
             </p>
 
             <div className="lp-hero-in" style={{
@@ -1041,7 +1041,7 @@ export function LandingPage() {
         <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <div>
             <TavrionLogo size="sm" />
-            <p style={{ fontSize: 11, color: T.textFaint, marginTop: 8, marginBottom: 0 }}>Enterprise sales & hiring assessment platform</p>
+            <p style={{ fontSize: 11, color: T.textFaint, marginTop: 8, marginBottom: 0 }}>Enterprise learning & assessment platform</p>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? 16 : 24 }}>
             <button type="button" onClick={() => scrollTo('product')} style={{ fontSize: 12, color: T.textFaint, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Product</button>
