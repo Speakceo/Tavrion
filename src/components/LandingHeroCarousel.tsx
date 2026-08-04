@@ -431,7 +431,7 @@ export function LandingHeroCarousel({ compact = false }: { compact?: boolean }) 
     if (paused) return undefined;
     const timer = window.setInterval(() => {
       setIndex((current) => (current + 1) % SLIDES.length);
-    }, 4200);
+    }, 2000);
     return () => window.clearInterval(timer);
   }, [paused]);
 
