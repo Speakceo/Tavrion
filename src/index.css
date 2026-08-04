@@ -156,14 +156,24 @@
     transition: outline-color 0.2s ease;
   }
 
-  @keyframes lp-carousel-in {
-    from {
-      opacity: 0;
-      transform: translateX(18px);
+  @keyframes lp-carousel-progress {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+  }
+
+  .lp-carousel-progress {
+    animation-name: lp-carousel-progress;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lp-hero-carousel-track {
+      transition: none !important;
     }
-    to {
-      opacity: 1;
-      transform: translateX(0);
+    .lp-carousel-progress {
+      animation: none !important;
+      transform: scaleX(1) !important;
     }
   }
 

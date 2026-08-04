@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Award, BarChart3, BookOpen, Calendar, CheckCircle, Home, MessageSquare,
   Phone, TrendingUp, Users, Video, Zap,
@@ -422,21 +422,55 @@ function EventsSlide({ compact }: { compact: boolean }) {
 }
 
 const SLIDE_VIEWS = [DashboardSlide, MockCallsSlide, CoursesSlide, AnalyticsSlide, EventsSlide];
+const AUTO_MS = 2000;
 
 export function LandingHeroCarousel({ compact = false }: { compact?: boolean }) {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [animate, setAnimate] = useState(true);
+  const [progressKey, setProgressKey] = useState(0);
+  const trackRef = useRef<HTMLDivElement>(null);
+
+  const displayIndex = index % SLIDES.length;
+  const slide = SLIDES[displayIndex];
+  const trackSlides = [...SLIDE_VIEWS, SLIDE_VIEWS[0]];
+  const trackMeta = [...SLIDES, SLIDES[0]];
 
   useEffect(() => {
     if (paused) return undefined;
     const timer = window.setInterval(() => {
-      setIndex((current) => (current + 1) % SLIDES.length);
-    }, 2000);
+      setIndex((current) => {
+        if (current >= SLIDES.length) return current;
+        return current + 1;
+      });
+      setAnimate(true);
+      setProgressKey((key) => key + 1);
+    }, AUTO_MS);
     return () => window.clearInterval(timer);
   }, [paused]);
 
-  const Slide = SLIDE_VIEWS[index];
-  const slide = SLIDES[index];
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track) return undefined;
+
+    const onEnd = () => {
+      if (index < SLIDES.length) return;
+      setAnimate(false);
+      setIndex(0);
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => setAnimate(true));
+      });
+    };
+
+    track.addEventListener('transitionend', onEnd);
+    return () => track.removeEventListener('transitionend', onEnd);
+  }, [index]);
+
+  const goTo = (target: number) => {
+    setAnimate(true);
+    setIndex(target);
+    setProgressKey((key) => key + 1);
+  };
 
   return (
     <div
@@ -459,7 +493,7 @@ export function LandingHeroCarousel({ compact = false }: { compact?: boolean }) 
             flex: 1, marginLeft: 8, background: T.bg, border: `1px solid ${T.borderStrong}`,
             borderRadius: 6, padding: '4px 10px', fontSize: 11, color: T.textFaint, maxWidth: 260,
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            transition: 'opacity 0.25s',
+            transition: 'opacity 0.3s ease',
           }}>
             {slide.url}
           </div>
@@ -471,13 +505,36 @@ export function LandingHeroCarousel({ compact = false }: { compact?: boolean }) 
           </div>
         </div>
 
-        <div style={{ position: 'relative', overflow: 'hidden' }}>
+        <div className="lp-hero-carousel-viewport" style={{ position: 'relative', overflow: 'hidden' }}>
           <div
-            key={slide.id}
-            className="lp-hero-carousel-slide"
-            style={{ animation: 'lp-carousel-in 0.45s ease' }}
+            ref={trackRef}
+            className="lp-hero-carousel-track"
+            style={{
+              display: 'flex',
+              width: `${trackSlides.length * 100}%`,
+              transform: `translate3d(-${(index * 100) / trackSlides.length}%, 0, 0)`,
+              transition: animate
+                ? 'transform 0.7s cubic-bezier(0.22, 1, 0.36, 1)'
+                : 'none',
+              willChange: 'transform',
+            }}
           >
-            <Slide compact={compact} />
+            {trackSlides.map((SlideView, i) => (
+              <div
+                key={`${trackMeta[i].id}-${i}`}
+                style={{
+                  width: `${100 / trackSlides.length}%`,
+                  flexShrink: 0,
+                  opacity: (i === index || (index === SLIDES.length && i === 0)) ? 1 : 0.72,
+                  transform: (i === index || (index === SLIDES.length && i === 0)) ? 'scale(1)' : 'scale(0.985)',
+                  transition: animate
+                    ? 'opacity 0.55s ease, transform 0.7s cubic-bezier(0.22, 1, 0.36, 1)'
+                    : 'none',
+                }}
+              >
+                <SlideView compact={compact} />
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -485,24 +542,44 @@ export function LandingHeroCarousel({ compact = false }: { compact?: boolean }) 
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 14,
       }}>
-        {SLIDES.map((item, i) => (
-          <button
-            key={item.id}
-            type="button"
-            aria-label={`Show ${item.title}`}
-            onClick={() => setIndex(i)}
-            style={{
-              width: i === index ? 22 : 8,
-              height: 8,
-              borderRadius: 9999,
-              border: 'none',
-              padding: 0,
-              cursor: 'pointer',
-              background: i === index ? T.text : '#d4d4d4',
-              transition: 'width 0.25s ease, background 0.25s ease',
-            }}
-          />
-        ))}
+        {SLIDES.map((item, i) => {
+          const active = i === displayIndex;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              aria-label={`Show ${item.title}`}
+              onClick={() => goTo(i)}
+              style={{
+                position: 'relative',
+                width: active ? 28 : 8,
+                height: 8,
+                borderRadius: 9999,
+                border: 'none',
+                padding: 0,
+                cursor: 'pointer',
+                background: '#d4d4d4',
+                overflow: 'hidden',
+                transition: 'width 0.35s cubic-bezier(0.22, 1, 0.36, 1)',
+              }}
+            >
+              {active && (
+                <span
+                  key={progressKey}
+                  className="lp-carousel-progress"
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: T.text,
+                    transformOrigin: 'left center',
+                    animationDuration: `${AUTO_MS}ms`,
+                    animationPlayState: paused ? 'paused' : 'running',
+                  }}
+                />
+              )}
+            </button>
+          );
+        })}
       </div>
 
       <div style={{
@@ -512,15 +589,16 @@ export function LandingHeroCarousel({ compact = false }: { compact?: boolean }) 
           <button
             key={`${item.id}-label`}
             type="button"
-            onClick={() => setIndex(i)}
+            onClick={() => goTo(i)}
             style={{
               fontSize: 10,
-              fontWeight: i === index ? 700 : 500,
-              color: i === index ? T.text : T.textFaint,
+              fontWeight: i === displayIndex ? 700 : 500,
+              color: i === displayIndex ? T.text : T.textFaint,
               background: 'transparent',
               border: 'none',
               cursor: 'pointer',
               padding: '2px 6px',
+              transition: 'color 0.25s ease',
             }}
           >
             {item.eyebrow}
