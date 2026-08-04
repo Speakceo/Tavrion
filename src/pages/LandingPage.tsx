@@ -9,6 +9,7 @@ import {
   Brain, Phone, Shield, Video, Star, ChevronRight, Play, Award, MessageSquare,
   Activity, Zap, Building2, Layers, Target, GraduationCap, Headphones, Lock, Globe,
   Check, Menu, X, Sparkles, Bot, Mail, Workflow, ChevronDown, Library, ClipboardCheck,
+  Home,
 } from 'lucide-react';
 
 const T = {
@@ -426,141 +427,273 @@ export function LandingPage() {
 
       <main id="main-content">
       {/* ── HERO ── */}
-      <section style={{ paddingTop: isMobile ? 96 : 140, paddingBottom: isMobile ? 60 : 100, textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+      <section style={{
+        paddingTop: isMobile ? 88 : 112,
+        paddingBottom: isMobile ? 48 : 72,
+        position: 'relative',
+        overflow: 'hidden',
+        background: `linear-gradient(180deg, ${T.bg} 0%, ${T.bgSubtle} 100%)`,
+      }}>
         <div style={{
-          position: 'absolute', top: -80, left: '50%', transform: 'translateX(-50%)',
-          width: 900, height: 500, pointerEvents: 'none',
-          background: 'radial-gradient(ellipse 70% 60% at 50% 40%, rgba(0,0,0,0.04) 0%, transparent 70%)',
+          position: 'absolute', inset: 0, pointerEvents: 'none',
+          background: 'radial-gradient(ellipse 55% 50% at 78% 42%, rgba(10,114,239,0.07) 0%, transparent 70%), radial-gradient(ellipse 40% 45% at 12% 20%, rgba(0,0,0,0.03) 0%, transparent 65%)',
         }} />
 
-        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 20px', position: 'relative', zIndex: 1 }}>
-          <div className="lp-hero-in" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 24, flexWrap: 'wrap', justifyContent: 'center', animationDelay: '0ms' }}>
-            <span style={{
-              fontSize: 12, fontWeight: 500, color: T.blue,
-              background: '#ebf5ff', padding: '4px 12px', borderRadius: 9999,
-              boxShadow: T.shadowBorder,
-            }}>Enterprise LMS · AI coaching built in</span>
-            <span style={{ fontSize: 12, fontWeight: 500, color: T.textMuted }}>Deploy in 150+ countries</span>
-          </div>
-
-          <h1 className="lp-hero-in" style={{
-            fontSize: isMobile ? 38 : 'clamp(44px, 7vw, 72px)',
-            fontWeight: 700, letterSpacing: '-0.045em', lineHeight: 1.0,
-            color: T.text, maxWidth: 860, margin: '0 auto 20px',
-            animationDelay: '80ms',
-          }}>
-            The enterprise LMS<br />
-            <span style={{ color: T.textMuted }}>your global teams actually use.</span>
-          </h1>
-
-          <p className="lp-hero-in" style={{
-            fontSize: isMobile ? 16 : 20, fontWeight: 400, color: T.textBody,
-            lineHeight: 1.75, maxWidth: 580, margin: '0 auto 36px', letterSpacing: '-0.01em',
-            animationDelay: '160ms',
-          }}>
-            Onboard faster, coach smarter, and prove ROI — with SCORM courses, AI mock calls, live coaching, certificates, and analytics in one SaaS platform.
-          </p>
-
-          <div className="lp-hero-in" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 48, animationDelay: '240ms' }}>
-            <Link to="/login" style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              fontSize: isMobile ? 14 : 15, fontWeight: 500, color: 'white',
-              background: T.text, padding: isMobile ? '11px 22px' : '12px 28px', borderRadius: 6,
-              textDecoration: 'none', transition: 'background 0.15s',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-            }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#2d2d2d')}
-              onMouseLeave={e => (e.currentTarget.style.background = T.text)}
-            >Start free trial <ArrowRight size={14} /></Link>
-            <button
-              onClick={() => scrollTo('product')}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                fontSize: isMobile ? 14 : 15, fontWeight: 500, color: T.text,
-                background: T.bg, padding: isMobile ? '11px 18px' : '12px 24px', borderRadius: 6,
-                border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+        <div style={{
+          maxWidth: 1200,
+          margin: '0 auto',
+          padding: isMobile ? '0 20px' : '0 24px',
+          position: 'relative',
+          zIndex: 1,
+          display: 'grid',
+          gridTemplateColumns: isTablet ? '1fr' : 'minmax(0, 1fr) minmax(0, 1.05fr)',
+          gap: isMobile ? 36 : isTablet ? 48 : 56,
+          alignItems: 'center',
+        }}>
+          {/* Left — copy */}
+          <div style={{ textAlign: isTablet ? 'center' : 'left' }}>
+            <div className="lp-hero-in" style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 22,
+              flexWrap: 'wrap', justifyContent: isTablet ? 'center' : 'flex-start',
+              animationDelay: '0ms',
+            }}>
+              <span style={{
+                fontSize: 12, fontWeight: 500, color: T.blue,
+                background: '#ebf5ff', padding: '4px 12px', borderRadius: 9999,
                 boxShadow: T.shadowBorder,
+              }}>Enterprise LMS · AI coaching built in</span>
+              <span style={{ fontSize: 12, fontWeight: 500, color: T.textMuted }}>Deploy in 150+ countries</span>
+            </div>
+
+            <h1 className="lp-hero-in" style={{
+              fontSize: isMobile ? 36 : isTablet ? 48 : 'clamp(42px, 4.6vw, 58px)',
+              fontWeight: 700, letterSpacing: '-0.045em', lineHeight: 1.05,
+              color: T.text, margin: '0 0 18px',
+              maxWidth: isTablet ? 640 : 'none',
+              marginLeft: isTablet ? 'auto' : 0,
+              marginRight: isTablet ? 'auto' : 0,
+              animationDelay: '80ms',
+            }}>
+              The enterprise LMS<br />
+              <span style={{ color: T.textMuted }}>your global teams actually use.</span>
+            </h1>
+
+            <p className="lp-hero-in" style={{
+              fontSize: isMobile ? 15 : 17, fontWeight: 400, color: T.textBody,
+              lineHeight: 1.7, maxWidth: 480,
+              margin: isTablet ? '0 auto 28px' : '0 0 28px',
+              letterSpacing: '-0.01em',
+              animationDelay: '160ms',
+            }}>
+              Onboard faster, coach smarter, and prove ROI — with SCORM courses, AI mock calls, live coaching, certificates, and analytics in one SaaS platform.
+            </p>
+
+            <div className="lp-hero-in" style={{
+              display: 'flex', flexWrap: 'wrap', alignItems: 'center',
+              justifyContent: isTablet ? 'center' : 'flex-start',
+              gap: 10, marginBottom: 28, animationDelay: '240ms',
+            }}>
+              <Link to="/login" style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                fontSize: isMobile ? 14 : 15, fontWeight: 500, color: 'white',
+                background: T.text, padding: isMobile ? '11px 22px' : '12px 26px', borderRadius: 6,
+                textDecoration: 'none', transition: 'background 0.15s',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
               }}
-              onMouseEnter={e => (e.currentTarget.style.boxShadow = T.shadowHover)}
-              onMouseLeave={e => (e.currentTarget.style.boxShadow = T.shadowBorder)}
-            >
-              <div style={{ width: 26, height: 26, background: T.bgSubtle, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: T.shadowBorder }}>
-                <Play size={9} style={{ marginLeft: 2 }} />
-              </div>
-              See the platform
-            </button>
-          </div>
+                onMouseEnter={e => (e.currentTarget.style.background = '#2d2d2d')}
+                onMouseLeave={e => (e.currentTarget.style.background = T.text)}
+              >Start free trial <ArrowRight size={14} /></Link>
+              <button
+                onClick={() => scrollTo('product')}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  fontSize: isMobile ? 14 : 15, fontWeight: 500, color: T.text,
+                  background: T.bg, padding: isMobile ? '11px 18px' : '12px 22px', borderRadius: 6,
+                  border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+                  boxShadow: T.shadowBorder,
+                }}
+                onMouseEnter={e => (e.currentTarget.style.boxShadow = T.shadowHover)}
+                onMouseLeave={e => (e.currentTarget.style.boxShadow = T.shadowBorder)}
+              >
+                <div style={{ width: 26, height: 26, background: T.bgSubtle, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: T.shadowBorder }}>
+                  <Play size={9} style={{ marginLeft: 2 }} />
+                </div>
+                See the platform
+              </button>
+            </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: isMobile ? 14 : 24, fontSize: 13, color: T.textFaint }}>
-            {['No credit card required', '14-day free trial', 'Enterprise SLA'].map(item => (
-              <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <CheckCircle size={13} style={{ color: '#10b981' }} /> {item}
-              </div>
-            ))}
-          </div>
-
-          {/* Mobile stat strip */}
-          {isMobile && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 8, maxWidth: 400, marginLeft: 'auto', marginRight: 'auto' }}>
-              {STATS.slice(0, 3).map(stat => (
-                <div key={stat.label} style={{ background: T.bgSubtle, borderRadius: 10, padding: '12px 8px', boxShadow: T.shadowBorder, textAlign: 'center' }}>
-                  <p style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.04em', color: T.text, lineHeight: 1, marginBottom: 4 }}>{stat.value}</p>
-                  <p style={{ fontSize: 9, color: T.textFaint, fontWeight: 500, lineHeight: 1.2 }}>{stat.label}</p>
+            <div style={{
+              display: 'flex', flexWrap: 'wrap',
+              justifyContent: isTablet ? 'center' : 'flex-start',
+              gap: isMobile ? 12 : 18, fontSize: 13, color: T.textFaint,
+            }}>
+              {['No credit card required', '14-day free trial', 'Enterprise SLA'].map(item => (
+                <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <CheckCircle size={13} style={{ color: '#10b981' }} /> {item}
                 </div>
               ))}
             </div>
-          )}
 
-          {/* Dashboard mockup — hidden on small mobile */}
-          {!isMobile && (
-            <div className="lp-hero-in" style={{
-              marginTop: 72, background: T.bg, borderRadius: '12px 12px 0 0',
-              boxShadow: T.shadowCard, overflow: 'hidden',
-              border: `1px solid ${T.borderStrong}`, maxWidth: 960, marginLeft: 'auto', marginRight: 'auto',
-              animationDelay: '400ms',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '12px 16px', background: T.bgSubtle, borderBottom: `1px solid ${T.borderStrong}` }}>
-                <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5b4f' }} />
-                <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#f59e0b' }} />
-                <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#10b981' }} />
-                <div style={{ flex: 1, marginLeft: 8, background: T.bg, border: `1px solid ${T.borderStrong}`, borderRadius: 6, padding: '4px 12px', fontSize: 11, color: T.textFaint, maxWidth: 240 }}>
-                  app.jointavrion.com/dashboard
-                </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 1, background: T.borderStrong }}>
-                {[
-                  { icon: Users, label: 'Active Learners', value: '12,847', delta: '+18%', accent: T.blue },
-                  { icon: BookOpen, label: 'Completed', value: '94,203', delta: '+34%', accent: T.pink },
-                  { icon: TrendingUp, label: 'Avg. Score', value: '87.4%', delta: '+6%', accent: T.red },
-                ].map(card => (
-                  <div key={card.label} style={{ background: T.bg, padding: '20px 24px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                      <div style={{ width: 32, height: 32, background: T.bgSubtle, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: T.shadowBorder }}>
-                        <card.icon size={14} style={{ color: card.accent }} />
-                      </div>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: '#10b981', background: '#f0fdf4', padding: '2px 8px', borderRadius: 9999 }}>{card.delta}</span>
-                    </div>
-                    <p style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-0.04em', color: T.text, marginBottom: 2 }}>{card.value}</p>
-                    <p style={{ fontSize: 12, color: T.textFaint }}>{card.label}</p>
+            {isMobile && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginTop: 28, maxWidth: 400, marginLeft: 'auto', marginRight: 'auto' }}>
+                {STATS.slice(0, 3).map(stat => (
+                  <div key={stat.label} style={{ background: T.bg, borderRadius: 10, padding: '12px 8px', boxShadow: T.shadowBorder, textAlign: 'center' }}>
+                    <p style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.04em', color: T.text, lineHeight: 1, marginBottom: 4 }}>{stat.value}</p>
+                    <p style={{ fontSize: 9, color: T.textFaint, fontWeight: 500, lineHeight: 1.2 }}>{stat.label}</p>
                   </div>
                 ))}
               </div>
-              <div style={{ padding: '20px 24px', borderTop: `1px solid ${T.borderStrong}` }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <span style={{ fontSize: 13, fontWeight: 500, color: T.textBody }}>Global Completion Rate</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>96.2%</span>
+            )}
+          </div>
+
+          {/* Right — app screenshot */}
+          <div className="lp-hero-in" style={{
+            width: '100%',
+            maxWidth: isTablet ? 640 : 'none',
+            margin: isTablet ? '0 auto' : 0,
+            animationDelay: '320ms',
+          }}>
+            <div style={{
+              background: T.bg,
+              borderRadius: 14,
+              boxShadow: 'rgba(0,0,0,0.08) 0px 0px 0px 1px, rgba(0,0,0,0.06) 0px 8px 24px, rgba(0,0,0,0.04) 0px 24px 48px -12px',
+              overflow: 'hidden',
+              border: `1px solid ${T.borderStrong}`,
+              transform: isTablet ? 'none' : 'perspective(1200px) rotateY(-4deg) rotateX(2deg)',
+              transformOrigin: 'center left',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '11px 14px', background: T.bgSubtle, borderBottom: `1px solid ${T.borderStrong}` }}>
+                <div style={{ width: 9, height: 9, borderRadius: '50%', background: '#ff5b4f' }} />
+                <div style={{ width: 9, height: 9, borderRadius: '50%', background: '#f59e0b' }} />
+                <div style={{ width: 9, height: 9, borderRadius: '50%', background: '#10b981' }} />
+                <div style={{
+                  flex: 1, marginLeft: 8, background: T.bg, border: `1px solid ${T.borderStrong}`,
+                  borderRadius: 6, padding: '4px 10px', fontSize: 11, color: T.textFaint, maxWidth: 220,
+                }}>
+                  app.jointavrion.com/dashboard
                 </div>
-                <div style={{ background: T.bgSection, borderRadius: 100, height: 4, overflow: 'hidden' }}>
-                  <div className="lp-progress-fill" style={{ width: '96.2%', height: '100%', background: `linear-gradient(90deg, ${T.blue}, ${T.pink})`, borderRadius: 100 }} />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
-                  {['Americas', 'Europe', 'Asia Pac', 'MENA', 'LatAm'].map(r => (
-                    <span key={r} style={{ fontSize: 10, color: T.textFaint }}>{r}</span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr', minHeight: isMobile ? 280 : 360 }}>
+                {/* Mini sidebar */}
+                <div style={{
+                  background: T.text, padding: '14px 10px',
+                  display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center',
+                }}>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: 8, background: 'rgba(255,255,255,0.12)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 11, fontWeight: 700, color: '#fff', marginBottom: 8,
+                  }}>T</div>
+                  {[Home, BookOpen, Phone, BarChart3, Users, Award].map((Icon, i) => (
+                      <div key={i} style={{
+                        width: 32, height: 32, borderRadius: 8,
+                        background: i === 0 ? 'rgba(255,255,255,0.14)' : 'transparent',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <Icon size={14} color={i === 0 ? '#fff' : 'rgba(255,255,255,0.45)'} />
+                      </div>
                   ))}
+                </div>
+
+                {/* Main panel */}
+                <div style={{ background: T.bgSubtle, padding: isMobile ? 12 : 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                    <div>
+                      <p style={{ fontSize: 11, color: T.textFaint, marginBottom: 2, fontWeight: 500 }}>Overview</p>
+                      <p style={{ fontSize: 15, fontWeight: 700, color: T.text, letterSpacing: '-0.03em' }}>Learning dashboard</p>
+                    </div>
+                    <div style={{
+                      fontSize: 10, fontWeight: 600, color: T.blue, background: '#ebf5ff',
+                      padding: '4px 8px', borderRadius: 9999,
+                    }}>Live</div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 12 }}>
+                    {[
+                      { icon: Users, label: 'Learners', value: '12.8k', delta: '+18%', accent: T.blue },
+                      { icon: BookOpen, label: 'Completed', value: '94.2k', delta: '+34%', accent: T.pink },
+                      { icon: TrendingUp, label: 'Avg score', value: '87.4%', delta: '+6%', accent: T.red },
+                    ].map(card => (
+                      <div key={card.label} style={{
+                        background: T.bg, borderRadius: 10, padding: isMobile ? '10px 8px' : '12px 10px',
+                        boxShadow: T.shadowBorder,
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                          <div style={{
+                            width: 24, height: 24, background: T.bgSubtle, borderRadius: 6,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            <card.icon size={12} style={{ color: card.accent }} />
+                          </div>
+                          <span style={{ fontSize: 9, fontWeight: 600, color: '#10b981' }}>{card.delta}</span>
+                        </div>
+                        <p style={{ fontSize: isMobile ? 14 : 16, fontWeight: 700, letterSpacing: '-0.04em', color: T.text, marginBottom: 1 }}>{card.value}</p>
+                        <p style={{ fontSize: 9, color: T.textFaint }}>{card.label}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{
+                    background: T.bg, borderRadius: 10, padding: isMobile ? 12 : 14,
+                    boxShadow: T.shadowBorder, marginBottom: 10,
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: T.textBody }}>Global completion</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: T.text }}>96.2%</span>
+                    </div>
+                    <div style={{ background: T.bgSection, borderRadius: 100, height: 5, overflow: 'hidden', marginBottom: 8 }}>
+                      <div className="lp-progress-fill" style={{
+                        width: '96.2%', height: '100%',
+                        background: `linear-gradient(90deg, ${T.blue}, ${T.pink})`,
+                        borderRadius: 100,
+                      }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      {['AMER', 'EU', 'APAC', 'MENA'].map(r => (
+                        <span key={r} style={{ fontSize: 9, color: T.textFaint, fontWeight: 500 }}>{r}</span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 8 }}>
+                    <div style={{ background: T.bg, borderRadius: 10, padding: 12, boxShadow: T.shadowBorder }}>
+                      <p style={{ fontSize: 11, fontWeight: 600, color: T.text, marginBottom: 8 }}>Active journeys</p>
+                      {[
+                        { name: 'Sales ramp', pct: 82 },
+                        { name: 'Compliance Q3', pct: 64 },
+                        { name: 'Product update', pct: 91 },
+                      ].map(row => (
+                        <div key={row.name} style={{ marginBottom: 8 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                            <span style={{ fontSize: 10, color: T.textMuted }}>{row.name}</span>
+                            <span style={{ fontSize: 10, fontWeight: 600, color: T.text }}>{row.pct}%</span>
+                          </div>
+                          <div style={{ background: T.bgSection, borderRadius: 100, height: 3, overflow: 'hidden' }}>
+                            <div style={{ width: `${row.pct}%`, height: '100%', background: T.text, borderRadius: 100 }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ background: T.bg, borderRadius: 10, padding: 12, boxShadow: T.shadowBorder }}>
+                      <p style={{ fontSize: 11, fontWeight: 600, color: T.text, marginBottom: 8 }}>AI coaching</p>
+                      <div style={{
+                        background: T.bgSubtle, borderRadius: 8, padding: 10,
+                        border: `1px solid ${T.borderStrong}`,
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                          <Phone size={11} color={T.pink} />
+                          <span style={{ fontSize: 10, fontWeight: 600, color: T.text }}>Mock call score</span>
+                        </div>
+                        <p style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.04em', color: T.text, marginBottom: 2 }}>91</p>
+                        <p style={{ fontSize: 9, color: T.textFaint }}>Objection handling · Tone · Structure</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
-          )}
+          </div>
         </div>
       </section>
 
