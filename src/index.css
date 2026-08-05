@@ -3,11 +3,20 @@
 @tailwind utilities;
 
 @layer base {
+  html, body, #root {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
   body {
     font-family: "Geist", "Inter", system-ui, -apple-system, sans-serif;
     background: #fafafa;
     color: #171717;
     -webkit-font-smoothing: antialiased;
+  }
+
+  *, *::before, *::after {
+    box-sizing: border-box;
   }
 }
 
@@ -237,7 +246,122 @@
   }
   @media (prefers-reduced-motion: reduce) {
     .lp-reveal { opacity: 1; transform: none; }
-    .lp-hero-in { opacity: 1; }
+    .lp-hero-in { opacity: 1; transform: none; animation: none; }
+  }
+
+  /* Landing page — layout (CSS breakpoints, not JS width) */
+  .landing-page {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  .lp-hero-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 36px;
+    align-items: center;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .lp-hero-copy {
+    text-align: center;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .lp-hero-ctas {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    max-width: 100%;
+    margin-bottom: 28px;
+  }
+
+  .lp-hero-ctas > a,
+  .lp-hero-ctas > button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .lp-hero-trust {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+    font-size: 13px;
+    color: #808080;
+  }
+
+  .lp-hero-carousel-slot {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    margin: 0 auto;
+  }
+
+  .lp-hero-carousel-root {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    margin: 0 auto;
+  }
+
+  .lp-hero-carousel-viewport {
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .lp-hero-carousel-slide-enter {
+    animation: lp-carousel-fade 0.45s ease;
+  }
+
+  @keyframes lp-carousel-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @media (min-width: 768px) {
+    .lp-hero-ctas {
+      flex-direction: row;
+      flex-wrap: wrap;
+      width: auto;
+    }
+
+    .lp-hero-ctas > a,
+    .lp-hero-ctas > button {
+      width: auto;
+    }
+
+    .lp-hero-trust {
+      gap: 18px;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .lp-hero-layout {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+      gap: 56px;
+    }
+
+    .lp-hero-copy {
+      text-align: left;
+    }
+
+    .lp-hero-ctas,
+    .lp-hero-trust {
+      justify-content: flex-start;
+    }
+
+    .lp-hero-carousel-slot {
+      max-width: none;
+      margin: 0;
+    }
   }
 
   /* Stat number */

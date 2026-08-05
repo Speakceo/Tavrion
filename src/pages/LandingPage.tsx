@@ -172,6 +172,21 @@ function scrollTo(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia(query).matches : false);
+
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const onChange = () => setMatches(mq.matches);
+    onChange();
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, [query]);
+
+  return matches;
+}
+
 function useWindowWidth() {
   const [width, setWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 1200);
   useEffect(() => {
@@ -191,6 +206,7 @@ export function LandingPage() {
   const width = useWindowWidth();
   const isMobile = width < 768;
   const isTablet = width < 1024;
+  const isCompactCarousel = useMediaQuery('(max-width: 1023px)');
 
   usePageSeo({
     title: SEO.home.title,
@@ -296,7 +312,7 @@ export function LandingPage() {
   };
 
   return (
-    <div style={{ background: T.bg, color: T.text, fontFamily: FONT, minHeight: '100vh', overflowX: 'hidden' }}>
+    <div className="landing-page" style={{ background: T.bg, color: T.text, fontFamily: FONT, minHeight: '100vh' }}>
       <a href="#main-content" style={{
         position: 'absolute', left: -9999, top: 'auto', width: 1, height: 1, overflow: 'hidden',
       }} onFocus={(e) => {
@@ -432,7 +448,7 @@ export function LandingPage() {
         paddingTop: isMobile ? 88 : 112,
         paddingBottom: isMobile ? 48 : 72,
         position: 'relative',
-        overflow: 'hidden',
+        overflowX: 'clip',
         background: `linear-gradient(180deg, ${T.bg} 0%, ${T.bgSubtle} 100%)`,
       }}>
         <div style={{
@@ -440,19 +456,15 @@ export function LandingPage() {
           background: 'radial-gradient(ellipse 55% 50% at 78% 42%, rgba(10,114,239,0.07) 0%, transparent 70%), radial-gradient(ellipse 40% 45% at 12% 20%, rgba(0,0,0,0.03) 0%, transparent 65%)',
         }} />
 
-        <div style={{
+        <div className="lp-hero-layout" style={{
           maxWidth: 1200,
           margin: '0 auto',
           padding: isMobile ? '0 20px' : '0 24px',
           position: 'relative',
           zIndex: 1,
-          display: 'grid',
-          gridTemplateColumns: isTablet ? '1fr' : 'minmax(0, 1fr) minmax(0, 1.05fr)',
-          gap: isMobile ? 36 : isTablet ? 48 : 56,
-          alignItems: 'center',
         }}>
-          {/* Left — copy */}
-          <div style={{ textAlign: isTablet ? 'center' : 'left' }}>
+          {/* Left: copy */}
+          <div className="lp-hero-copy">
             <div className="lp-hero-in" style={{
               display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 22,
               flexWrap: 'wrap', justifyContent: isTablet ? 'center' : 'flex-start',
@@ -470,9 +482,10 @@ export function LandingPage() {
               fontSize: isMobile ? 36 : isTablet ? 48 : 'clamp(42px, 4.6vw, 58px)',
               fontWeight: 700, letterSpacing: '-0.045em', lineHeight: 1.05,
               color: T.text, margin: '0 0 18px',
-              maxWidth: isTablet ? 640 : 'none',
-              marginLeft: isTablet ? 'auto' : 0,
-              marginRight: isTablet ? 'auto' : 0,
+              maxWidth: '100%',
+              marginLeft: 'auto',
+              marginRight: 'auto',
+              overflowWrap: 'anywhere',
               animationDelay: '80ms',
             }}>
               Train, coach, and assess<br />
@@ -482,22 +495,18 @@ export function LandingPage() {
             <p className="lp-hero-in" style={{
               fontSize: isMobile ? 15 : 17, fontWeight: 400, color: T.textBody,
               lineHeight: 1.7, maxWidth: 500,
-              margin: isTablet ? '0 auto 28px' : '0 0 28px',
+              margin: '0 auto 28px',
               letterSpacing: '-0.01em',
               animationDelay: '160ms',
             }}>
               From onboarding and compliance to AI coaching and hiring assessments. Tavrion helps L&D, people, and ops teams build capability and prove it, worldwide.
             </p>
 
-            <div className="lp-hero-in" style={{
-              display: 'flex', flexWrap: 'wrap', alignItems: 'center',
-              justifyContent: isTablet ? 'center' : 'flex-start',
-              gap: 10, marginBottom: 28, animationDelay: '240ms',
-            }}>
+            <div className="lp-hero-in lp-hero-ctas" style={{ animationDelay: '240ms' }}>
               <Link to="/login" style={{
                 display: 'flex', alignItems: 'center', gap: 8,
                 fontSize: isMobile ? 14 : 15, fontWeight: 500, color: 'white',
-                background: T.text, padding: isMobile ? '11px 22px' : '12px 26px', borderRadius: 6,
+                background: T.text, padding: isMobile ? '12px 22px' : '12px 26px', borderRadius: 6,
                 textDecoration: 'none', transition: 'background 0.15s',
                 boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
               }}
@@ -509,7 +518,7 @@ export function LandingPage() {
                 style={{
                   display: 'flex', alignItems: 'center', gap: 10,
                   fontSize: isMobile ? 14 : 15, fontWeight: 500, color: T.text,
-                  background: T.bg, padding: isMobile ? '11px 18px' : '12px 22px', borderRadius: 6,
+                  background: T.bg, padding: isMobile ? '12px 18px' : '12px 22px', borderRadius: 6,
                   border: 'none', cursor: 'pointer', transition: 'all 0.15s',
                   boxShadow: T.shadowBorder,
                 }}
@@ -523,38 +532,18 @@ export function LandingPage() {
               </button>
             </div>
 
-            <div style={{
-              display: 'flex', flexWrap: 'wrap',
-              justifyContent: isTablet ? 'center' : 'flex-start',
-              gap: isMobile ? 12 : 18, fontSize: 13, color: T.textFaint,
-            }}>
+            <div className="lp-hero-trust">
               {['No credit card required', '14-day free trial', 'Enterprise SLA'].map(item => (
                 <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <CheckCircle size={13} style={{ color: '#10b981' }} /> {item}
                 </div>
               ))}
             </div>
-
-            {isMobile && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginTop: 28, maxWidth: 400, marginLeft: 'auto', marginRight: 'auto' }}>
-                {STATS.slice(0, 3).map(stat => (
-                  <div key={stat.label} style={{ background: T.bg, borderRadius: 10, padding: '12px 8px', boxShadow: T.shadowBorder, textAlign: 'center' }}>
-                    <p style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.04em', color: T.text, lineHeight: 1, marginBottom: 4 }}>{stat.value}</p>
-                    <p style={{ fontSize: 9, color: T.textFaint, fontWeight: 500, lineHeight: 1.2 }}>{stat.label}</p>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* Right: app screenshot carousel */}
-          <div className="lp-hero-in" style={{
-            width: '100%',
-            maxWidth: isTablet ? 640 : 'none',
-            margin: isTablet ? '0 auto' : 0,
-            animationDelay: '320ms',
-          }}>
-            <LandingHeroCarousel compact={isMobile} />
+          <div className="lp-hero-in lp-hero-carousel-slot" style={{ animationDelay: '320ms' }}>
+            <LandingHeroCarousel compact={isCompactCarousel} />
           </div>
         </div>
       </section>
