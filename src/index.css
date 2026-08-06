@@ -178,11 +178,12 @@
 
   @keyframes lp-carousel-float {
     0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-8px); }
+    50% { transform: translateY(-6px); }
   }
 
   .lp-hero-carousel-stage {
-    animation: lp-carousel-float 5.5s ease-in-out infinite;
+    animation: lp-carousel-float 7s ease-in-out infinite;
+    will-change: transform;
   }
 
   @media (prefers-reduced-motion: reduce) {
