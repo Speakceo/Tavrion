@@ -4,7 +4,7 @@ import { animate, onScroll } from 'animejs';
 import { Reveal } from '../components/LandingReveal';
 import { LandingHeroCarousel } from '../components/LandingHeroCarousel';
 import { TavrionLogo } from '../components/TavrionLogo';
-import { SEO, usePageSeo, injectJsonLd, removeJsonLd, SITE_URL } from '../lib/seo';
+import { SEO, usePageSeo, injectJsonLd, removeJsonLd, buildHomePageSchema } from '../lib/seo';
 import {
   Globe as Globe2, ArrowRight, CheckCircle, Users, BookOpen, BarChart3,
   Brain, Phone, Shield, Video, Star, ChevronRight, Play, Award, MessageSquare,
@@ -216,42 +216,8 @@ export function LandingPage() {
   });
 
   useEffect(() => {
-    injectJsonLd('home-faq', {
-      '@context': 'https://schema.org',
-      '@type': 'FAQPage',
-      mainEntity: FAQS.map(({ q, a }) => ({
-        '@type': 'Question',
-        name: q,
-        acceptedAnswer: { '@type': 'Answer', text: a },
-      })),
-    });
-    injectJsonLd('home-software', {
-      '@context': 'https://schema.org',
-      '@type': 'SoftwareApplication',
-      name: 'Tavrion',
-      applicationCategory: 'BusinessApplication',
-      operatingSystem: 'Web',
-      url: SITE_URL,
-      description: SEO.home.description,
-      offers: [
-        { '@type': 'Offer', name: 'Starter', price: '0', priceCurrency: 'USD' },
-        { '@type': 'Offer', name: 'Growth', price: '12', priceCurrency: 'USD', priceSpecification: { '@type': 'UnitPriceSpecification', unitText: 'user/month' } },
-      ],
-      featureList: [
-        'SCORM Course Delivery',
-        'AI Coaching and Mock Calls',
-        'Live Call Practice',
-        'Hiring and Skills Assessments',
-        'Onboarding and Compliance',
-        'Certificates',
-        'Multi-organisation LMS',
-        'Learning Analytics',
-      ],
-    });
-    return () => {
-      removeJsonLd('home-faq');
-      removeJsonLd('home-software');
-    };
+    injectJsonLd('home', buildHomePageSchema(FAQS));
+    return () => removeJsonLd('home');
   }, []);
 
   useEffect(() => {
@@ -588,12 +554,12 @@ export function LandingPage() {
       </section>
 
       {/* ── PRODUCT SUITE (bento) ── */}
-      <section id="product" style={{ padding: isMobile ? '60px 20px' : '96px 24px', background: T.bgSubtle, scrollMarginTop: 60 }}>
+      <section id="product" aria-labelledby="product-heading" style={{ padding: isMobile ? '60px 20px' : '96px 24px', background: T.bgSubtle, scrollMarginTop: 60 }}>
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
           <Reveal>
           <div data-scroll-fade style={{ textAlign: 'center', marginBottom: 52 }}>
             <p style={{ fontSize: 11, fontWeight: 700, color: T.textFaint, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 14 }}>Product Suite</p>
-            <h2 style={{ fontSize: isMobile ? 28 : 'clamp(28px,4vw,40px)', fontWeight: 700, letterSpacing: '-0.04em', color: T.text, marginBottom: 14 }}>
+            <h2 id="product-heading" style={{ fontSize: isMobile ? 28 : 'clamp(28px,4vw,40px)', fontWeight: 700, letterSpacing: '-0.04em', color: T.text, marginBottom: 14 }}>
               One platform. Every workflow.
             </h2>
             <p style={{ fontSize: isMobile ? 15 : 17, color: T.textBody, maxWidth: 560, margin: '0 auto', lineHeight: 1.7 }}>

@@ -1,7 +1,7 @@
 {
-  "name": "Tavrion | Enterprise Learning & Assessment Platform",
+  "name": "Tavrion | Enterprise LMS & Skills Assessment",
   "short_name": "Tavrion",
-  "description": "Enterprise learning and assessment platform with AI coaching, SCORM courses, and skills testing.",
+  "description": "Enterprise LMS with SCORM courses, AI coaching, mock calls, and hiring assessments for global L&D teams.",
   "lang": "en-GB",
   "start_url": "/",
   "scope": "/",

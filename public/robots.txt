@@ -4,6 +4,7 @@ Allow: /dna-studio
 Allow: /tavrion-bot
 
 Disallow: /login
+Disallow: /signup
 Disallow: /dashboard
 Disallow: /admin/
 Disallow: /owner/
@@ -12,4 +13,6 @@ Disallow: /courses/
 Disallow: /api/
 Disallow: /assess/
 
+# Public marketing homepage and tools
+Host: https://jointavrion.com
 Sitemap: https://jointavrion.com/sitemap.xml

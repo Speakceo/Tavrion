@@ -8,7 +8,6 @@ import { BooksFeatureRoute } from './components/BooksFeatureRoute';
 import { OrgFeatureGate } from './components/OrgFeatureGate';
 import { LandingPage } from './pages/LandingPage';
 import { Login } from './pages/Login';
-import { isJointavrionProductionSite } from './lib/productionSite';
 import { TavrionLogo } from './components/TavrionLogo';
 import { Dashboard } from './pages/Dashboard';
 import { Courses } from './pages/Courses';
@@ -128,21 +127,6 @@ function ScrollToTop() {
   return null;
 }
 
-/** TEMP: production root goes to login until marketing homepage is ready. */
-function HomeRoute() {
-  if (isJointavrionProductionSite()) {
-    return <Navigate to="/login" replace />;
-  }
-  return <LandingPage />;
-}
-
-function LandingAliasRoute() {
-  if (isJointavrionProductionSite()) {
-    return <Navigate to="/login" replace />;
-  }
-  return <Navigate to="/" replace />;
-}
-
 function App() {
   return (
     <ErrorBoundary>
@@ -151,8 +135,8 @@ function App() {
         <KeepaliveBoot />
         <AuthProvider>
           <Routes>
-            <Route path="/" element={<HomeRoute />} />
-            <Route path="/landing" element={<LandingAliasRoute />} />
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/landing" element={<Navigate to="/" replace />} />
             <Route path="/login" element={<Login />} />
 
           {/* Public candidate assessment — no auth */}
@@ -748,14 +732,7 @@ function App() {
             }
           />
 
-          <Route
-            path="/home"
-            element={
-              isJointavrionProductionSite()
-                ? <Navigate to="/login" replace />
-                : <Navigate to="/" replace />
-            }
-          />
+          <Route path="/home" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

@@ -8,11 +8,11 @@ export const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.svg`;
 
 export const SEO = {
   home: {
-    title: 'Tavrion | Enterprise Learning & Assessment Platform',
+    title: 'Tavrion | Enterprise LMS, Skills Assessment & AI Coaching Platform',
     description:
-      'Enterprise learning and assessment platform for global teams. Deliver SCORM courses, run AI coaching and live call practice, issue certificates, and assess talent for hiring and upskilling, all in one system across 150+ countries.',
+      'Tavrion is an enterprise learning and assessment platform for global L&D teams. Deliver SCORM courses, run AI mock calls and live coaching, issue certificates, and assess candidates for hiring and upskilling across 150+ countries.',
     keywords:
-      'enterprise learning platform, learning and assessment platform, skills assessment software, hiring assessment platform, SCORM LMS, AI coaching, mock call training, employee onboarding, compliance training, candidate assessment, multi-tenant LMS, learning analytics',
+      'enterprise LMS, learning management system, learning and assessment platform, corporate training software, skills assessment software, hiring assessment platform, employee onboarding LMS, compliance training platform, SCORM LMS, AI coaching platform, mock call training, talent assessment, multi-tenant LMS, learning analytics, L&D software',
     path: '/',
   },
   dnaStudio: {
@@ -35,6 +35,130 @@ export const SEO = {
     noindex: true,
   },
 } as const;
+
+const ORG_ID = `${SITE_URL}/#organization`;
+const WEBSITE_ID = `${SITE_URL}/#website`;
+const SOFTWARE_ID = `${SITE_URL}/#software`;
+
+export function buildOrganizationSchema() {
+  return {
+    '@type': 'Organization',
+    '@id': ORG_ID,
+    name: SITE_NAME,
+    url: SITE_URL,
+    logo: `${SITE_URL}/favicon.svg`,
+    description: BRAND_POSITIONING,
+    email: 'hello@jointavrion.com',
+    contactPoint: {
+      '@type': 'ContactPoint',
+      contactType: 'customer support',
+      email: 'hello@jointavrion.com',
+      availableLanguage: ['English'],
+    },
+  };
+}
+
+export function buildWebSiteSchema() {
+  return {
+    '@type': 'WebSite',
+    '@id': WEBSITE_ID,
+    url: SITE_URL,
+    name: SITE_NAME,
+    description: BRAND_POSITIONING,
+    slogan: BRAND_TAGLINE,
+    publisher: { '@id': ORG_ID },
+    inLanguage: 'en-GB',
+  };
+}
+
+export function buildSoftwareApplicationSchema(description = SEO.home.description) {
+  return {
+    '@type': 'SoftwareApplication',
+    '@id': SOFTWARE_ID,
+    name: SITE_NAME,
+    url: SITE_URL,
+    description,
+    applicationCategory: 'BusinessApplication',
+    operatingSystem: 'Web',
+    offers: [
+      {
+        '@type': 'Offer',
+        name: 'Starter',
+        price: '0',
+        priceCurrency: 'USD',
+        description: 'Free plan for up to 5 learners',
+      },
+      {
+        '@type': 'Offer',
+        name: 'Growth',
+        price: '12',
+        priceCurrency: 'USD',
+        priceSpecification: { '@type': 'UnitPriceSpecification', unitText: 'user/month' },
+        description: 'Per user per month for growing teams',
+      },
+    ],
+    featureList: [
+      'SCORM Course Delivery',
+      'AI Coaching and Mock Calls',
+      'Live Call Practice',
+      'Hiring and Skills Assessments',
+      'Onboarding and Compliance',
+      'Certificates',
+      'Multi-organisation LMS',
+      'Learning Analytics',
+    ],
+    publisher: { '@id': ORG_ID },
+  };
+}
+
+export function buildHomePageSchema(faqs: { q: string; a: string }[]) {
+  return {
+    '@context': 'https://schema.org',
+    '@graph': [
+      buildOrganizationSchema(),
+      buildWebSiteSchema(),
+      {
+        '@type': 'WebPage',
+        '@id': `${SITE_URL}/#webpage`,
+        url: SITE_URL,
+        name: SEO.home.title,
+        description: SEO.home.description,
+        isPartOf: { '@id': WEBSITE_ID },
+        about: { '@id': SOFTWARE_ID },
+        inLanguage: 'en-GB',
+      },
+      buildSoftwareApplicationSchema(),
+      {
+        '@type': 'FAQPage',
+        '@id': `${SITE_URL}/#faq`,
+        mainEntity: faqs.map(({ q, a }) => ({
+          '@type': 'Question',
+          name: q,
+          acceptedAnswer: { '@type': 'Answer', text: a },
+        })),
+      },
+      {
+        '@type': 'ItemList',
+        '@id': `${SITE_URL}/#product-modules`,
+        name: 'Tavrion platform modules',
+        itemListElement: [
+          'AI Mock Calls',
+          'AI Tutor',
+          'Live Call Coaching',
+          'SCORM Courses',
+          'Skills Assessments',
+          'Learning Analytics',
+          'DNA Studio',
+          'Tavrion Bot',
+        ].map((name, i) => ({
+          '@type': 'ListItem',
+          position: i + 1,
+          name,
+        })),
+      },
+    ],
+  };
+}
 
 type PageSeoOptions = {
   title: string;
@@ -125,9 +249,11 @@ export function usePageSeo({
     upsertMeta('property', 'og:image:height', '630');
     upsertMeta('property', 'og:image:alt', fullTitle);
     upsertMeta('property', 'og:locale', 'en_GB');
+    upsertMeta('property', 'og:image:type', image.endsWith('.svg') ? 'image/svg+xml' : 'image/png');
 
     upsertMeta('name', 'twitter:card', 'summary_large_image');
     upsertMeta('name', 'twitter:site', '@tavrion');
+    upsertMeta('name', 'twitter:creator', '@tavrion');
     upsertMeta('name', 'twitter:title', fullTitle);
     upsertMeta('name', 'twitter:description', description);
     upsertMeta('name', 'twitter:image', image);
