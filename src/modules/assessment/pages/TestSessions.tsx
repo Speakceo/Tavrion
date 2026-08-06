@@ -30,6 +30,13 @@ type Tab = 'sessions' | 'proctor' | 'compare';
 
 type SessionDetail = NonNullable<Awaited<ReturnType<typeof fetchSessionDetail>>>;
 
+function sessionPrimaryScore(session: {
+  auto_score?: number | null;
+  final_score?: number | null;
+}) {
+  return session.auto_score ?? session.final_score ?? null;
+}
+
 function scoreColor(score: number | null | undefined) {
   if (score == null) return '#808080';
   if (score >= 70) return '#16a34a';
@@ -99,8 +106,10 @@ export function TestSessions() {
     completed: sessions.filter((s) => s.status === 'graded').length,
     shortlisted: sessions.filter((s) => s.selection_status === 'shortlisted' || s.selection_status === 'selected').length,
     avgScore: (() => {
-      const graded = sessions.filter((s) => s.final_score != null);
-      return graded.length ? Math.round(graded.reduce((a, s) => a + (s.final_score || 0), 0) / graded.length) : 0;
+      const graded = sessions
+        .map((s) => sessionPrimaryScore(s))
+        .filter((score): score is number => score != null);
+      return graded.length ? Math.round(graded.reduce((a, s) => a + s, 0) / graded.length) : 0;
     })(),
   };
 
@@ -280,10 +289,10 @@ export function TestSessions() {
                           borderRadius: 999,
                           fontSize: 12,
                           fontWeight: 700,
-                          color: scoreColor(s.final_score),
-                          background: scoreBackground(s.final_score),
+                          color: scoreColor(sessionPrimaryScore(s)),
+                          background: scoreBackground(sessionPrimaryScore(s)),
                         }}>
-                          {s.final_score != null ? `${s.final_score}%` : 'Pending'}
+                          {sessionPrimaryScore(s) != null ? `${sessionPrimaryScore(s)}%` : 'Pending'}
                         </span>
                       </td>
                       <td style={{ padding: '12px 14px' }}>
@@ -420,7 +429,7 @@ export function TestSessions() {
               </thead>
               <tbody>
                 {[
-                  { label: 'Score', get: (s: typeof compareSessions[0]) => s.final_score != null ? `${s.final_score}%` : '—' },
+                  { label: 'Objective score', get: (s: typeof compareSessions[0]) => sessionPrimaryScore(s) != null ? `${sessionPrimaryScore(s)}%` : '—' },
                   { label: 'Overall', get: (s: typeof compareSessions[0]) => s.analytics?.overall_score ?? '—' },
                   { label: 'Communication', get: (s: typeof compareSessions[0]) => s.analytics?.communication_score ?? '—' },
                   { label: 'Aptitude', get: (s: typeof compareSessions[0]) => s.analytics?.aptitude_score ?? '—' },
@@ -453,9 +462,9 @@ export function TestSessions() {
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
               <span style={{
                 display: 'inline-flex', alignItems: 'center', padding: '6px 10px', borderRadius: 999,
-                background: scoreBackground(detail.final_score), color: scoreColor(detail.final_score), fontSize: 12, fontWeight: 700,
+                background: scoreBackground(sessionPrimaryScore(detail)), color: scoreColor(sessionPrimaryScore(detail)), fontSize: 12, fontWeight: 700,
               }}>
-                Score {detail.final_score ?? '—'}%
+                Objective score {sessionPrimaryScore(detail) ?? '—'}%
               </span>
               <span style={{
                 display: 'inline-flex', alignItems: 'center', padding: '6px 10px', borderRadius: 999,

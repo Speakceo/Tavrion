@@ -174,6 +174,8 @@ export interface AssessmentAttempt {
   attempt_number: number;
   started_at: string;
   submitted_at?: string | null;
+  auto_score?: number | null;
+  manual_score?: number | null;
   final_score?: number | null;
   passed?: boolean | null;
   integrity_score?: number | null;
@@ -192,6 +194,8 @@ export interface AssessmentResponse {
   question_id: string;
   answer: Record<string, unknown>;
   is_flagged: boolean;
+  auto_score?: number | null;
+  manual_score?: number | null;
   final_score?: number | null;
 }
 
