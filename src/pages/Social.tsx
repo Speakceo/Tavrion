@@ -69,7 +69,7 @@ function PostMedia({ url, type }: { url: string; type?: string }) {
   }, [url, isVideo]);
 
   return (
-    <div className={`social-media-frame${ready ? ' is-ready' : ''}`}>
+    <div className={`social-media-frame${ready ? ' is-ready' : ''}${isVideo ? ' is-video' : ' is-image'}`}>
       {!ready && <div className="social-media-skeleton" aria-hidden />}
       {isVideo ? (
         <video
@@ -86,6 +86,7 @@ function PostMedia({ url, type }: { url: string; type?: string }) {
           alt=""
           className="social-media-el"
           loading="lazy"
+          decoding="async"
           onLoad={() => setReady(true)}
         />
       )}

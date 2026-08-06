@@ -448,20 +448,32 @@
   .social-media-frame {
     position: relative;
     border-radius: 14px;
-    overflow: hidden;
     background: #f4f4f4;
     border: 1px solid rgba(0, 0, 0, 0.05);
   }
+  .social-media-frame.is-video {
+    overflow: hidden;
+  }
   .social-media-el {
     display: block;
-    width: 100%;
-    height: auto;
-    max-height: min(70vh, 640px);
-    object-fit: contain;
-    object-position: center;
     opacity: 0;
     transition: opacity 0.35s ease;
-    vertical-align: middle;
+  }
+  /* Images: full width, natural aspect — never crop */
+  .social-media-frame.is-image .social-media-el {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    max-height: none;
+    object-fit: unset;
+    border-radius: 14px;
+  }
+  /* Videos: cap height, letterbox if needed */
+  .social-media-frame.is-video .social-media-el {
+    width: 100%;
+    max-height: min(70vh, 640px);
+    object-fit: contain;
+    background: #111;
   }
   .social-media-frame.is-ready .social-media-el { opacity: 1; }
   .social-media-frame.is-ready .social-media-skeleton { opacity: 0; pointer-events: none; }
@@ -469,6 +481,7 @@
     position: absolute;
     inset: 0;
     min-height: 180px;
+    border-radius: 14px;
     background: linear-gradient(90deg, #eee 0%, #f7f7f7 50%, #eee 100%);
     background-size: 200% 100%;
     animation: social-shimmer 1.2s linear infinite;
