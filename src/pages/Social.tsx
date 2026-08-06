@@ -11,16 +11,107 @@ import {
 import { scrollToHashTarget } from '../utils/deepLinkScroll';
 
 function SocialAvatar({ name, size = 'md' }: { name?: string; size?: 'sm' | 'md' }) {
-  const sizeClass = size === 'sm' ? 'w-8 h-8 text-xs' : 'w-10 h-10 text-sm';
+  const dim = size === 'sm' ? 32 : 42;
   const initial = (name?.trim()?.charAt(0) || 'U').toUpperCase();
 
   return (
     <div
-      className={`${sizeClass} shrink-0 rounded-lg flex items-center justify-center font-semibold bg-[#171717] text-white`}
-      style={{ letterSpacing: '-0.02em' }}
+      className="social-avatar"
+      style={{
+        width: dim,
+        height: dim,
+        fontSize: size === 'sm' ? 12 : 14,
+        flexShrink: 0,
+        borderRadius: 12,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontWeight: 700,
+        letterSpacing: '-0.03em',
+        background: 'linear-gradient(145deg, #171717 0%, #3f3f46 100%)',
+        color: '#fff',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.12)',
+      }}
       aria-hidden
     >
       {initial}
+    </div>
+  );
+}
+
+function relativeTime(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function PostMedia({ url, type }: { url: string; type?: string }) {
+  const [ready, setReady] = useState(false);
+  const isVideo = type === 'video';
+  const imgRef = useRef<HTMLImageElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    setReady(false);
+    if (isVideo) {
+      const video = videoRef.current;
+      if (video && video.readyState >= 2) setReady(true);
+    } else {
+      const img = imgRef.current;
+      if (img?.complete && img.naturalWidth > 0) setReady(true);
+    }
+  }, [url, isVideo]);
+
+  return (
+    <div className={`social-media-frame${ready ? ' is-ready' : ''}`}>
+      {!ready && <div className="social-media-skeleton" aria-hidden />}
+      {isVideo ? (
+        <video
+          ref={videoRef}
+          src={url}
+          controls
+          className="social-media-el"
+          onLoadedData={() => setReady(true)}
+        />
+      ) : (
+        <img
+          ref={imgRef}
+          src={url}
+          alt=""
+          className="social-media-el"
+          loading="lazy"
+          onLoad={() => setReady(true)}
+        />
+      )}
+    </div>
+  );
+}
+
+function FeedSkeleton() {
+  return (
+    <div className="social-feed-stack" aria-busy="true" aria-label="Loading posts">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="social-post-card social-skeleton-card" style={{ animationDelay: `${i * 80}ms` }}>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="social-skel-circle" />
+            <div className="flex-1 space-y-2">
+              <div className="social-skel-line" style={{ width: '38%' }} />
+              <div className="social-skel-line" style={{ width: '22%', height: 8 }} />
+            </div>
+          </div>
+          <div className="space-y-2 mb-4">
+            <div className="social-skel-line" style={{ width: '92%' }} />
+            <div className="social-skel-line" style={{ width: '74%' }} />
+          </div>
+          <div className="social-skel-media" />
+        </div>
+      ))}
     </div>
   );
 }
@@ -62,6 +153,7 @@ export function Social() {
   const [newPost, setNewPost] = useState('');
   const [activeComments, setActiveComments] = useState<string | null>(null);
   const [comments, setComments] = useState<Record<string, Comment[]>>({});
+  const [loadingComments, setLoadingComments] = useState<Record<string, boolean>>({});
   const [newComment, setNewComment] = useState('');
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
@@ -103,29 +195,53 @@ export function Social() {
       let query = supabase.from('social_posts').select('*').order('created_at', { ascending: false });
       query = applyOrgScope(query, profile);
       const { data: postsData, error: postsError } = await query;
-
       if (postsError) throw postsError;
 
-      const postsWithCounts = await Promise.all((postsData || []).map(async (post) => {
-        const [userData, likesCount, commentsCount, isLiked, isSaved] = await Promise.all([
-          supabase.from('user_profiles').select('full_name, email').eq('id', post.user_id).maybeSingle(),
-          supabase.from('social_likes').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
-          supabase.from('social_comments').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
-          supabase.from('social_likes').select('id').eq('post_id', post.id).eq('user_id', profile?.id || '').maybeSingle(),
-          supabase.from('saved_items').select('id').eq('item_type', 'post').eq('item_id', post.id).eq('user_id', profile?.id || '').maybeSingle(),
-        ]);
+      const rows = postsData || [];
+      if (!rows.length) {
+        setPosts([]);
+        return;
+      }
 
-        return {
-          ...post,
-          user: userData.data || { full_name: 'Unknown User', email: '' },
-          likes_count: likesCount.count || 0,
-          comments_count: commentsCount.count || 0,
-          is_liked: !!isLiked.data,
-          is_saved: !!isSaved.data,
-        };
-      }));
+      const postIds = rows.map((p) => p.id);
+      const userIds = [...new Set(rows.map((p) => p.user_id).filter(Boolean))];
 
-      setPosts(postsWithCounts);
+      const [profilesRes, likesRes, commentsRes, myLikesRes, savedRes] = await Promise.all([
+        userIds.length
+          ? supabase.from('user_profiles').select('id, full_name, email').in('id', userIds)
+          : Promise.resolve({ data: [] as { id: string; full_name: string; email: string }[] }),
+        supabase.from('social_likes').select('post_id').in('post_id', postIds),
+        supabase.from('social_comments').select('post_id').in('post_id', postIds),
+        profile?.id
+          ? supabase.from('social_likes').select('post_id').in('post_id', postIds).eq('user_id', profile.id)
+          : Promise.resolve({ data: [] as { post_id: string }[] }),
+        profile?.id
+          ? supabase.from('saved_items').select('item_id').eq('item_type', 'post').in('item_id', postIds).eq('user_id', profile.id)
+          : Promise.resolve({ data: [] as { item_id: string }[] }),
+      ]);
+
+      const profileById = new Map(
+        (profilesRes.data || []).map((u) => [u.id, { full_name: u.full_name || 'Unknown User', email: u.email || '' }]),
+      );
+      const likeCount = new Map<string, number>();
+      (likesRes.data || []).forEach((row: { post_id: string }) => {
+        likeCount.set(row.post_id, (likeCount.get(row.post_id) || 0) + 1);
+      });
+      const commentCount = new Map<string, number>();
+      (commentsRes.data || []).forEach((row: { post_id: string }) => {
+        commentCount.set(row.post_id, (commentCount.get(row.post_id) || 0) + 1);
+      });
+      const likedSet = new Set((myLikesRes.data || []).map((r: { post_id: string }) => r.post_id));
+      const savedSet = new Set((savedRes.data || []).map((r: { item_id: string }) => r.item_id));
+
+      setPosts(rows.map((post) => ({
+        ...post,
+        user: profileById.get(post.user_id) || { full_name: 'Unknown User', email: '' },
+        likes_count: likeCount.get(post.id) || 0,
+        comments_count: commentCount.get(post.id) || 0,
+        is_liked: likedSet.has(post.id),
+        is_saved: savedSet.has(post.id),
+      })));
     } catch (error) {
       console.error('Error loading posts:', error);
     } finally {
@@ -314,6 +430,7 @@ export function Social() {
   };
 
   const loadComments = async (postId: string) => {
+    setLoadingComments((prev) => ({ ...prev, [postId]: true }));
     try {
       const { data, error } = await supabase
         .from('social_comments')
@@ -322,23 +439,24 @@ export function Social() {
         .order('created_at', { ascending: true });
 
       if (error) throw error;
+      const rows = data || [];
+      const userIds = [...new Set(rows.map((c) => c.user_id).filter(Boolean))];
+      const { data: profiles } = userIds.length
+        ? await supabase.from('user_profiles').select('id, full_name').in('id', userIds)
+        : { data: [] as { id: string; full_name: string }[] };
+      const byId = new Map((profiles || []).map((u) => [u.id, u.full_name || 'Unknown User']));
 
-      const commentsWithUsers = await Promise.all((data || []).map(async (comment) => {
-        const { data: userData } = await supabase
-          .from('user_profiles')
-          .select('full_name')
-          .eq('id', comment.user_id)
-          .maybeSingle();
-
-        return {
+      setComments((prev) => ({
+        ...prev,
+        [postId]: rows.map((comment) => ({
           ...comment,
-          user: userData || { full_name: 'Unknown User' },
-        };
+          user: { full_name: byId.get(comment.user_id) || 'Unknown User' },
+        })),
       }));
-
-      setComments(prev => ({ ...prev, [postId]: commentsWithUsers }));
     } catch (error) {
       console.error('Error loading comments:', error);
+    } finally {
+      setLoadingComments((prev) => ({ ...prev, [postId]: false }));
     }
   };
 
@@ -487,249 +605,242 @@ export function Social() {
 
   return (
     <Layout>
-      <div className="max-w-2xl mx-auto space-y-6">
-        <div className="lt-card p-6">
-          <div style={{marginBottom:24}}><p style={{fontSize:11,fontWeight:700,color:'#808080',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:4}}>COMMUNITY</p><h1 style={{fontSize:22,fontWeight:700,letterSpacing:'-0.03em',color:'#171717',marginBottom:4}}>Social Feed</h1></div>
+      <div className="social-page">
+        <div className="social-page-inner">
+          <header className="social-page-header social-enter" style={{ animationDelay: '0ms' }}>
+            <p className="social-kicker">Community</p>
+            <h1 className="social-title">Social</h1>
+            <p className="social-subtitle">Share wins, questions, and updates with your org.</p>
+          </header>
 
-          <div className="flex gap-3">
-            <SocialAvatar name={profile?.full_name} />
-            <div className="flex-1">
-              <textarea
-                value={newPost}
-                onChange={(e) => setNewPost(e.target.value)}
-                placeholder="What's on your mind?"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                rows={3}
-              />
+          <div className="social-composer social-enter" style={{ animationDelay: '60ms' }}>
+            <div className="flex gap-3">
+              <SocialAvatar name={profile?.full_name} />
+              <div className="flex-1 min-w-0">
+                <textarea
+                  value={newPost}
+                  onChange={(e) => setNewPost(e.target.value)}
+                  placeholder="Share something with the team…"
+                  className="social-composer-input"
+                  rows={3}
+                />
 
-              {mediaPreview && (
-                <div className="mt-3 relative">
-                  <button
-                    onClick={handleRemoveMedia}
-                    className="absolute top-2 right-2 p-1 bg-gray-900 bg-opacity-70 rounded-full text-white hover:bg-opacity-90 transition-all z-10"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                  {mediaFile?.type.startsWith('video/') ? (
-                    <video src={mediaPreview} controls className="w-full rounded-lg max-h-96" />
-                  ) : (
-                    <img src={mediaPreview} alt="Preview" className="w-full rounded-lg max-h-96 object-cover" />
-                  )}
-                </div>
-              )}
-
-              <div className="flex items-center justify-between mt-3">
-                <div className="flex gap-2">
-                  <label className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors">
-                    <ImageIcon className="w-5 h-5" />
-                    <span className="text-sm font-medium">Photo</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleMediaSelect}
-                      className="hidden"
-                      disabled={uploading}
-                    />
-                  </label>
-                  <label className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors">
-                    <Video className="w-5 h-5" />
-                    <span className="text-sm font-medium">Video</span>
-                    <input
-                      type="file"
-                      accept="video/*"
-                      onChange={handleMediaSelect}
-                      className="hidden"
-                      disabled={uploading}
-                    />
-                  </label>
-                </div>
-                <button
-                  onClick={handleCreatePost}
-                  disabled={(!newPost.trim() && !mediaFile) || uploading}
-                  className="lt-btn-primary"
-                  style={{padding:'9px 16px',borderRadius:8}}
-                >
-                  {uploading ? 'Posting...' : 'Post'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {loading ? (
-          <div className="text-center py-12">
-            <div className="lt-spinner" />
-            <p className="mt-4 text-gray-600">Loading posts...</p>
-          </div>
-        ) : posts.length === 0 ? (
-          <div className="lt-card p-12 text-center">
-            <p className="text-gray-600">No posts yet. Be the first to share something!</p>
-          </div>
-        ) : (
-          posts.map((post) => (
-            <div key={post.id} id={`post-${post.id}`} className="lt-card p-6">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <SocialAvatar name={post.user?.full_name} />
-                  <div>
-                    <p className="font-semibold text-gray-900">{post.user?.full_name || 'Unknown User'}</p>
-                    <p className="text-sm text-gray-500">
-                      {new Date(post.created_at).toLocaleDateString()} at {new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      {post.updated_at && post.updated_at !== post.created_at ? ' · Edited' : ''}
-                    </p>
-                  </div>
-                </div>
-                {canManagePost(post) && (
-                  <div className="relative" ref={menuOpenId === post.id ? menuRef : undefined}>
+                {mediaPreview && (
+                  <div className="mt-3 relative rounded-xl overflow-hidden border border-black/[0.06]">
                     <button
                       type="button"
-                      onClick={() => setMenuOpenId((id) => (id === post.id ? null : post.id))}
-                      className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
-                      aria-label="Post options"
-                      aria-expanded={menuOpenId === post.id}
+                      onClick={handleRemoveMedia}
+                      className="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-[#171717]/90 text-white hover:bg-[#171717]"
+                      aria-label="Remove media"
                     >
-                      <MoreHorizontal className="w-5 h-5" />
+                      <X className="w-4 h-4" />
                     </button>
-                    {menuOpenId === post.id && (
-                      <div
-                        className="absolute right-0 z-20 mt-1 w-40 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
-                        style={{ boxShadow: 'rgba(0,0,0,0.12) 0px 0px 0px 1px, rgba(0,0,0,0.08) 0px 8px 24px' }}
-                      >
-                        {canEditPost(post) && (
-                          <button
-                            type="button"
-                            onClick={() => openEditPost(post)}
-                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                          >
-                            <Pencil className="w-4 h-4" /> Edit
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => handleDeletePost(post.id)}
-                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
-                        >
-                          <Trash2 className="w-4 h-4" /> Delete
-                        </button>
-                      </div>
+                    {mediaFile?.type.startsWith('video/') ? (
+                      <video src={mediaPreview} controls className="w-full max-h-80 bg-black" />
+                    ) : (
+                      <img src={mediaPreview} alt="Preview" className="w-full max-h-80 object-cover" />
                     )}
                   </div>
                 )}
-              </div>
 
-              {post.content && (
-                <p className="text-gray-800 mb-4 whitespace-pre-wrap">{post.content}</p>
-              )}
-
-              {post.media_url && (
-                <div className="mb-4 rounded-lg overflow-hidden bg-gray-100">
-                  {post.media_type === 'image' && (
-                    <img src={post.media_url} alt="Post media" className="w-full" />
-                  )}
-                  {post.media_type === 'video' && (
-                    <video src={post.media_url} controls className="w-full" />
-                  )}
+                <div className="flex items-center justify-between mt-3 gap-3 flex-wrap">
+                  <div className="flex gap-1">
+                    <label className="social-attach-btn">
+                      <ImageIcon className="w-4 h-4" />
+                      <span>Photo</span>
+                      <input type="file" accept="image/*" onChange={handleMediaSelect} className="hidden" disabled={uploading} />
+                    </label>
+                    <label className="social-attach-btn">
+                      <Video className="w-4 h-4" />
+                      <span>Video</span>
+                      <input type="file" accept="video/*" onChange={handleMediaSelect} className="hidden" disabled={uploading} />
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCreatePost}
+                    disabled={(!newPost.trim() && !mediaFile) || uploading}
+                    className="lt-btn-primary"
+                    style={{ padding: '9px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600 }}
+                  >
+                    {uploading ? 'Posting…' : 'Post'}
+                  </button>
                 </div>
-              )}
-
-              <div className="flex items-center justify-between gap-3 pt-4 border-t border-gray-200 flex-wrap">
-                <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => handleLike(post.id, post.is_liked)}
-                  disabled={!!likingPosts[post.id]}
-                  className={`flex items-center gap-2 transition-colors ${
-                    post.is_liked ? 'text-red-600' : 'text-gray-600 hover:text-red-600'
-                  } ${likingPosts[post.id] ? 'opacity-80' : ''}`}
-                  aria-label={post.is_liked ? 'Unlike post' : 'Like post'}
-                  aria-busy={!!likingPosts[post.id]}
-                >
-                  <Heart
-                    className={`w-5 h-5 transition-transform duration-200 ${
-                      post.is_liked ? 'fill-current scale-110' : ''
-                    } ${likeAnimPostId === post.id ? 'social-like-pop' : ''}`}
-                  />
-                  <span className="text-sm font-medium tabular-nums transition-all duration-200">
-                    {post.likes_count}
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => toggleComments(post.id)}
-                  className="flex items-center gap-2 text-gray-600 hover:text-blue-600 transition-colors"
-                >
-                  <MessageCircle className="w-5 h-5" />
-                  <span className="text-sm font-medium">{post.comments_count}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleShare(post.id)}
-                  className="flex items-center gap-2 text-gray-600 hover:text-blue-600 transition-colors"
-                >
-                  <Share2 className="w-5 h-5" />
-                  <span className="text-sm font-medium">Share</span>
-                </button>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => handleSave(post.id, post.is_saved)}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    post.is_saved
-                      ? 'bg-[#171717] text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                  aria-label={post.is_saved ? 'Remove from saved' : 'Save post'}
-                >
-                  <Bookmark className={`w-4 h-4 ${post.is_saved ? 'fill-current' : ''}`} />
-                  {post.is_saved ? 'Saved' : 'Save'}
-                </button>
               </div>
+            </div>
+          </div>
 
-              {activeComments === post.id && (
-                <div className="mt-4 pt-4 border-t border-gray-200 space-y-4">
-                  {comments[post.id]?.map((comment) => (
-                    <div key={comment.id} className="flex gap-3">
-                      <SocialAvatar name={comment.user?.full_name} size="sm" />
-                      <div className="flex-1 bg-gray-50 rounded-lg p-3">
-                        <p className="font-semibold text-sm text-gray-900">{comment.user?.full_name || 'Unknown User'}</p>
-                        <p className="text-gray-800 text-sm mt-1">{comment.content}</p>
+          {loading ? (
+            <FeedSkeleton />
+          ) : posts.length === 0 ? (
+            <div className="social-empty social-enter">
+              <div className="social-empty-mark">✦</div>
+              <h2>No posts yet</h2>
+              <p>Be the first to share a win, tip, or update with your team.</p>
+            </div>
+          ) : (
+            <div className="social-feed-stack">
+              {posts.map((post, index) => (
+                <article
+                  key={post.id}
+                  id={`post-${post.id}`}
+                  className="social-post-card social-enter"
+                  style={{ animationDelay: `${Math.min(index, 8) * 55 + 40}ms` }}
+                >
+                  <div className="flex items-start justify-between gap-3 mb-3.5">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <SocialAvatar name={post.user?.full_name} />
+                      <div className="min-w-0">
+                        <p className="social-author">{post.user?.full_name || 'Unknown User'}</p>
+                        <p className="social-meta">
+                          {relativeTime(post.created_at)}
+                          {post.updated_at && post.updated_at !== post.created_at ? ' · Edited' : ''}
+                        </p>
                       </div>
                     </div>
-                  ))}
+                    {canManagePost(post) && (
+                      <div className="relative" ref={menuOpenId === post.id ? menuRef : undefined}>
+                        <button
+                          type="button"
+                          onClick={() => setMenuOpenId((id) => (id === post.id ? null : post.id))}
+                          className="social-icon-btn"
+                          aria-label="Post options"
+                          aria-expanded={menuOpenId === post.id}
+                        >
+                          <MoreHorizontal className="w-5 h-5" />
+                        </button>
+                        {menuOpenId === post.id && (
+                          <div className="social-menu">
+                            {canEditPost(post) && (
+                              <button type="button" onClick={() => openEditPost(post)} className="social-menu-item">
+                                <Pencil className="w-4 h-4" /> Edit
+                              </button>
+                            )}
+                            <button type="button" onClick={() => handleDeletePost(post.id)} className="social-menu-item social-menu-danger">
+                              <Trash2 className="w-4 h-4" /> Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
 
-                  <div className="flex gap-3 mt-4">
-                    <SocialAvatar name={profile?.full_name} size="sm" />
-                    <div className="flex-1 flex gap-2">
-                      <input
-                        type="text"
-                        value={newComment}
-                        onChange={(e) => setNewComment(e.target.value)}
-                        placeholder="Write a comment..."
-                        className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            handleComment(post.id);
-                          }
-                        }}
-                      />
+                  {post.content && (
+                    <p className="social-body">{post.content}</p>
+                  )}
+
+                  {post.media_url && (
+                    <div className="mb-3.5">
+                      <PostMedia url={post.media_url} type={post.media_type} />
+                    </div>
+                  )}
+
+                  <div className="social-actions">
+                    <div className="flex items-center gap-1 flex-wrap">
                       <button
-                        onClick={() => handleComment(post.id)}
-                        disabled={!newComment.trim()}
-                        className="lt-btn-primary"
-                        style={{padding:'9px 16px',borderRadius:8}}
+                        type="button"
+                        onClick={() => handleLike(post.id, post.is_liked)}
+                        disabled={!!likingPosts[post.id]}
+                        className={`social-action-btn ${post.is_liked ? 'is-liked' : ''}`}
+                        aria-label={post.is_liked ? 'Unlike post' : 'Like post'}
                       >
-                        <Send className="w-4 h-4" />
+                        <Heart
+                          className={`w-[18px] h-[18px] ${post.is_liked ? 'fill-current' : ''} ${likeAnimPostId === post.id ? 'social-like-pop' : ''}`}
+                        />
+                        <span className="tabular-nums">{post.likes_count}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleComments(post.id)}
+                        className={`social-action-btn ${activeComments === post.id ? 'is-active' : ''}`}
+                      >
+                        <MessageCircle className="w-[18px] h-[18px]" />
+                        <span className="tabular-nums">{post.comments_count}</span>
+                      </button>
+
+                      <button type="button" onClick={() => handleShare(post.id)} className="social-action-btn">
+                        <Share2 className="w-[18px] h-[18px]" />
+                        <span>Share</span>
                       </button>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSave(post.id, post.is_saved)}
+                      className={`social-save-btn ${post.is_saved ? 'is-saved' : ''}`}
+                      aria-label={post.is_saved ? 'Remove from saved' : 'Save post'}
+                    >
+                      <Bookmark className={`w-4 h-4 ${post.is_saved ? 'fill-current' : ''}`} />
+                      {post.is_saved ? 'Saved' : 'Save'}
+                    </button>
                   </div>
-                </div>
-              )}
+
+                  {activeComments === post.id && (
+                    <div className="social-comments">
+                      {loadingComments[post.id] && !comments[post.id] ? (
+                        <>
+                          {[0, 1].map((i) => (
+                            <div key={i} className="flex gap-2.5" style={{ opacity: 0.7 }}>
+                              <div className="social-skel-circle" style={{ width: 32, height: 32, borderRadius: 10 }} />
+                              <div className="social-comment-bubble flex-1 space-y-2">
+                                <div className="social-skel-line" style={{ width: '28%', height: 8 }} />
+                                <div className="social-skel-line" style={{ width: '70%', height: 10 }} />
+                              </div>
+                            </div>
+                          ))}
+                        </>
+                      ) : (
+                        comments[post.id]?.map((comment, cIdx) => (
+                          <div
+                            key={comment.id}
+                            className="flex gap-2.5 social-comment-enter"
+                            style={{ animationDelay: `${Math.min(cIdx, 6) * 40}ms` }}
+                          >
+                            <SocialAvatar name={comment.user?.full_name} size="sm" />
+                            <div className="social-comment-bubble">
+                              <p className="social-comment-author">{comment.user?.full_name || 'Unknown User'}</p>
+                              <p className="social-comment-text">{comment.content}</p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+
+                      <div className="flex gap-2.5 mt-1">
+                        <SocialAvatar name={profile?.full_name} size="sm" />
+                        <div className="flex-1 flex gap-2 min-w-0">
+                          <input
+                            type="text"
+                            value={newComment}
+                            onChange={(e) => setNewComment(e.target.value)}
+                            placeholder="Write a comment…"
+                            className="social-comment-input"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                handleComment(post.id);
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleComment(post.id)}
+                            disabled={!newComment.trim()}
+                            className="lt-btn-primary"
+                            style={{ padding: '8px 12px', borderRadius: 10 }}
+                            aria-label="Send comment"
+                          >
+                            <Send className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </article>
+              ))}
             </div>
-          ))
-        )}
+          )}
+        </div>
       </div>
 
       {editingPost && (
