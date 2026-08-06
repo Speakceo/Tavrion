@@ -10,14 +10,21 @@ export function AssessmentResult() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#fafafa', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <div className="lt-card" style={{ padding: 40, textAlign: 'center', maxWidth: 400 }}>
+      <div className="lt-card" style={{ padding: 40, textAlign: 'center', maxWidth: 440, width: '100%', borderRadius: 20 }}>
         <CheckCircle size={48} color="#16a34a" style={{ margin: '0 auto 16px' }} />
-        <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Submitted</h1>
+        <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 8 }}>Assessment submitted</h1>
         {showScore && result?.percentage != null ? (
           <>
-            <p style={{ fontSize: 32, fontWeight: 700, color: '#171717', marginBottom: 8 }}>{result.percentage}%</p>
-            <p style={{ fontSize: 14, color: '#666', marginBottom: 24 }}>
-              {result.passed ? 'You passed this assessment.' : 'Your attempt has been recorded.'}
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', padding: '6px 12px', borderRadius: 999,
+              marginBottom: 16, background: result.passed ? '#ecfdf5' : '#fef2f2',
+              color: result.passed ? '#166534' : '#b91c1c', fontSize: 12, fontWeight: 700,
+            }}>
+              {result.passed ? 'Qualified' : 'Needs review'}
+            </div>
+            <p style={{ fontSize: 42, fontWeight: 800, color: '#171717', letterSpacing: '-0.05em', marginBottom: 8 }}>{result.percentage}%</p>
+            <p style={{ fontSize: 14, color: '#666', marginBottom: 24, lineHeight: 1.6 }}>
+              {result.passed ? 'You passed this assessment.' : 'Your attempt has been recorded and will be reviewed.'}
             </p>
           </>
         ) : (

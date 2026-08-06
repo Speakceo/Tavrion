@@ -29,6 +29,20 @@ type Tab = 'sessions' | 'proctor' | 'compare';
 
 type SessionDetail = NonNullable<Awaited<ReturnType<typeof fetchSessionDetail>>>;
 
+function scoreColor(score: number | null | undefined) {
+  if (score == null) return '#808080';
+  if (score >= 70) return '#16a34a';
+  if (score >= 40) return '#d97706';
+  return '#c0392b';
+}
+
+function scoreBackground(score: number | null | undefined) {
+  if (score == null) return '#f5f5f5';
+  if (score >= 70) return '#ecfdf5';
+  if (score >= 40) return '#fff7ed';
+  return '#fef2f2';
+}
+
 export function TestSessions() {
   const { profile } = useAuth();
   const viewer = profile ? { organization_id: profile.organization_id, is_platform_owner: profile.is_platform_owner, id: profile.id } : null;
@@ -139,6 +153,16 @@ export function TestSessions() {
   };
 
   const detailedScores = (detail?.analytics?.detailed_scores || {}) as Record<string, unknown>;
+  const responseSummary = useMemo(() => {
+    if (!detail?.responses?.length) return { correct: 0, incorrect: 0, pending: 0 };
+    return detail.responses.reduce((acc, r) => {
+      const score = r.final_score ?? r.auto_score;
+      if (score == null) acc.pending += 1;
+      else if (score >= 70) acc.correct += 1;
+      else acc.incorrect += 1;
+      return acc;
+    }, { correct: 0, incorrect: 0, pending: 0 });
+  }, [detail]);
 
   return (
     <TestLayout>
@@ -237,9 +261,31 @@ export function TestSessions() {
                         <div style={{ fontSize: 11, color: '#999' }}>{s.candidate_email}</div>
                       </td>
                       <td style={{ padding: '12px 14px' }}>{s.assignment?.title || '—'}</td>
-                      <td style={{ padding: '12px 14px', fontWeight: 600 }}>{s.final_score != null ? `${s.final_score}%` : '—'}</td>
                       <td style={{ padding: '12px 14px' }}>
-                        <span style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          padding: '5px 10px',
+                          borderRadius: 999,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: scoreColor(s.final_score),
+                          background: scoreBackground(s.final_score),
+                        }}>
+                          {s.final_score != null ? `${s.final_score}%` : 'Pending'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 14px' }}>
+                        <span style={{
+                          fontSize: 11,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '5px 9px',
+                          borderRadius: 999,
+                          background: s.status === 'graded' ? '#ecfdf5' : '#f5f5f5',
+                          color: s.status === 'graded' ? '#166534' : '#666',
+                        }}>
                           {s.status === 'graded' ? <CheckCircle size={12} color="#16a34a" /> : <Clock size={12} color="#808080" />}
                           {s.status}
                         </span>
@@ -248,7 +294,15 @@ export function TestSessions() {
                         <select
                           value={s.selection_status || 'pending'}
                           onChange={(e) => updateSelectionStatus(s.id, e.target.value as SelectionStatus, viewer).then(load)}
-                          style={{ fontSize: 11, padding: '4px 6px', borderRadius: 6, border: '1px solid #e5e5e5', color: SELECTION_COLORS[(s.selection_status || 'pending') as SelectionStatus] }}
+                          style={{
+                            fontSize: 11,
+                            padding: '6px 8px',
+                            borderRadius: 999,
+                            border: '1px solid #e5e5e5',
+                            color: SELECTION_COLORS[(s.selection_status || 'pending') as SelectionStatus],
+                            background: `${SELECTION_COLORS[(s.selection_status || 'pending') as SelectionStatus]}12`,
+                            fontWeight: 700,
+                          }}
                         >
                           {SELECTION_OPTIONS.map((o) => <option key={o} value={o}>{o.replace('_', ' ')}</option>)}
                         </select>
@@ -385,9 +439,43 @@ export function TestSessions() {
           <div className="lt-card" style={{ maxWidth: 720, width: '100%', maxHeight: '85vh', overflow: 'auto', padding: 24 }} onClick={(e) => e.stopPropagation()}>
             <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Session details</h2>
             <p style={{ fontSize: 13, marginBottom: 8 }}><strong>{detail.candidate_name}</strong> · {detail.candidate_email}</p>
-            <p style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>
-              Score: {detail.final_score ?? '—'}% · {detail.passed ? 'Passed' : detail.passed === false ? 'Failed' : 'Pending'}
-            </p>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', padding: '6px 10px', borderRadius: 999,
+                background: scoreBackground(detail.final_score), color: scoreColor(detail.final_score), fontSize: 12, fontWeight: 700,
+              }}>
+                Score {detail.final_score ?? '—'}%
+              </span>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', padding: '6px 10px', borderRadius: 999,
+                background: detail.passed ? '#ecfdf5' : detail.passed === false ? '#fef2f2' : '#f5f5f5',
+                color: detail.passed ? '#166534' : detail.passed === false ? '#b91c1c' : '#666',
+                fontSize: 12, fontWeight: 700,
+              }}>
+                {detail.passed ? 'Qualified' : detail.passed === false ? 'Not qualified' : 'Pending review'}
+              </span>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', padding: '6px 10px', borderRadius: 999,
+                background: `${SELECTION_COLORS[(detail.selection_status || 'pending') as SelectionStatus]}12`,
+                color: SELECTION_COLORS[(detail.selection_status || 'pending') as SelectionStatus],
+                fontSize: 12, fontWeight: 700,
+              }}>
+                {(detail.selection_status || 'pending').replace('_', ' ')}
+              </span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 10, marginBottom: 16 }}>
+              {[
+                { label: 'Correct', value: responseSummary.correct, fg: '#166534', bg: '#ecfdf5' },
+                { label: 'Incorrect', value: responseSummary.incorrect, fg: '#b91c1c', bg: '#fef2f2' },
+                { label: 'Pending', value: responseSummary.pending, fg: '#a16207', bg: '#fefce8' },
+              ].map((m) => (
+                <div key={m.label} style={{ background: m.bg, borderRadius: 10, padding: 12 }}>
+                  <div style={{ fontSize: 11, color: m.fg }}>{m.label}</div>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: m.fg, letterSpacing: '-0.04em' }}>{m.value}</div>
+                </div>
+              ))}
+            </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 10, marginBottom: 16 }}>
               {[
@@ -431,7 +519,24 @@ export function TestSessions() {
               const isVideo = (r.answer as { media_type?: string })?.media_type === 'video' || r.question?.question_type === 'video_response';
               return (
                 <div key={r.id} style={{ padding: '12px 0', borderTop: '1px solid #f5f5f5', fontSize: 12 }}>
-                  <div style={{ fontWeight: 600, marginBottom: 4 }}>{r.question?.prompt?.slice(0, 100)}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 6 }}>
+                    <div style={{ fontWeight: 600 }}>{r.question?.prompt?.slice(0, 100)}</div>
+                    {(r.auto_score != null || r.final_score != null) && (
+                      <span style={{
+                        flexShrink: 0,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        padding: '4px 8px',
+                        borderRadius: 999,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: scoreColor(r.final_score ?? r.auto_score),
+                        background: scoreBackground(r.final_score ?? r.auto_score),
+                      }}>
+                        {(r.final_score ?? r.auto_score) >= 70 ? 'Correct' : 'Incorrect'}
+                      </span>
+                    )}
+                  </div>
                   {mediaUrl && isVideo && (
                     <div style={{ marginBottom: 8 }}>
                       <a href={mediaUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#2563eb', marginBottom: 6 }}>
@@ -462,12 +567,12 @@ export function TestSessions() {
                     </div>
                   )}
                   {!mediaUrl && (
-                    <div style={{ color: '#333', lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                    <div style={{ color: '#333', lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#fafafa', borderRadius: 8, padding: 12 }}>
                       {formatAnswerForDisplay(r.question, r.answer as Record<string, unknown>)}
                     </div>
                   )}
                   {(r.auto_score != null || r.final_score != null) && (
-                    <div style={{ marginTop: 6, fontSize: 11, color: '#666' }}>
+                    <div style={{ marginTop: 8, fontSize: 11, color: '#666' }}>
                       Score: {r.final_score ?? r.auto_score}%
                       {r.grader_notes && !r.grader_notes.startsWith('{') ? ` · ${r.grader_notes}` : ''}
                     </div>

@@ -107,6 +107,8 @@ export function TestInterface({
   const [answers, setAnswers] = useState<Record<string, Record<string, unknown>>>({});
   const [flagged, setFlagged] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState('');
+  const [submitError, setSubmitError] = useState('');
   const [reviewMode, setReviewMode] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(timeLimitMinutes ? timeLimitMinutes * 60 : null);
   const [sectionTimeLeft, setSectionTimeLeft] = useState<number | null>(null);
@@ -144,19 +146,29 @@ export function TestInterface({
 
   const doSubmit = useCallback(async () => {
     setSubmitting(true);
+    setSubmitError('');
+    setSubmitMessage('Saving your responses...');
     try {
-      for (const q of activeQuestions) {
+      const uploadQuestions = activeQuestions.filter((q) => answers[q.id]?.blob);
+      const standardQuestions = activeQuestions.filter((q) => answers[q.id] && !answers[q.id]?.blob);
+
+      await Promise.all(standardQuestions.map(async (q) => {
         const ans = answers[q.id];
-        if (!ans) continue;
-        if (ans.blob) {
+        if (!ans) return;
+        await saveResponse(attemptId, q.id, ans, flagged.has(q.id), q);
+      }));
+
+      if (uploadQuestions.length) {
+        setSubmitMessage(`Uploading ${uploadQuestions.length} recorded response${uploadQuestions.length > 1 ? 's' : ''}...`);
+        for (const q of uploadQuestions) {
+          const ans = answers[q.id];
+          if (!ans?.blob) continue;
           const ext = ans.media_type === 'video' ? 'webm' : 'webm';
           const url = await uploadAssessmentMedia(attemptId, q.id, ans.blob as Blob, ext);
           const cleaned = { ...ans, media_url: url };
           delete cleaned.blob;
           delete cleaned.preview_url;
           await saveResponse(attemptId, q.id, cleaned, flagged.has(q.id), q);
-        } else {
-          await saveResponse(attemptId, q.id, ans, flagged.has(q.id), q);
         }
       }
 
@@ -172,6 +184,7 @@ export function TestInterface({
         return;
       }
 
+      setSubmitMessage('Calculating your result...');
       const { submitAttempt } = await import('../services/attemptService');
       const result = await submitAttempt(attemptId, assignmentId);
       const completeResult: TestCompleteResult = {
@@ -182,7 +195,10 @@ export function TestInterface({
         certificateUrl: result.passed ? `/certificates?attempt=${attemptId}` : undefined,
         practiceMode: false,
       };
+      setSubmitMessage('Finalizing your submission...');
       setResultScreen(completeResult);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Submission failed. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -194,6 +210,12 @@ export function TestInterface({
   }, [submitting, resultScreen, doSubmit]);
 
   const { violationCount } = useIntegrityMonitor(attemptId, practiceMode ? undefined : handleAutoSubmit);
+
+  useEffect(() => {
+    if (!resultScreen || showScoreToCandidate || showPostForm || resultScreen.practiceMode) return undefined;
+    const timer = window.setTimeout(() => onComplete(resultScreen), 900);
+    return () => window.clearTimeout(timer);
+  }, [resultScreen, showScoreToCandidate, showPostForm, onComplete]);
 
   useEffect(() => {
     if (timeLeft == null || timeLeft <= 0 || practiceMode) return;
@@ -269,7 +291,7 @@ export function TestInterface({
   if (resultScreen) {
     return (
       <div style={{ minHeight: '100vh', background: '#fafafa', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-        <div className="lt-card" style={{ padding: 40, textAlign: 'center', maxWidth: 440, width: '100%' }}>
+        <div className="lt-card" style={{ padding: 40, textAlign: 'center', maxWidth: 460, width: '100%', borderRadius: 20 }}>
           {resultScreen.practiceMode ? (
             <>
               <Info size={40} color="#d97706" style={{ margin: '0 auto 16px' }} />
@@ -278,11 +300,20 @@ export function TestInterface({
             </>
           ) : showScoreToCandidate ? (
             <>
-              <Award size={40} color={resultScreen.passed ? '#16a34a' : '#808080'} style={{ margin: '0 auto 16px' }} />
-              <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>{resultScreen.passed ? 'Congratulations!' : 'Assessment submitted'}</h2>
-              <p style={{ fontSize: 32, fontWeight: 700, marginBottom: 8 }}>{resultScreen.percentage}%</p>
-              <p style={{ fontSize: 14, color: resultScreen.passed ? '#16a34a' : '#666', marginBottom: 16 }}>
-                {resultScreen.passed ? 'You passed!' : 'Below passing threshold'}
+              <Award size={44} color={resultScreen.passed ? '#16a34a' : '#c0392b'} style={{ margin: '0 auto 16px' }} />
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 12px',
+                borderRadius: 999, marginBottom: 16,
+                background: resultScreen.passed ? '#ecfdf5' : '#fef2f2',
+                color: resultScreen.passed ? '#166534' : '#b91c1c',
+                fontSize: 12, fontWeight: 700, letterSpacing: '0.02em',
+              }}>
+                {resultScreen.passed ? 'Qualified' : 'Needs improvement'}
+              </div>
+              <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>{resultScreen.passed ? 'Great work' : 'Assessment submitted'}</h2>
+              <p style={{ fontSize: 44, fontWeight: 800, color: '#171717', letterSpacing: '-0.05em', marginBottom: 6 }}>{resultScreen.percentage}%</p>
+              <p style={{ fontSize: 14, color: resultScreen.passed ? '#16a34a' : '#666', marginBottom: 18 }}>
+                {resultScreen.passed ? 'You cleared the current passing threshold.' : 'Your responses were submitted successfully.'}
               </p>
               {resultScreen.passed && resultScreen.certificateUrl && (
                 <a href={resultScreen.certificateUrl} className="lt-btn-primary" style={{ display: 'inline-block', padding: '10px 20px', marginBottom: 16, textDecoration: 'none' }}>
@@ -294,8 +325,11 @@ export function TestInterface({
             <>
               <Award size={40} color="#16a34a" style={{ margin: '0 auto 16px' }} />
               <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Thank you!</h2>
-              <p style={{ fontSize: 14, color: '#666', lineHeight: 1.6, marginBottom: 16 }}>
+              <p style={{ fontSize: 14, color: '#666', lineHeight: 1.6, marginBottom: 10 }}>
                 Your responses have been submitted successfully. Our team will review your assessment and contact you about next steps.
+              </p>
+              <p style={{ fontSize: 12, color: '#999', marginBottom: 16 }}>
+                Redirecting you automatically...
               </p>
             </>
           )}
@@ -355,7 +389,7 @@ export function TestInterface({
           Practice mode — responses will not be scored or submitted.
         </div>
       )}
-      <header className="test-interface-header" style={{ background: '#fff', borderBottom: '1px solid #eee', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 10 }}>
+      <header className="test-interface-header" style={{ background: 'rgba(255,255,255,0.96)', backdropFilter: 'blur(16px)', borderBottom: '1px solid #eee', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 10 }}>
         <div>
           <div style={{ fontSize: 14, fontWeight: 700 }}>{title}</div>
           <div style={{ fontSize: 11, color: '#999' }}>
@@ -380,12 +414,17 @@ export function TestInterface({
         </div>
       </header>
 
-      <div style={{ height: 4, background: '#f0f0f0' }}>
-        <div style={{ height: '100%', width: `${((currentIndex + 1) / activeQuestions.length) * 100}%`, background: '#171717', transition: 'width 0.2s' }} />
+      <div style={{ height: 4, background: '#ececec' }}>
+        <div style={{ height: '100%', width: `${((currentIndex + 1) / activeQuestions.length) * 100}%`, background: 'linear-gradient(90deg, #171717, #2563eb)', transition: 'width 0.2s' }} />
       </div>
 
       <div className="test-interface-grid" style={{ maxWidth: 960, margin: '0 auto', padding: '24px 20px', display: 'grid', gridTemplateColumns: '1fr 220px', gap: 20 }}>
         <main className="test-interface-main">
+          {submitError && (
+            <div className="lt-card" style={{ padding: 14, marginBottom: 16, borderRadius: 14, background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', fontSize: 13 }}>
+              {submitError}
+            </div>
+          )}
           {reviewMode ? (
             <div>
               <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Review before submit</h2>
@@ -421,9 +460,21 @@ export function TestInterface({
             </div>
           ) : (
             <>
-              <div className="lt-card" style={{ padding: 24, marginBottom: 16 }}>
-                <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>{current.question_type.replace(/_/g, ' ')}</div>
-                <p style={{ fontSize: 15, lineHeight: 1.6, marginBottom: 20 }}>{current.prompt}</p>
+              <div className="lt-card" style={{ padding: 24, marginBottom: 16, borderRadius: 18 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase' }}>{current.question_type.replace(/_/g, ' ')}</div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: '#666', background: '#f5f5f5', padding: '4px 8px', borderRadius: 999 }}>
+                      {isAnswered(answers[current.id]) ? 'Answered' : 'Not answered'}
+                    </span>
+                    {flagged.has(current.id) && (
+                      <span style={{ fontSize: 11, fontWeight: 600, color: '#b91c1c', background: '#fef2f2', padding: '4px 8px', borderRadius: 999 }}>
+                        Flagged for review
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <p style={{ fontSize: 17, lineHeight: 1.7, marginBottom: 20, color: '#171717' }}>{current.prompt}</p>
                 {renderQuestion()}
               </div>
               <div className="test-interface-nav" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -445,7 +496,7 @@ export function TestInterface({
           )}
         </main>
         <aside className="test-interface-aside" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div className="lt-card" style={{ padding: 14 }}>
+          <div className="lt-card" style={{ padding: 14, borderRadius: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '-0.01em' }}>Questions</div>
               <div style={{ fontSize: 11, color: '#999' }}>{answeredCount}/{activeQuestions.length}</div>
@@ -504,6 +555,15 @@ export function TestInterface({
           {!practiceMode && <ProctoringMonitor attemptId={attemptId} violationCount={violationCount} />}
         </aside>
       </div>
+      {submitting && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(250,250,250,0.76)', backdropFilter: 'blur(6px)', zIndex: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div className="lt-card" style={{ maxWidth: 420, width: '100%', padding: 28, textAlign: 'center', borderRadius: 20 }}>
+            <div style={{ width: 46, height: 46, borderRadius: 999, margin: '0 auto 16px', border: '4px solid #e5e7eb', borderTopColor: '#171717', animation: 'lt-spin 0.8s linear infinite' }} />
+            <h3 style={{ fontSize: 18, fontWeight: 700, color: '#171717', marginBottom: 8 }}>Submitting your assessment</h3>
+            <p style={{ fontSize: 13, color: '#666', lineHeight: 1.6 }}>{submitMessage || 'Please wait while we save your responses.'}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
