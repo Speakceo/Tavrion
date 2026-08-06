@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { animate, onScroll } from 'animejs';
 import { Reveal } from '../components/LandingReveal';
 import { LandingHeroCarousel } from '../components/LandingHeroCarousel';
 import { TavrionLogo } from '../components/TavrionLogo';
@@ -187,25 +186,14 @@ function useMediaQuery(query: string) {
   return matches;
 }
 
-function useWindowWidth() {
-  const [width, setWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 1200);
-  useEffect(() => {
-    const fn = () => setWidth(window.innerWidth);
-    window.addEventListener('resize', fn, { passive: true });
-    return () => window.removeEventListener('resize', fn);
-  }, []);
-  return width;
-}
-
 export function LandingPage() {
-  const [scrollY, setScrollY] = useState(0);
+  const [navScrolled, setNavScrolled] = useState(false);
   const [activeTesti, setActiveTesti] = useState(0);
   const [activeNav, setActiveNav] = useState('');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
-  const width = useWindowWidth();
-  const isMobile = width < 768;
-  const isTablet = width < 1024;
+  const isMobile = useMediaQuery('(max-width: 767px)');
+  const isTablet = useMediaQuery('(max-width: 1023px)');
   const isCompactCarousel = useMediaQuery('(max-width: 1023px)');
 
   usePageSeo({
@@ -221,7 +209,18 @@ export function LandingPage() {
   }, []);
 
   useEffect(() => {
-    const fn = () => setScrollY(window.scrollY);
+    let ticking = false;
+    const onScrollFrame = () => {
+      const next = window.scrollY > 20;
+      setNavScrolled((prev) => (prev === next ? prev : next));
+      ticking = false;
+    };
+    const fn = () => {
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(onScrollFrame);
+    };
+    fn();
     window.addEventListener('scroll', fn, { passive: true });
     return () => window.removeEventListener('scroll', fn);
   }, []);
@@ -231,46 +230,11 @@ export function LandingPage() {
     return () => clearInterval(t);
   }, []);
 
-  useEffect(() => {
-    animate('[data-scroll-fade]', {
-      translateY: [22, 0],
-      opacity: [0, 1],
-      duration: 650,
-      autoplay: onScroll({}),
-    });
-
-    animate('.lp-product-card', {
-      translateY: [28, 0],
-      opacity: [0, 1],
-      delay: (_, i) => i * 70,
-      duration: 760,
-      autoplay: onScroll({}),
-    });
-
-    animate('.lp-feature-card', {
-      translateY: [24, 0],
-      opacity: [0, 1],
-      delay: (_, i) => (i % 3) * 90,
-      duration: 680,
-      autoplay: onScroll({}),
-    });
-
-    animate('.lp-solution-card', {
-      translateY: [20, 0],
-      opacity: [0, 1],
-      delay: (_, i) => i * 80,
-      duration: 700,
-      autoplay: onScroll({}),
-    });
-  }, []);
-
   // Lock body scroll when mobile nav is open
   useEffect(() => {
     document.body.style.overflow = mobileNavOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [mobileNavOpen]);
-
-  const navScrolled = scrollY > 20;
 
   const cardBase: React.CSSProperties = {
     background: T.bg, borderRadius: 12,
@@ -348,10 +312,10 @@ export function LandingPage() {
       {/* ── NAV ── */}
       <header style={{
         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50,
-        background: navScrolled ? 'rgba(255,255,255,0.92)' : T.bg,
-        backdropFilter: navScrolled ? 'blur(20px) saturate(180%)' : 'none',
+        background: navScrolled ? '#ffffff' : T.bg,
         borderBottom: `1px solid ${navScrolled ? T.borderStrong : 'transparent'}`,
-        transition: 'all 0.3s',
+        boxShadow: navScrolled ? '0 1px 0 rgba(0,0,0,0.04)' : 'none',
+        transition: 'border-color 0.2s, box-shadow 0.2s',
       }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 20px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Link to="/" style={{ textDecoration: 'none' }}>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode, type CSSProperties } from 'react';
+import { useEffect, useRef, type ReactNode, type CSSProperties } from 'react';
 
 type RevealProps = {
   children: ReactNode;
@@ -7,28 +7,27 @@ type RevealProps = {
   style?: CSSProperties;
 };
 
-/** Scroll-triggered fade-up — respects prefers-reduced-motion */
+/** Scroll-triggered fade-up via CSS class — no React re-render on reveal */
 export function Reveal({ children, className = '', delay = 0, style }: RevealProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
 
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      setVisible(true);
+      el.classList.add('is-visible');
       return;
     }
 
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          setVisible(true);
+          el.classList.add('is-visible');
           observer.disconnect();
         }
       },
-      { threshold: 0.1, rootMargin: '0px 0px -32px 0px' },
+      { threshold: 0.08, rootMargin: '0px 0px -24px 0px' },
     );
 
     observer.observe(el);
@@ -38,7 +37,7 @@ export function Reveal({ children, className = '', delay = 0, style }: RevealPro
   return (
     <div
       ref={ref}
-      className={`lp-reveal${visible ? ' is-visible' : ''}${className ? ` ${className}` : ''}`}
+      className={`lp-reveal${className ? ` ${className}` : ''}`}
       style={{ ...style, transitionDelay: `${delay}ms` }}
     >
       {children}

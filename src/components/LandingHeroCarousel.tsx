@@ -458,9 +458,11 @@ export function LandingHeroCarousel({ compact = false }: { compact?: boolean }) 
   const [paused, setPaused] = useState(false);
   const [animate, setAnimate] = useState(true);
   const [progressKey, setProgressKey] = useState(0);
-  const [tilt, setTilt] = useState({ x: 0, y: 0 });
+  const [inView, setInView] = useState(true);
   const trackRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const tiltRafRef = useRef<number | null>(null);
 
   const displayIndex = index % SLIDES.length;
   const slide = SLIDES[displayIndex];
@@ -469,7 +471,18 @@ export function LandingHeroCarousel({ compact = false }: { compact?: boolean }) 
   const trackMeta = [...SLIDES, SLIDES[0]];
 
   useEffect(() => {
-    if (paused) return undefined;
+    const stage = stageRef.current;
+    if (!stage) return undefined;
+    const io = new IntersectionObserver(
+      ([entry]) => setInView(entry.isIntersecting),
+      { threshold: 0.05 },
+    );
+    io.observe(stage);
+    return () => io.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (paused || !inView) return undefined;
     const timer = window.setInterval(() => {
       if (compact) {
         setIndex((current) => (current + 1) % SLIDES.length);
@@ -484,7 +497,7 @@ export function LandingHeroCarousel({ compact = false }: { compact?: boolean }) 
       setProgressKey((key) => key + 1);
     }, AUTO_MS);
     return () => window.clearInterval(timer);
-  }, [paused, compact]);
+  }, [paused, compact, inView]);
 
   useEffect(() => {
     if (compact) return undefined;
@@ -519,24 +532,30 @@ export function LandingHeroCarousel({ compact = false }: { compact?: boolean }) 
   const handlePointerMove = (event: MouseEvent<HTMLDivElement>) => {
     if (compact) return;
     const stage = stageRef.current;
-    if (!stage) return;
-    const rect = stage.getBoundingClientRect();
-    const px = (event.clientX - rect.left) / rect.width;
-    const py = (event.clientY - rect.top) / rect.height;
-    setTilt({
-      x: (0.5 - py) * 10,
-      y: (px - 0.5) * 14,
+    const frame = frameRef.current;
+    if (!stage || !frame) return;
+    const clientX = event.clientX;
+    const clientY = event.clientY;
+    if (tiltRafRef.current != null) return;
+    tiltRafRef.current = window.requestAnimationFrame(() => {
+      tiltRafRef.current = null;
+      const rect = stage.getBoundingClientRect();
+      const px = (clientX - rect.left) / rect.width;
+      const py = (clientY - rect.top) / rect.height;
+      const x = (0.5 - py) * 8;
+      const y = (px - 0.5) * 10;
+      frame.style.transform = `perspective(1400px) rotateX(${6 + x}deg) rotateY(${-12 + y}deg) translateZ(0)`;
     });
   };
 
-  const resetTilt = () => setTilt({ x: 0, y: 0 });
+  const resetTilt = () => {
+    const frame = frameRef.current;
+    if (!frame || compact) return;
+    frame.style.transform = 'perspective(1400px) rotateX(6deg) rotateY(-12deg) translateZ(0)';
+  };
 
   const canHoverPause = () =>
     typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-
-  const frameTransform = compact
-    ? 'none'
-    : `perspective(1400px) rotateX(${6 + tilt.x}deg) rotateY(${-12 + tilt.y}deg) translateZ(0)`;
 
   return (
     <div
@@ -552,7 +571,7 @@ export function LandingHeroCarousel({ compact = false }: { compact?: boolean }) 
       <div
         ref={stageRef}
         onMouseMove={handlePointerMove}
-        className={compact ? undefined : 'lp-hero-carousel-stage'}
+        className={compact || !inView ? undefined : 'lp-hero-carousel-stage'}
         style={{
           position: 'relative',
           padding: compact ? 0 : '8px 10px 28px',
@@ -560,26 +579,16 @@ export function LandingHeroCarousel({ compact = false }: { compact?: boolean }) 
         }}
       >
         {!compact && (
-          <>
-            <div aria-hidden style={{
-              position: 'absolute', left: '8%', right: '8%', bottom: 8, height: 28,
-              background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.22) 0%, transparent 70%)',
-              filter: 'blur(10px)',
-              transform: 'translateZ(-40px)',
-              pointerEvents: 'none',
-            }} />
-            <div aria-hidden style={{
-              position: 'absolute', inset: '18px 18px auto', height: '70%',
-              borderRadius: 20,
-              background: 'linear-gradient(135deg, rgba(10,114,239,0.12), rgba(222,29,141,0.08))',
-              filter: 'blur(18px)',
-              transform: 'translateZ(-24px) rotateY(-8deg)',
-              pointerEvents: 'none',
-            }} />
-          </>
+          <div aria-hidden style={{
+            position: 'absolute', left: '10%', right: '10%', bottom: 10, height: 24,
+            background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.14) 0%, transparent 72%)',
+            transform: 'translateZ(-40px)',
+            pointerEvents: 'none',
+          }} />
         )}
 
         <div
+          ref={frameRef}
           className={compact ? undefined : 'lp-hero-carousel-frame'}
           style={{
             position: 'relative',
@@ -587,10 +596,11 @@ export function LandingHeroCarousel({ compact = false }: { compact?: boolean }) 
             borderRadius: 16,
             overflow: 'hidden',
             border: `1px solid ${T.borderStrong}`,
-            transform: frameTransform,
+            transform: compact ? 'none' : 'perspective(1400px) rotateX(6deg) rotateY(-12deg) translateZ(0)',
             transformStyle: 'preserve-3d',
             transformOrigin: 'center center',
-            transition: compact ? undefined : 'transform 0.18s ease-out',
+            transition: compact ? undefined : 'transform 0.2s ease-out',
+            willChange: compact ? undefined : 'transform',
             boxShadow: compact
               ? 'rgba(0,0,0,0.08) 0px 0px 0px 1px, rgba(0,0,0,0.06) 0px 8px 24px'
               : 'rgba(0,0,0,0.1) 0px 0px 0px 1px, rgba(0,0,0,0.08) 0px 12px 28px, rgba(0,0,0,0.12) 0px 32px 64px -16px, rgba(255,255,255,0.7) 0px 1px 0px inset',
