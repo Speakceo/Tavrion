@@ -14,6 +14,7 @@ import {
   Users, Monitor, GitCompare, Download, Sparkles, Video,
 } from 'lucide-react';
 import { formatAnswerForDisplay } from '../utils/answerDisplay';
+import { scoreResponse } from '../utils/scoring';
 
 const SELECTION_OPTIONS: SelectionStatus[] = ['pending', 'shortlisted', 'selected', 'rejected', 'on_hold'];
 
@@ -41,6 +42,16 @@ function scoreBackground(score: number | null | undefined) {
   if (score >= 70) return '#ecfdf5';
   if (score >= 40) return '#fff7ed';
   return '#fef2f2';
+}
+
+function responseScore(response: SessionDetail['responses'][number]) {
+  const persisted = response.final_score ?? response.auto_score ?? null;
+  if (persisted != null) return persisted;
+  if (!response.question) return null;
+  const calculated = scoreResponse(response.question, response.answer as Record<string, unknown>);
+  return calculated.details.includes('manual') || calculated.details.includes('Requires')
+    ? null
+    : calculated.percentage;
 }
 
 export function TestSessions() {
@@ -156,7 +167,7 @@ export function TestSessions() {
   const responseSummary = useMemo(() => {
     if (!detail?.responses?.length) return { correct: 0, incorrect: 0, pending: 0 };
     return detail.responses.reduce((acc, r) => {
-      const score = r.final_score ?? r.auto_score;
+      const score = responseScore(r);
       if (score == null) acc.pending += 1;
       else if (score >= 70) acc.correct += 1;
       else acc.incorrect += 1;
@@ -517,11 +528,12 @@ export function TestSessions() {
             {(detail.responses || []).map((r) => {
               const mediaUrl = String((r.answer as { media_url?: string })?.media_url ?? '');
               const isVideo = (r.answer as { media_type?: string })?.media_type === 'video' || r.question?.question_type === 'video_response';
+              const computedScore = responseScore(r);
               return (
                 <div key={r.id} style={{ padding: '12px 0', borderTop: '1px solid #f5f5f5', fontSize: 12 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 6 }}>
                     <div style={{ fontWeight: 600 }}>{r.question?.prompt?.slice(0, 100)}</div>
-                    {(r.auto_score != null || r.final_score != null) && (
+                    {computedScore != null && (
                       <span style={{
                         flexShrink: 0,
                         display: 'inline-flex',
@@ -530,10 +542,10 @@ export function TestSessions() {
                         borderRadius: 999,
                         fontSize: 11,
                         fontWeight: 700,
-                        color: scoreColor(r.final_score ?? r.auto_score),
-                        background: scoreBackground(r.final_score ?? r.auto_score),
+                        color: scoreColor(computedScore),
+                        background: scoreBackground(computedScore),
                       }}>
-                        {(r.final_score ?? r.auto_score) >= 70 ? 'Correct' : 'Incorrect'}
+                        {computedScore >= 70 ? 'Correct' : 'Incorrect'}
                       </span>
                     )}
                   </div>
@@ -571,9 +583,9 @@ export function TestSessions() {
                       {formatAnswerForDisplay(r.question, r.answer as Record<string, unknown>)}
                     </div>
                   )}
-                  {(r.auto_score != null || r.final_score != null) && (
+                  {computedScore != null && (
                     <div style={{ marginTop: 8, fontSize: 11, color: '#666' }}>
-                      Score: {r.final_score ?? r.auto_score}%
+                      Score: {computedScore}%
                       {r.grader_notes && !r.grader_notes.startsWith('{') ? ` · ${r.grader_notes}` : ''}
                     </div>
                   )}
