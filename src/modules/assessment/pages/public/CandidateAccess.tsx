@@ -162,6 +162,7 @@ export function CandidateAccess() {
           resume_token: token,
           scheduled_slot: selectedSlot || null,
           practice_mode: practiceMode || undefined,
+          last_active_at: new Date().toISOString(),
         },
         candidate_info: { ...candidate, resume_url: resumeUrl },
       }).eq('id', attempt.id);

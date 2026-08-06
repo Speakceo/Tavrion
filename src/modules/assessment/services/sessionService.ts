@@ -16,9 +16,27 @@ export async function fetchSessions(
     status?: string;
     selection?: SelectionStatus;
     search?: string;
+    assessmentId?: string;
     limit?: number;
   },
 ) {
+  let assignmentIds: string[] | null = null;
+  if (filters?.assessmentId) {
+    let assignmentQuery = supabase
+      .from('assessment_assignments')
+      .select('id')
+      .eq('assessment_id', filters.assessmentId);
+
+    if (!viewer?.is_platform_owner && viewer?.organization_id) {
+      assignmentQuery = assignmentQuery.eq('organization_id', viewer.organization_id);
+    }
+
+    const { data: assignments, error: assignmentError } = await assignmentQuery;
+    if (assignmentError) throw assignmentError;
+    assignmentIds = (assignments || []).map((row) => row.id);
+    if (!assignmentIds.length) return [];
+  }
+
   let query = supabase
     .from('assessment_attempts')
     .select(`
@@ -33,6 +51,7 @@ export async function fetchSessions(
     query = query.eq('organization_id', viewer.organization_id);
   }
 
+  if (assignmentIds) query = query.in('assignment_id', assignmentIds);
   if (filters?.status) query = query.eq('status', filters.status);
   if (filters?.selection) query = query.eq('selection_status', filters.selection);
 

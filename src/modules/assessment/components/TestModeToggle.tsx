@@ -1,14 +1,15 @@
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { ClipboardCheck } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useModuleSwitch } from '../../../contexts/ModuleSwitchContext';
 import { canAccessTavrionTest, isOrgFeatureEnabled } from '../../../utils/orgFeatures';
 import { isMasterSuperAdmin } from '../../../utils/platformAccess';
 
 /** Header toggle — admins/trainers, when org has tavrion_test enabled. */
 export function TestModeToggle() {
   const { profile, organization } = useAuth();
-  const navigate = useNavigate();
   const location = useLocation();
+  const { switchModule, isSwitching } = useModuleSwitch();
 
   const isAdmin = canAccessTavrionTest(profile?.role);
   const enabled = isOrgFeatureEnabled(organization?.features, 'tavrion_test', {
@@ -20,8 +21,10 @@ export function TestModeToggle() {
 
   return (
     <button
-      onClick={() => navigate('/test')}
+      onClick={() => switchModule('test', '/test')}
+      disabled={isSwitching}
       title="Open Tavrion Test — Assessments & Hiring"
+      className="module-switch-trigger"
       style={{
         display: 'flex', alignItems: 'center', gap: 6,
         padding: '6px 12px', borderRadius: 8,

@@ -225,6 +225,9 @@ export async function startPublicAttempt(
       status: 'in_progress',
       device_fingerprint: navigator.userAgent.slice(0, 200),
       user_agent: navigator.userAgent,
+      progress: {
+        last_active_at: new Date().toISOString(),
+      },
     })
     .select()
     .single();

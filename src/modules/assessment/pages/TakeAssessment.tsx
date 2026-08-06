@@ -43,7 +43,11 @@ export function TakeAssessment() {
           }
         }
         setQuestions(qs);
-        const att = await startAttempt({ ...viewer, id: viewer.id }, assignmentId);
+        const att = await startAttempt(
+          { ...viewer, id: viewer.id },
+          assignmentId,
+          { is_preview: assignment.title.startsWith('Preview:') },
+        );
         setAttemptId(att.id);
         setTimeLimit(assignment.time_limit_minutes || assessment?.time_limit_minutes || null);
         await fetchAttemptResponses(att.id);

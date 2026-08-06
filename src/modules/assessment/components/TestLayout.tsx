@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useModuleSwitch, useModuleEnterAnimation } from '../../../contexts/ModuleSwitchContext';
 import { useState, useEffect, useRef } from 'react';
 import {
   LayoutDashboard, Library, HelpCircle, Users, BarChart3, FileText,
@@ -71,6 +72,8 @@ export function TestLayout({ children, wide }: { children: React.ReactNode; wide
   const { profile, organization, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const { switchModule, isSwitching } = useModuleSwitch();
+  const { active: enterAnim, trigger: triggerEnterAnim } = useModuleEnterAnimation('test');
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -83,7 +86,8 @@ export function TestLayout({ children, wide }: { children: React.ReactNode; wide
 
   useEffect(() => {
     setMobileOpen(false);
-  }, [location.pathname]);
+    triggerEnterAnim();
+  }, [location.pathname, triggerEnterAnim]);
 
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -144,8 +148,9 @@ export function TestLayout({ children, wide }: { children: React.ReactNode; wide
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <button
-              onClick={() => navigate('/dashboard')}
-              className="lt-btn-secondary"
+              onClick={() => switchModule('lms', '/dashboard')}
+              disabled={isSwitching}
+              className="lt-btn-secondary module-switch-trigger"
               style={{ padding: '6px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
               title="Switch back to LMS"
             >
@@ -209,7 +214,10 @@ export function TestLayout({ children, wide }: { children: React.ReactNode; wide
           />
         )}
 
-        <main ref={mainRef} className={`test-layout-main${isWide ? ' test-layout-main--wide' : ''}`}>
+        <main
+          ref={mainRef}
+          className={`test-layout-main${isWide ? ' test-layout-main--wide' : ''}${enterAnim ? ' module-content-enter' : ''}`}
+        >
           {children}
         </main>
       </div>

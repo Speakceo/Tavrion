@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useModuleEnterAnimation } from '../contexts/ModuleSwitchContext';
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useLearnerCourses } from '../hooks/useLearnerCourses';
@@ -79,6 +80,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const mainRef = useRef<HTMLElement>(null);
   const width = useWindowWidth();
   const isMobile = width < 768;
+  const { active: enterAnim, trigger: triggerEnterAnim } = useModuleEnterAnimation('lms');
 
   const handleSignOut = async () => {
     await signOut();
@@ -94,7 +96,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setMobileSidebarOpen(false);
-  }, [location.pathname]);
+    triggerEnterAnim();
+  }, [location.pathname, triggerEnterAnim]);
 
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -537,7 +540,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </aside>
 
         {/* ── MAIN ── */}
-        <main ref={mainRef} style={{ flex: 1, padding: isMobile ? '14px 14px 20px' : 24, overflowY: 'auto', minHeight: `calc(100dvh - ${navOffset}px)`, maxWidth: isMobile ? '100%' : 'calc(100vw - 220px)' }}>
+        <main
+          ref={mainRef}
+          className={enterAnim ? 'module-content-enter' : undefined}
+          style={{ flex: 1, padding: isMobile ? '14px 14px 20px' : 24, overflowY: 'auto', minHeight: `calc(100dvh - ${navOffset}px)`, maxWidth: isMobile ? '100%' : 'calc(100vw - 220px)' }}
+        >
           {children}
         </main>
       </div>

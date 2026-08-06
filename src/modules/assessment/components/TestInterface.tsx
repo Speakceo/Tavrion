@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { Flag, ChevronLeft, ChevronRight, Maximize2, Clock, Award, Info } from 'lucide-react';
 import type { AssessmentQuestion } from '../types';
-import { saveResponse } from '../services/attemptService';
+import { saveResponse, touchAttemptActivity, markAttemptVoid } from '../services/attemptService';
 import { uploadAssessmentMedia } from '../services/mediaService';
 import { useIntegrityMonitor } from '../hooks/useIntegrityMonitor';
 import { ProctoringMonitor } from './ProctoringMonitor';
@@ -114,6 +114,7 @@ export function TestInterface({
   const [sectionTimeLeft, setSectionTimeLeft] = useState<number | null>(null);
   const [resultScreen, setResultScreen] = useState<TestCompleteResult | null>(null);
   const sectionAdvancedRef = useRef(false);
+  const submitStartedRef = useRef(false);
 
   const skippedIds = useMemo(() => buildSkippedSet(questions, answers), [questions, answers]);
   const activeQuestions = useMemo(
@@ -145,6 +146,8 @@ export function TestInterface({
   }, [activeQuestions, currentIndex, sectionMeta]);
 
   const doSubmit = useCallback(async () => {
+    if (submitStartedRef.current) return;
+    submitStartedRef.current = true;
     setSubmitting(true);
     setSubmitError('');
     setSubmitMessage('Saving your responses...');
@@ -173,6 +176,7 @@ export function TestInterface({
       }
 
       if (practiceMode) {
+        await markAttemptVoid(attemptId);
         const mockResult: TestCompleteResult = {
           percentage: 0,
           passed: false,
@@ -198,11 +202,23 @@ export function TestInterface({
       setSubmitMessage('Finalizing your submission...');
       setResultScreen(completeResult);
     } catch (error) {
+      submitStartedRef.current = false;
       setSubmitError(error instanceof Error ? error.message : 'Submission failed. Please try again.');
     } finally {
       setSubmitting(false);
     }
   }, [activeQuestions, answers, flagged, attemptId, assignmentId, practiceMode, showPostForm]);
+
+  useEffect(() => {
+    if (!attemptId || practiceMode || resultScreen) return undefined;
+
+    touchAttemptActivity(attemptId).catch(() => undefined);
+    const timer = window.setInterval(() => {
+      touchAttemptActivity(attemptId).catch(() => undefined);
+    }, 30_000);
+
+    return () => window.clearInterval(timer);
+  }, [attemptId, practiceMode, resultScreen]);
 
   const handleAutoSubmit = useCallback(async () => {
     if (submitting || resultScreen) return;
@@ -269,6 +285,9 @@ export function TestInterface({
     const q = questions.find((x) => x.id === questionId);
     setAnswers((prev) => ({ ...prev, [questionId]: answer }));
     await saveResponse(attemptId, questionId, answer, isFlagged, q);
+    if (!practiceMode) {
+      await touchAttemptActivity(attemptId).catch(() => undefined);
+    }
   };
 
   const toggleFlag = async () => {

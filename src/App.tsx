@@ -1,6 +1,7 @@
 import { Component, ErrorInfo, ReactNode, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { ModuleSwitchProvider } from './contexts/ModuleSwitchContext';
 import { pingSupabaseKeepalive } from './lib/supabaseKeepalive';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { PagePasswordGate } from './components/PagePasswordGate';
@@ -134,6 +135,7 @@ function App() {
         <ScrollToTop />
         <KeepaliveBoot />
         <AuthProvider>
+          <ModuleSwitchProvider>
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/landing" element={<Navigate to="/" replace />} />
@@ -734,6 +736,7 @@ function App() {
 
           <Route path="/home" element={<Navigate to="/" replace />} />
         </Routes>
+          </ModuleSwitchProvider>
       </AuthProvider>
     </BrowserRouter>
     </ErrorBoundary>

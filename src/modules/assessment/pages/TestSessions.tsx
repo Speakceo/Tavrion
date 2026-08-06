@@ -5,6 +5,8 @@ import {
   fetchSessions, updateSelectionStatus, deleteSession, fetchSessionDetail,
   bulkUpdateSelectionStatus, bulkDeleteSessions, updateSessionTranscript,
 } from '../services/sessionService';
+import { fetchAssessments } from '../services/assessmentService';
+import type { Assessment } from '../types';
 import { exportSelectedSessionsCsv } from '../services/exportService';
 import { summarizeCandidate } from '../services/aiService';
 import { confirmDelete } from '../utils/confirm';
@@ -61,6 +63,60 @@ function responseScore(response: SessionDetail['responses'][number]) {
     : calculated.percentage;
 }
 
+function derivedObjectiveScore(detail: SessionDetail | null) {
+  if (!detail?.responses?.length) return null;
+  const scored = detail.responses
+    .filter((response) => response.question)
+    .map((response) => scoreResponse(response.question!, response.answer as Record<string, unknown>))
+    .filter((result) => !result.details.includes('manual') && !result.details.includes('Requires'));
+
+  if (!scored.length) return null;
+
+  const total = scored.reduce((sum, result) => sum + result.autoScore, 0);
+  const max = scored.reduce((sum, result) => sum + result.maxScore, 0);
+  return max > 0 ? Math.round((total / max) * 100) : null;
+}
+
+const LIVE_SESSION_WINDOW_MS = 5 * 60 * 1000;
+
+function sessionLastActiveAt(session: { started_at: string; progress?: Record<string, unknown> | null }) {
+  const progress = session.progress || {};
+  const lastActive = progress.last_active_at;
+  if (typeof lastActive === 'string') return new Date(lastActive).getTime();
+  return new Date(session.started_at).getTime();
+}
+
+function isLiveSession(session: { status: string; submitted_at?: string | null; started_at: string; progress?: Record<string, unknown> | null }) {
+  if (session.status !== 'in_progress' || session.submitted_at) return false;
+  return Date.now() - sessionLastActiveAt(session) <= LIVE_SESSION_WINDOW_MS;
+}
+
+function sessionStatusLabel(
+  status: string,
+  session?: { submitted_at?: string | null; started_at: string; progress?: Record<string, unknown> | null },
+) {
+  if (status === 'in_progress' && session) {
+    if (session.submitted_at) return 'Submitted';
+    if (!isLiveSession({ status, ...session })) return 'Abandoned';
+    return 'In progress';
+  }
+
+  switch (status) {
+    case 'graded':
+      return 'Completed';
+    case 'submitted':
+      return 'Submitted';
+    case 'in_progress':
+      return 'In progress';
+    case 'void':
+      return 'Void';
+    case 'expired':
+      return 'Expired';
+    default:
+      return status.replace('_', ' ');
+  }
+}
+
 export function TestSessions() {
   const { profile } = useAuth();
   const viewer = profile ? { organization_id: profile.organization_id, is_platform_owner: profile.is_platform_owner, id: profile.id } : null;
@@ -69,6 +125,8 @@ export function TestSessions() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [selectionFilter, setSelectionFilter] = useState<SelectionStatus | ''>('');
+  const [assessmentFilter, setAssessmentFilter] = useState('');
+  const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [detail, setDetail] = useState<SessionDetail | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<Tab>('sessions');
@@ -86,6 +144,7 @@ export function TestSessions() {
         search: search || undefined,
         status: statusFilter || undefined,
         selection: selectionFilter || undefined,
+        assessmentId: assessmentFilter || undefined,
       });
       setSessions(data);
     } finally {
@@ -93,9 +152,28 @@ export function TestSessions() {
     }
   };
 
-  useEffect(() => { load(); }, [profile?.id, search, statusFilter, selectionFilter]);
+  useEffect(() => { load(); }, [profile?.id, search, statusFilter, selectionFilter, assessmentFilter]);
 
-  const inProgress = useMemo(() => sessions.filter((s) => s.status === 'in_progress'), [sessions]);
+  useEffect(() => {
+    if (!viewer) return;
+    fetchAssessments(viewer)
+      .then((rows) => setAssessments([...rows].sort((a, b) => a.title.localeCompare(b.title))))
+      .catch(() => setAssessments([]));
+  }, [profile?.id]);
+
+  useEffect(() => {
+    if (tab !== 'proctor') return undefined;
+    const timer = window.setInterval(() => {
+      load();
+    }, 15_000);
+    return () => window.clearInterval(timer);
+  }, [tab, profile?.id, search, statusFilter, selectionFilter, assessmentFilter]);
+
+  const liveSessions = useMemo(() => sessions.filter(isLiveSession), [sessions]);
+  const staleInProgress = useMemo(
+    () => sessions.filter((s) => s.status === 'in_progress' && !s.submitted_at && !isLiveSession(s)),
+    [sessions],
+  );
   const compareSessions = useMemo(
     () => sessions.filter((s) => compareIds.includes(s.id)),
     [sessions, compareIds],
@@ -103,7 +181,7 @@ export function TestSessions() {
 
   const stats = {
     total: sessions.length,
-    completed: sessions.filter((s) => s.status === 'graded').length,
+    completed: sessions.filter((s) => s.status === 'graded' || s.status === 'submitted').length,
     shortlisted: sessions.filter((s) => s.selection_status === 'shortlisted' || s.selection_status === 'selected').length,
     avgScore: (() => {
       const graded = sessions
@@ -173,6 +251,10 @@ export function TestSessions() {
   };
 
   const detailedScores = (detail?.analytics?.detailed_scores || {}) as Record<string, unknown>;
+  const objectiveScore = useMemo(
+    () => sessionPrimaryScore(detail ?? {}) ?? derivedObjectiveScore(detail),
+    [detail],
+  );
   const responseSummary = useMemo(() => {
     if (!detail?.responses?.length) return { correct: 0, incorrect: 0, pending: 0 };
     return detail.responses.reduce((acc, r) => {
@@ -208,7 +290,7 @@ export function TestSessions() {
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
         {([
           { id: 'sessions' as Tab, label: 'All sessions', icon: Users },
-          { id: 'proctor' as Tab, label: `Live proctor (${inProgress.length})`, icon: Monitor },
+          { id: 'proctor' as Tab, label: `Live proctor (${liveSessions.length})`, icon: Monitor },
           { id: 'compare' as Tab, label: `Compare (${compareIds.length}/5)`, icon: GitCompare },
         ]).map((t) => (
           <button
@@ -233,7 +315,14 @@ export function TestSessions() {
             <select className="lt-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ width: 130 }}>
               <option value="">All status</option>
               <option value="in_progress">In progress</option>
-              <option value="graded">Graded</option>
+              <option value="submitted">Submitted</option>
+              <option value="graded">Completed</option>
+            </select>
+            <select className="lt-input" value={assessmentFilter} onChange={(e) => setAssessmentFilter(e.target.value)} style={{ width: 180, maxWidth: '100%' }}>
+              <option value="">All assessments</option>
+              {assessments.map((a) => (
+                <option key={a.id} value={a.id}>{a.title}</option>
+              ))}
             </select>
             <select className="lt-input" value={selectionFilter} onChange={(e) => setSelectionFilter(e.target.value as SelectionStatus | '')} style={{ width: 140 }}>
               <option value="">All selection</option>
@@ -303,11 +392,13 @@ export function TestSessions() {
                           gap: 6,
                           padding: '5px 9px',
                           borderRadius: 999,
-                          background: s.status === 'graded' ? '#ecfdf5' : '#f5f5f5',
-                          color: s.status === 'graded' ? '#166534' : '#666',
+                          background: s.status === 'graded' || s.status === 'submitted' ? '#ecfdf5' : '#f5f5f5',
+                          color: s.status === 'graded' || s.status === 'submitted' ? '#166534' : '#666',
                         }}>
-                          {s.status === 'graded' ? <CheckCircle size={12} color="#16a34a" /> : <Clock size={12} color="#808080" />}
-                          {s.status}
+                          {s.status === 'graded' || s.status === 'submitted'
+                            ? <CheckCircle size={12} color="#16a34a" />
+                            : <Clock size={12} color="#808080" />}
+                          {sessionStatusLabel(s.status, s)}
                         </span>
                       </td>
                       <td style={{ padding: '12px 14px' }}>
@@ -375,25 +466,32 @@ export function TestSessions() {
 
       {tab === 'proctor' && (
         <div className="lt-card" style={{ overflow: 'auto' }}>
-          {inProgress.length === 0 ? (
-            <p style={{ padding: 24, fontSize: 13, color: '#999' }}>No in-progress sessions right now.</p>
+          {liveSessions.length === 0 ? (
+            <p style={{ padding: 24, fontSize: 13, color: '#999' }}>
+              No candidates are actively taking a test right now.
+              {staleInProgress.length > 0 && (
+                <> {staleInProgress.length} older unfinished session{staleInProgress.length === 1 ? '' : 's'} remain in All sessions.</>
+              )}
+            </p>
           ) : (
             <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #f0f0f0', textAlign: 'left' }}>
                   <th style={{ padding: '10px 14px', color: '#999' }}>Candidate</th>
                   <th style={{ padding: '10px 14px', color: '#999' }}>Assessment</th>
-                  <th style={{ padding: '10px 14px', color: '#999' }}>Started</th>
+                  <th style={{ padding: '10px 14px', color: '#999' }}>Last active</th>
                   <th style={{ padding: '10px 14px', color: '#999' }}>Violations</th>
                   <th style={{ padding: '10px 14px', color: '#999' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {inProgress.map((s) => (
+                {liveSessions.map((s) => (
                   <tr key={s.id} style={{ borderBottom: '1px solid #f5f5f5' }}>
                     <td style={{ padding: '12px 14px', fontWeight: 600 }}>{s.candidate_name || s.candidate_email}</td>
                     <td style={{ padding: '12px 14px' }}>{s.assignment?.title}</td>
-                    <td style={{ padding: '12px 14px', fontSize: 12, color: '#666' }}>{new Date(s.started_at).toLocaleString()}</td>
+                    <td style={{ padding: '12px 14px', fontSize: 12, color: '#666' }}>
+                      {new Date(sessionLastActiveAt(s)).toLocaleString()}
+                    </td>
                     <td style={{ padding: '12px 14px' }}>
                       <span style={{ color: (s.violation_count || 0) > 0 ? '#c0392b' : '#16a34a', fontWeight: 600 }}>
                         {s.violation_count || 0}
@@ -462,9 +560,9 @@ export function TestSessions() {
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
               <span style={{
                 display: 'inline-flex', alignItems: 'center', padding: '6px 10px', borderRadius: 999,
-                background: scoreBackground(sessionPrimaryScore(detail)), color: scoreColor(sessionPrimaryScore(detail)), fontSize: 12, fontWeight: 700,
+                background: scoreBackground(objectiveScore), color: scoreColor(objectiveScore), fontSize: 12, fontWeight: 700,
               }}>
-                Objective score {sessionPrimaryScore(detail) ?? '—'}%
+                Objective score {objectiveScore ?? '—'}%
               </span>
               <span style={{
                 display: 'inline-flex', alignItems: 'center', padding: '6px 10px', borderRadius: 999,

@@ -9,13 +9,68 @@ import { invokeCalculateOverallScore } from './mediaService';
 
 const MANUAL_GRADE_TYPES = new Set(['long_answer', 'video_response', 'audio_response']);
 
+export async function touchAttemptActivity(
+  attemptId: string,
+  extra?: Record<string, unknown>,
+) {
+  const { data: attempt } = await supabase
+    .from('assessment_attempts')
+    .select('progress, status')
+    .eq('id', attemptId)
+    .maybeSingle();
+
+  if (!attempt || attempt.status !== 'in_progress') return;
+
+  const progress = {
+    ...((attempt.progress || {}) as Record<string, unknown>),
+    last_active_at: new Date().toISOString(),
+    ...extra,
+  };
+
+  const { error } = await supabase
+    .from('assessment_attempts')
+    .update({ progress })
+    .eq('id', attemptId)
+    .eq('status', 'in_progress');
+
+  if (error) throw error;
+}
+
+export async function markAttemptVoid(attemptId: string) {
+  const { error } = await supabase
+    .from('assessment_attempts')
+    .update({
+      status: 'void',
+      submitted_at: new Date().toISOString(),
+    })
+    .eq('id', attemptId)
+    .eq('status', 'in_progress');
+
+  if (error) throw error;
+}
+
 export async function startAttempt(
   viewer: OrgViewer & { id: string },
   assignmentId: string,
-  meta?: { candidate_email?: string; candidate_name?: string },
+  meta?: { candidate_email?: string; candidate_name?: string; is_preview?: boolean },
 ) {
   const orgId = orgIdForInsert(viewer);
   if (!orgId) throw new Error('Organization required');
+
+  const { data: existing } = await supabase
+    .from('assessment_attempts')
+    .select('*')
+    .eq('assignment_id', assignmentId)
+    .eq('user_id', viewer.id)
+    .eq('status', 'in_progress')
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) {
+    await touchAttemptActivity(existing.id, meta?.is_preview ? { is_preview: true } : undefined);
+    return existing as AssessmentAttempt;
+  }
 
   const { count } = await supabase
     .from('assessment_attempts')
@@ -35,6 +90,10 @@ export async function startAttempt(
       attempt_number: (count || 0) + 1,
       device_fingerprint: navigator.userAgent.slice(0, 200),
       user_agent: navigator.userAgent,
+      progress: {
+        last_active_at: new Date().toISOString(),
+        ...(meta?.is_preview ? { is_preview: true } : {}),
+      },
     })
     .select()
     .single();
@@ -100,7 +159,7 @@ async function scoreAndPersistResponses(
       ? Math.round((scored.autoScore / scored.maxScore) * 100)
       : 0;
 
-    await supabase.from('assessment_responses').upsert(
+    const { error } = await supabase.from('assessment_responses').upsert(
       {
         attempt_id: attemptId,
         question_id: q.id,
@@ -111,6 +170,7 @@ async function scoreAndPersistResponses(
       },
       { onConflict: 'attempt_id,question_id' },
     );
+    if (error) throw error;
   }
 
   return results;
@@ -147,14 +207,35 @@ export async function submitAttempt(
 
   const passThreshold = assignment.passing_score ?? assessment.passing_score ?? passingScore;
   const { percentage, passed } = calculateAttemptScore(results, passThreshold);
+  const submittedAt = new Date().toISOString();
 
-  await supabase.from('assessment_attempts').update({
-    status: 'graded',
-    submitted_at: new Date().toISOString(),
-    auto_score: percentage,
-    final_score: percentage,
-    passed,
-  }).eq('id', attemptId);
+  const { error: submitError } = await supabase
+    .from('assessment_attempts')
+    .update({
+      status: 'submitted',
+      submitted_at: submittedAt,
+    })
+    .eq('id', attemptId)
+    .eq('status', 'in_progress');
+
+  if (submitError) throw submitError;
+
+  const { data: finalized, error: finalizeError } = await supabase
+    .from('assessment_attempts')
+    .update({
+      status: 'graded',
+      submitted_at: submittedAt,
+      auto_score: percentage,
+      final_score: percentage,
+      passed,
+    })
+    .eq('id', attemptId)
+    .in('status', ['in_progress', 'submitted'])
+    .select('id')
+    .maybeSingle();
+
+  if (finalizeError) throw finalizeError;
+  if (!finalized) throw new Error('Could not finalize your submission. Please try again.');
 
   let ai_summary: string | undefined;
   try {
