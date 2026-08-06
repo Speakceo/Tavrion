@@ -56,16 +56,54 @@ export function scoreResponse(
     return { autoScore: 0, maxScore: weight, percentage: 0, details: 'Requires manual grading' };
   }
 
-  if (type === 'coding' || type === 'sql') {
+  if (type === 'sql') {
+    const metaKeywords = (question.metadata?.expected_keywords as string[] | undefined) || [];
+    const title = question.title.toLowerCase();
+    const fallbackKeywords = title.includes('active users')
+      ? ['select', 'distinct', 'user_id', 'logins']
+      : title.includes('department headcount')
+        ? ['select', 'join', 'group by', 'count', 'order by']
+        : title.includes('monthly revenue')
+          ? ['select', 'sum', 'group by']
+          : title.includes('second purchase')
+            ? ['select', 'count', 'orders']
+            : [];
+    const keywords = metaKeywords.length ? metaKeywords : fallbackKeywords;
+    const sql = String(response?.code ?? '').trim();
+    if (keywords.length && sql) {
+      const hits = keywords.filter((k) => sql.toLowerCase().includes(k.toLowerCase())).length;
+      const ratio = hits / keywords.length;
+      return {
+        autoScore: weight * ratio,
+        maxScore: weight,
+        percentage: Math.round(ratio * 100),
+        details: `${hits}/${keywords.length} SQL patterns matched`,
+      };
+    }
+    if (sql) {
+      return { autoScore: 0, maxScore: weight, percentage: 0, details: 'Requires manual grading' };
+    }
+    return { autoScore: 0, maxScore: weight, percentage: 0, details: 'No SQL submitted' };
+  }
+
+  if (type === 'coding') {
+    const sampleTests = (question.metadata?.sample_tests as unknown[] | undefined) || [];
+    const caseCount = question.test_cases?.length || sampleTests.length;
     const passed = Number(response?.testsPassed ?? 0);
-    const total = Number(response?.testsTotal ?? question.test_cases?.length ?? 0);
-    const ratio = total > 0 ? passed / total : 0;
-    return {
-      autoScore: weight * ratio,
-      maxScore: weight,
-      percentage: Math.round(ratio * 100),
-      details: `${passed}/${total} test cases passed`,
-    };
+    const total = Number(response?.testsTotal ?? caseCount);
+    if (total > 0) {
+      const ratio = passed / total;
+      return {
+        autoScore: weight * ratio,
+        maxScore: weight,
+        percentage: Math.round(ratio * 100),
+        details: `${passed}/${total} test cases passed`,
+      };
+    }
+    if (String(response?.code ?? '').trim()) {
+      return { autoScore: 0, maxScore: weight, percentage: 0, details: 'Requires manual grading' };
+    }
+    return { autoScore: 0, maxScore: weight, percentage: 0, details: 'No code submitted' };
   }
 
   if (type === 'personality' || type === 'cognitive') {

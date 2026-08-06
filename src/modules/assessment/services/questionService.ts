@@ -4,13 +4,23 @@ import type { OrgViewer } from '../../../utils/orgScope';
 import type { AssessmentQuestion, QuestionType } from '../types';
 
 export function normalizeQuestion(
-  row: AssessmentQuestion & { assessment_question_options?: AssessmentQuestion['options'] },
+  row: AssessmentQuestion & {
+    assessment_question_options?: AssessmentQuestion['options'];
+    assessment_coding_test_cases?: AssessmentQuestion['test_cases'];
+  },
 ): AssessmentQuestion {
   const options = (row.options || row.assessment_question_options || []).sort(
     (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
   );
-  const { assessment_question_options: _, ...rest } = row;
-  return { ...rest, options };
+  const test_cases = (row.test_cases || row.assessment_coding_test_cases || []).sort(
+    (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
+  );
+  const {
+    assessment_question_options: _opts,
+    assessment_coding_test_cases: _cases,
+    ...rest
+  } = row;
+  return { ...rest, options, test_cases };
 }
 
 export async function fetchQuestionById(id: string, viewer?: OrgViewer | null) {

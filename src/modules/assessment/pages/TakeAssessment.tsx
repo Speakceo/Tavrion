@@ -22,6 +22,7 @@ export function TakeAssessment() {
   const [questions, setQuestions] = useState<AssessmentQuestion[]>([]);
   const [title, setTitle] = useState('');
   const [timeLimit, setTimeLimit] = useState<number | null>(null);
+  const [initialAnswers, setInitialAnswers] = useState<Record<string, Record<string, unknown>>>({});
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState<Step>('test');
   const [result, setResult] = useState<{ percentage: number; passed: boolean } | null>(null);
@@ -50,7 +51,12 @@ export function TakeAssessment() {
         );
         setAttemptId(att.id);
         setTimeLimit(assignment.time_limit_minutes || assessment?.time_limit_minutes || null);
-        await fetchAttemptResponses(att.id);
+        const existing = await fetchAttemptResponses(att.id);
+        const mapped: Record<string, Record<string, unknown>> = {};
+        for (const row of existing) {
+          mapped[row.question_id] = (row.answer || {}) as Record<string, unknown>;
+        }
+        setInitialAnswers(mapped);
       } finally {
         setLoading(false);
       }
@@ -87,6 +93,7 @@ export function TakeAssessment() {
       title={title}
       timeLimitMinutes={timeLimit}
       showPostForm={false}
+      initialAnswers={initialAnswers}
       onComplete={(r) => {
         if (r.showPostForm) {
           setResult({ percentage: r.percentage, passed: r.passed });

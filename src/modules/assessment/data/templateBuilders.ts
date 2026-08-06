@@ -127,7 +127,12 @@ export function listen(
     weight: opts.weight ?? 1,
     tags: opts.tags ?? [],
     options: choices.map(([option_text, is_correct]) => ({ option_text, is_correct })),
-    metadata: { passage, ...opts.metadata },
+    metadata: {
+      passage,
+      // Templates currently ship passage-based comprehension; audio_url enables true listening.
+      comprehension_mode: opts.metadata?.audio_url ? 'audio' : 'passage',
+      ...opts.metadata,
+    },
   };
 }
 
@@ -181,7 +186,11 @@ export function sqlQ(title: string, prompt: string, opts: QOpts = {}): TemplateQ
     difficulty: opts.difficulty ?? 'medium',
     weight: opts.weight ?? 2,
     tags: opts.tags ?? [],
-    metadata: { language: 'sql', ...opts.metadata },
+    metadata: {
+      language: 'sql',
+      starter_code: 'SELECT\n  -- write your query here\n;',
+      ...opts.metadata,
+    },
   };
 }
 

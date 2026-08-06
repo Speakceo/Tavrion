@@ -306,29 +306,69 @@ export const BATCH1_TEMPLATES: RoleAssessmentTemplate[] = [
             'Write a function that returns "Fizz" if n is divisible by 3, "Buzz" if divisible by 5, "FizzBuzz" if both, else return n as a string.',
             'function fizzBuzz(n) {\n  // your code\n}',
             'javascript',
-            { tags: ['engineering', 'coding'], difficulty: 'easy' },
+            {
+              tags: ['engineering', 'coding'],
+              difficulty: 'easy',
+              metadata: {
+                sample_tests: [
+                  { label: '3 → Fizz', input_data: '3', expected_output: 'Fizz' },
+                  { label: '5 → Buzz', input_data: '5', expected_output: 'Buzz' },
+                  { label: '15 → FizzBuzz', input_data: '15', expected_output: 'FizzBuzz' },
+                  { label: '7 → "7"', input_data: '7', expected_output: '7' },
+                ],
+              },
+            },
           ),
           code(
             'Two Sum',
             'Given an array of integers `nums` and an integer `target`, return the indices of the two numbers that add up to `target`. Assume exactly one solution exists.',
             'function twoSum(nums, target) {\n  // return [i, j]\n}',
             'javascript',
-            { tags: ['engineering', 'coding'], difficulty: 'medium' },
+            {
+              tags: ['engineering', 'coding'],
+              difficulty: 'medium',
+              metadata: {
+                sample_tests: [
+                  { label: 'Example 1', input_data: '[2,7,11,15], 9', expected_output: '[0,1]' },
+                  { label: 'Example 2', input_data: '[3,2,4], 6', expected_output: '[1,2]' },
+                  { label: 'Example 3', input_data: '[3,3], 6', expected_output: '[0,1]' },
+                ],
+              },
+            },
           ),
           sqlQ(
             'Active users query',
             'Write a SQL query to return distinct user IDs who logged in at least once in the last 30 days from a `logins(user_id, logged_at)` table.',
-            { tags: ['engineering', 'sql'] },
+            {
+              tags: ['engineering', 'sql'],
+              metadata: {
+                schema_hint: 'Table: logins(user_id, logged_at)',
+                expected_keywords: ['select', 'distinct', 'user_id', 'logins'],
+              },
+            },
           ),
           sqlQ(
             'Department headcount',
             'Given `employees(id, name, department_id)` and `departments(id, name)`, write SQL to return each department name and its employee count, ordered by count descending.',
-            { tags: ['engineering', 'sql'] },
+            {
+              tags: ['engineering', 'sql'],
+              metadata: {
+                schema_hint: 'Tables: employees(id, name, department_id), departments(id, name)',
+                expected_keywords: ['select', 'join', 'group by', 'count', 'order by'],
+              },
+            },
           ),
           sqlQ(
             'Monthly revenue',
             'Write SQL to calculate total revenue per month from `orders(id, amount, created_at)` for the current calendar year.',
-            { tags: ['engineering', 'sql'], difficulty: 'medium' },
+            {
+              tags: ['engineering', 'sql'],
+              difficulty: 'medium',
+              metadata: {
+                schema_hint: 'Table: orders(id, amount, created_at)',
+                expected_keywords: ['select', 'sum', 'group by', 'orders'],
+              },
+            },
           ),
           tf(
             'Microservices trade-offs',

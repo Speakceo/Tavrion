@@ -7,7 +7,7 @@ import { useIntegrityMonitor } from '../hooks/useIntegrityMonitor';
 import { ProctoringMonitor } from './ProctoringMonitor';
 import {
   MCQQuestion, WritingQuestion, ListeningQuestion, MediaRecordQuestion,
-  CodingQuestion, ExcelQuestion,
+  CodingQuestion, SqlQuestion, ExcelQuestion,
 } from './questions/QuestionRenderers';
 
 export type TestCompleteResult = {
@@ -43,6 +43,7 @@ type Props = {
   showPostForm?: boolean;
   /** When false, candidates see a thank-you screen without scores (default for hiring). */
   showScoreToCandidate?: boolean;
+  initialAnswers?: Record<string, Record<string, unknown>>;
 };
 
 const MOBILE_CSS = `
@@ -55,21 +56,30 @@ const MOBILE_CSS = `
   .test-interface-nav button { flex: 1; min-width: 100px; justify-content: center; }
   .test-q-palette { max-height: 160px; overflow-y: auto; }
 }
+@keyframes answer-saved-pop {
+  0% { transform: scale(0.88); opacity: 0; }
+  55% { transform: scale(1.06); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.answer-saved-badge, .answer-saved-panel, .test-results-panel {
+  animation: answer-saved-pop 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .answer-saved-badge, .answer-saved-panel, .test-results-panel { animation: none; }
+}
 `;
 
 function isAnswered(ans?: Record<string, unknown>): boolean {
   if (!ans) return false;
+  if (ans.submitted === true) return true;
   const selected = ans.selected;
   if (Array.isArray(selected) && selected.length > 0) return true;
   if (selected != null && selected !== '') return true;
   if (typeof ans.text === 'string' && ans.text.trim()) return true;
-  if (typeof ans.code === 'string' && ans.code.trim()) return true;
-  if (ans.audio_url || ans.video_url || ans.media_url || ans.file_url) return true;
-  return Object.values(ans).some((v) => {
-    if (v == null || v === '') return false;
-    if (typeof v === 'object') return Array.isArray(v) ? v.length > 0 : Object.keys(v as object).length > 0;
-    return true;
-  });
+  if (typeof ans.code === 'string' && ans.code.trim() && ans.code.trim() !== ';') return true;
+  if (ans.audio_url || ans.video_url || ans.media_url || ans.file_url || ans.blob || ans.preview_url) return true;
+  if (ans.cells && typeof ans.cells === 'object' && Object.keys(ans.cells as object).length > 0) return true;
+  return false;
 }
 
 function buildSkippedSet(questions: AssessmentQuestion[], answers: Record<string, Record<string, unknown>>): Set<string> {
@@ -102,9 +112,10 @@ export function TestInterface({
   onComplete,
   showPostForm = false,
   showScoreToCandidate = false,
+  initialAnswers,
 }: Props) {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, Record<string, unknown>>>({});
+  const [answers, setAnswers] = useState<Record<string, Record<string, unknown>>>(() => initialAnswers || {});
   const [flagged, setFlagged] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState('');
@@ -115,6 +126,8 @@ export function TestInterface({
   const [resultScreen, setResultScreen] = useState<TestCompleteResult | null>(null);
   const sectionAdvancedRef = useRef(false);
   const submitStartedRef = useRef(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const saveFlashRef = useRef<number | null>(null);
 
   const skippedIds = useMemo(() => buildSkippedSet(questions, answers), [questions, answers]);
   const activeQuestions = useMemo(
@@ -283,10 +296,37 @@ export function TestInterface({
 
   const persistAnswer = async (questionId: string, answer: Record<string, unknown>, isFlagged = false) => {
     const q = questions.find((x) => x.id === questionId);
-    setAnswers((prev) => ({ ...prev, [questionId]: answer }));
-    await saveResponse(attemptId, questionId, answer, isFlagged, q);
-    if (!practiceMode) {
-      await touchAttemptActivity(attemptId).catch(() => undefined);
+    let nextAnswer = { ...answer };
+    setSaveStatus('saving');
+    try {
+      // Upload media immediately so refresh/resume keeps the recording
+      if (nextAnswer.blob instanceof Blob && !practiceMode) {
+        const ext = nextAnswer.media_type === 'video' ? 'webm' : 'webm';
+        const url = await uploadAssessmentMedia(attemptId, questionId, nextAnswer.blob as Blob, ext);
+        const preview = typeof nextAnswer.preview_url === 'string' ? nextAnswer.preview_url : url;
+        nextAnswer = {
+          ...nextAnswer,
+          media_url: url,
+          preview_url: preview,
+          media_type: nextAnswer.media_type || 'audio',
+          submitted: true,
+          saved_at: new Date().toISOString(),
+        };
+        delete nextAnswer.blob;
+      }
+
+      setAnswers((prev) => ({ ...prev, [questionId]: nextAnswer }));
+      await saveResponse(attemptId, questionId, nextAnswer, isFlagged, q);
+      if (!practiceMode) {
+        await touchAttemptActivity(attemptId).catch(() => undefined);
+      }
+      setSaveStatus('saved');
+      if (saveFlashRef.current) window.clearTimeout(saveFlashRef.current);
+      saveFlashRef.current = window.setTimeout(() => setSaveStatus('idle'), 1600);
+    } catch {
+      setAnswers((prev) => ({ ...prev, [questionId]: answer }));
+      setSaveStatus('idle');
+      setSubmitError('Could not save that answer. Please try again.');
     }
   };
 
@@ -391,8 +431,11 @@ export function TestInterface({
     if (current.question_type === 'video_response') {
       return <MediaRecordQuestion question={current} value={val} onChange={onChange} mode="video" />;
     }
-    if (current.question_type === 'coding' || current.question_type === 'sql') {
+    if (current.question_type === 'coding') {
       return <CodingQuestion question={current} value={val} onChange={onChange} />;
+    }
+    if (current.question_type === 'sql') {
+      return <SqlQuestion question={current} value={val} onChange={onChange} />;
     }
     if (current.question_type === 'excel') {
       return <ExcelQuestion question={current} value={val} onChange={onChange} />;
@@ -481,9 +524,27 @@ export function TestInterface({
             <>
               <div className="lt-card" style={{ padding: 24, marginBottom: 16, borderRadius: 18 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
-                  <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase' }}>{current.question_type.replace(/_/g, ' ')}</div>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: '#666', background: '#f5f5f5', padding: '4px 8px', borderRadius: 999 }}>
+                  <div style={{ fontSize: 11, color: '#999', textTransform: 'uppercase' }}>
+                    {current.question_type === 'listening' && !current.metadata?.audio_url
+                      ? 'Comprehension'
+                      : current.question_type.replace(/_/g, ' ')}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                    {saveStatus === 'saving' && (
+                      <span className="answer-saving-badge" style={{ fontSize: 11, fontWeight: 600, color: '#666', background: '#f5f5f5', padding: '4px 8px', borderRadius: 999 }}>
+                        Saving...
+                      </span>
+                    )}
+                    {saveStatus === 'saved' && (
+                      <span className="answer-saved-badge" style={{ fontSize: 11, fontWeight: 700, color: '#166534', background: '#ecfdf5', padding: '4px 8px', borderRadius: 999 }}>
+                        ✓ Answer saved
+                      </span>
+                    )}
+                    <span style={{
+                      fontSize: 11, fontWeight: 600, padding: '4px 8px', borderRadius: 999,
+                      color: isAnswered(answers[current.id]) ? '#166534' : '#666',
+                      background: isAnswered(answers[current.id]) ? '#ecfdf5' : '#f5f5f5',
+                    }}>
                       {isAnswered(answers[current.id]) ? 'Answered' : 'Not answered'}
                     </span>
                     {flagged.has(current.id) && (

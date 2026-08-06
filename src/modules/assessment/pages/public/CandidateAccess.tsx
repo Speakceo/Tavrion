@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { resolvePublicLink, startPublicAttempt } from '../../services/linkService';
 import { fetchAssessmentWithSections } from '../../services/assessmentService';
+import { fetchAttemptResponses } from '../../services/attemptService';
 import { TestInterface } from '../../components/TestInterface';
 import { PostAssessmentForm, type PostFormField } from '../../components/PostAssessmentForm';
 import { savePostFormData } from '../../services/sessionService';
@@ -52,6 +53,7 @@ export function CandidateAccess() {
   const [attemptId, setAttemptId] = useState<string | null>(null);
   const [assignmentId, setAssignmentId] = useState<string | null>(null);
   const [questions, setQuestions] = useState<AssessmentQuestion[]>([]);
+  const [initialAnswers, setInitialAnswers] = useState<Record<string, Record<string, unknown>>>({});
   const [timeLimit, setTimeLimit] = useState<number | null>(null);
   const [questionCount, setQuestionCount] = useState(0);
   const [instructions, setInstructions] = useState('');
@@ -132,6 +134,12 @@ export function CandidateAccess() {
     });
     setResumeToken(resumeTokenInput.trim().toUpperCase());
     if (resolved) await loadQuestions(resolved.assessment_id);
+    const existing = await fetchAttemptResponses(attempt.id);
+    const mapped: Record<string, Record<string, unknown>> = {};
+    for (const row of existing) {
+      mapped[row.question_id] = (row.answer || {}) as Record<string, unknown>;
+    }
+    setInitialAnswers(mapped);
     setStep('test');
   };
 
@@ -202,6 +210,7 @@ export function CandidateAccess() {
         timeLimitMinutes={timeLimit}
         practiceMode={practiceMode}
         showPostForm={resolved?.post_form_enabled}
+        initialAnswers={initialAnswers}
         onComplete={(r) => {
           setStep(r.showPostForm ? 'post_form' : 'done');
         }}

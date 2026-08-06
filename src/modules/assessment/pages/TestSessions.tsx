@@ -127,6 +127,8 @@ export function TestSessions() {
   const [selectionFilter, setSelectionFilter] = useState<SelectionStatus | ''>('');
   const [assessmentFilter, setAssessmentFilter] = useState('');
   const [assessments, setAssessments] = useState<Assessment[]>([]);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
   const [detail, setDetail] = useState<SessionDetail | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<Tab>('sessions');
@@ -155,6 +157,11 @@ export function TestSessions() {
   useEffect(() => { load(); }, [profile?.id, search, statusFilter, selectionFilter, assessmentFilter]);
 
   useEffect(() => {
+    setPage(1);
+    setSelected(new Set());
+  }, [search, statusFilter, selectionFilter, assessmentFilter]);
+
+  useEffect(() => {
     if (!viewer) return;
     fetchAssessments(viewer)
       .then((rows) => setAssessments([...rows].sort((a, b) => a.title.localeCompare(b.title))))
@@ -178,6 +185,16 @@ export function TestSessions() {
     () => sessions.filter((s) => compareIds.includes(s.id)),
     [sessions, compareIds],
   );
+
+  const totalPages = Math.max(1, Math.ceil(sessions.length / PAGE_SIZE));
+  const pagedSessions = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return sessions.slice(start, start + PAGE_SIZE);
+  }, [sessions, page, PAGE_SIZE]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const stats = {
     total: sessions.length,
@@ -209,8 +226,8 @@ export function TestSessions() {
   };
 
   const toggleAll = () => {
-    if (selected.size === sessions.length) setSelected(new Set());
-    else setSelected(new Set(sessions.map((s) => s.id)));
+    if (selected.size === pagedSessions.length && pagedSessions.length > 0) setSelected(new Set());
+    else setSelected(new Set(pagedSessions.map((s) => s.id)));
   };
 
   const runBulk = async (action: 'shortlist' | 'reject' | 'delete' | 'export') => {
@@ -348,7 +365,7 @@ export function TestSessions() {
                 <thead>
                   <tr style={{ borderBottom: '1px solid #f0f0f0', textAlign: 'left' }}>
                     <th style={{ padding: '10px 14px', width: 36 }}>
-                      <input type="checkbox" checked={selected.size === sessions.length && sessions.length > 0} onChange={toggleAll} />
+                      <input type="checkbox" checked={selected.size === pagedSessions.length && pagedSessions.length > 0} onChange={toggleAll} />
                     </th>
                     <th style={{ padding: '10px 14px', color: '#999', fontWeight: 600 }}>Candidate</th>
                     <th style={{ padding: '10px 14px', color: '#999', fontWeight: 600 }}>Assessment</th>
@@ -360,7 +377,7 @@ export function TestSessions() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sessions.map((s) => (
+                  {pagedSessions.map((s) => (
                     <tr key={s.id} style={{ borderBottom: '1px solid #f5f5f5' }}>
                       <td style={{ padding: '12px 14px' }}>
                         <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggleSelect(s.id)} />
@@ -459,6 +476,39 @@ export function TestSessions() {
                   ))}
                 </tbody>
               </table>
+              {sessions.length > 0 && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                  padding: '12px 14px', borderTop: '1px solid #f0f0f0', flexWrap: 'wrap',
+                }}>
+                  <span style={{ fontSize: 12, color: '#666' }}>
+                    Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sessions.length)} of {sessions.length}
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button
+                      type="button"
+                      className="lt-btn-secondary"
+                      disabled={page <= 1}
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      style={{ padding: '6px 12px', fontSize: 12 }}
+                    >
+                      Previous
+                    </button>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#444' }}>
+                      Page {page} / {totalPages}
+                    </span>
+                    <button
+                      type="button"
+                      className="lt-btn-secondary"
+                      disabled={page >= totalPages}
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      style={{ padding: '6px 12px', fontSize: 12 }}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </>

@@ -96,12 +96,26 @@ export const BATCH2_TEMPLATES: RoleAssessmentTemplate[] = [
           sqlQ(
             'Monthly revenue by product',
             'Given tables `orders(id, user_id, product_id, amount, created_at)` and `products(id, name)`, write a SQL query that returns each product name and total revenue for orders placed in the current calendar month.',
-            { tags: ['data-analyst', 'sql'], difficulty: 'medium' },
+            {
+              tags: ['data-analyst', 'sql'],
+              difficulty: 'medium',
+              metadata: {
+                schema_hint: 'Tables: orders(id, user_id, product_id, amount, created_at), products(id, name)',
+                expected_keywords: ['select', 'join', 'sum', 'group by', 'products'],
+              },
+            },
           ),
           sqlQ(
             'Second purchase cohort',
             'Given `orders(user_id, order_id, created_at)`, write a SQL query that returns the count of users who placed exactly two orders, where the second order occurred within 30 days of the first.',
-            { tags: ['data-analyst', 'sql'], difficulty: 'hard' },
+            {
+              tags: ['data-analyst', 'sql'],
+              difficulty: 'hard',
+              metadata: {
+                schema_hint: 'Table: orders(user_id, order_id, created_at)',
+                expected_keywords: ['select', 'count', 'orders'],
+              },
+            },
           ),
           mc(
             'Window functions',
