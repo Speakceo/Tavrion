@@ -638,7 +638,7 @@ export function Social() {
                     {mediaFile?.type.startsWith('video/') ? (
                       <video src={mediaPreview} controls className="w-full max-h-80 bg-black" />
                     ) : (
-                      <img src={mediaPreview} alt="Preview" className="w-full max-h-80 object-cover" />
+                      <img src={mediaPreview} alt="Preview" className="w-full max-h-80 object-contain bg-[#f4f4f4]" />
                     )}
                   </div>
                 )}
@@ -873,12 +873,12 @@ export function Social() {
                     editMediaFile?.type.startsWith('video/') ? (
                       <video src={editMediaPreview} controls className="max-h-56 w-full" />
                     ) : (
-                      <img src={editMediaPreview} alt="New media" className="max-h-56 w-full object-cover" />
+                      <img src={editMediaPreview} alt="New media" className="max-h-56 w-full object-contain bg-[#f4f4f4]" />
                     )
                   ) : editingPost.media_type === 'video' ? (
                     <video src={editingPost.media_url} controls className="max-h-56 w-full" />
                   ) : (
-                    <img src={editingPost.media_url} alt="Current media" className="max-h-56 w-full object-cover" />
+                    <img src={editingPost.media_url} alt="Current media" className="max-h-56 w-full object-contain bg-[#f4f4f4]" />
                   )}
                   <button
                     type="button"
