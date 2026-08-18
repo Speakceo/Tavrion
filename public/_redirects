@@ -2,5 +2,42 @@
 /api/sb/*  https://jilehijfjayayfumbrsl.supabase.co/:splat  200!
 /api/sb    https://jilehijfjayayfumbrsl.supabase.co/         200!
 
-# SPA fallback
-/*    /index.html   200
+# Known SPA routes stay on index.html. Unknown URLs hit 404.html.
+/login                          /index.html  200
+/signup                         /index.html  200
+/landing                        /index.html  200
+/home                           /index.html  200
+/dashboard                      /index.html  200
+/courses                        /index.html  200
+/courses/*                      /index.html  200
+/lesson/*                       /index.html  200
+/ai-tutor                       /index.html  200
+/mock-calls                     /index.html  200
+/mock-calls-new                 /index.html  200
+/live-calls                     /index.html  200
+/dna-studio                     /index.html  200
+/tavrion-bot                    /index.html  200
+/social                         /index.html  200
+/polls                          /index.html  200
+/events                         /index.html  200
+/saved                          /index.html  200
+/shots                          /index.html  200
+/policies                       /index.html  200
+/my-team                        /index.html  200
+/vault                          /index.html  200
+/my-space                       /index.html  200
+/recent-learning                /index.html  200
+/completed-learning             /index.html  200
+/best-calls                     /index.html  200
+/certificates                   /index.html  200
+/books                          /index.html  200
+/books/*                        /index.html  200
+/admin/*                        /index.html  200
+/test                           /index.html  200
+/test/*                         /index.html  200
+/owner                          /index.html  200
+/owner/*                        /index.html  200
+/assess/*                       /index.html  200
+
+# Real 404 for anything else
+/*    /404.html   404

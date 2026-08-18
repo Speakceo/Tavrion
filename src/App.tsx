@@ -9,6 +9,8 @@ import { BooksFeatureRoute } from './components/BooksFeatureRoute';
 import { OrgFeatureGate } from './components/OrgFeatureGate';
 import { LandingPage } from './pages/LandingPage';
 import { Login } from './pages/Login';
+import { Signup } from './pages/Signup';
+import { NotFound } from './pages/NotFound';
 import { TavrionLogo } from './components/TavrionLogo';
 import { Dashboard } from './pages/Dashboard';
 import { Courses } from './pages/Courses';
@@ -140,6 +142,7 @@ function App() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/landing" element={<Navigate to="/" replace />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
 
           {/* Public candidate assessment — no auth */}
           <Route path="/assess/:linkCode" element={<CandidateAccess />} />
@@ -735,6 +738,7 @@ function App() {
           />
 
           <Route path="/home" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
           </ModuleSwitchProvider>
       </AuthProvider>

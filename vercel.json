@@ -4,10 +4,41 @@
       "source": "/api/sb/:path*",
       "destination": "https://jilehijfjayayfumbrsl.supabase.co/:path*"
     },
-    {
-      "source": "/((?!api/sb/).*)",
-      "destination": "/index.html"
-    }
+    { "source": "/login", "destination": "/index.html" },
+    { "source": "/signup", "destination": "/index.html" },
+    { "source": "/landing", "destination": "/index.html" },
+    { "source": "/home", "destination": "/index.html" },
+    { "source": "/dashboard", "destination": "/index.html" },
+    { "source": "/courses", "destination": "/index.html" },
+    { "source": "/courses/:path*", "destination": "/index.html" },
+    { "source": "/lesson/:path*", "destination": "/index.html" },
+    { "source": "/ai-tutor", "destination": "/index.html" },
+    { "source": "/mock-calls", "destination": "/index.html" },
+    { "source": "/mock-calls-new", "destination": "/index.html" },
+    { "source": "/live-calls", "destination": "/index.html" },
+    { "source": "/dna-studio", "destination": "/index.html" },
+    { "source": "/tavrion-bot", "destination": "/index.html" },
+    { "source": "/social", "destination": "/index.html" },
+    { "source": "/polls", "destination": "/index.html" },
+    { "source": "/events", "destination": "/index.html" },
+    { "source": "/saved", "destination": "/index.html" },
+    { "source": "/shots", "destination": "/index.html" },
+    { "source": "/policies", "destination": "/index.html" },
+    { "source": "/my-team", "destination": "/index.html" },
+    { "source": "/vault", "destination": "/index.html" },
+    { "source": "/my-space", "destination": "/index.html" },
+    { "source": "/recent-learning", "destination": "/index.html" },
+    { "source": "/completed-learning", "destination": "/index.html" },
+    { "source": "/best-calls", "destination": "/index.html" },
+    { "source": "/certificates", "destination": "/index.html" },
+    { "source": "/books", "destination": "/index.html" },
+    { "source": "/books/:path*", "destination": "/index.html" },
+    { "source": "/admin/:path*", "destination": "/index.html" },
+    { "source": "/test", "destination": "/index.html" },
+    { "source": "/test/:path*", "destination": "/index.html" },
+    { "source": "/owner", "destination": "/index.html" },
+    { "source": "/owner/:path*", "destination": "/index.html" },
+    { "source": "/assess/:path*", "destination": "/index.html" }
   ],
   "headers": [
     {
@@ -20,6 +51,12 @@
       "source": "/api/sb/(.*)",
       "headers": [
         { "key": "Cache-Control", "value": "no-store" }
+      ]
+    },
+    {
+      "source": "/og-image.png",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400" }
       ]
     }
   ]

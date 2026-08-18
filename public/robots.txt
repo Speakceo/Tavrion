@@ -1,7 +1,5 @@
 User-agent: *
 Allow: /
-Allow: /dna-studio
-Allow: /tavrion-bot
 
 Disallow: /login
 Disallow: /signup
@@ -12,7 +10,25 @@ Disallow: /lesson/
 Disallow: /courses/
 Disallow: /api/
 Disallow: /assess/
+Disallow: /test/
+Disallow: /social
+Disallow: /polls
+Disallow: /events
+Disallow: /saved
+Disallow: /shots
+Disallow: /policies
+Disallow: /my-team
+Disallow: /vault
+Disallow: /my-space
+Disallow: /recent-learning
+Disallow: /completed-learning
+Disallow: /best-calls
+Disallow: /certificates
+Disallow: /books
+Disallow: /ai-tutor
+Disallow: /mock-calls
+Disallow: /live-calls
+Disallow: /dna-studio
+Disallow: /tavrion-bot
 
-# Public marketing homepage and tools
-Host: https://jointavrion.com
 Sitemap: https://jointavrion.com/sitemap.xml

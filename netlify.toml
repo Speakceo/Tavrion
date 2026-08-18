@@ -19,10 +19,7 @@
   status = 200
   force = true
 
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
+# SPA fallback lives in public/_redirects (known routes → index.html, else 404).
 
 [[headers]]
   for = "/robots.txt"
@@ -33,6 +30,17 @@
   for = "/sitemap.xml"
   [headers.values]
     Content-Type = "text/xml; charset=utf-8"
+
+[[headers]]
+  for = "/404.html"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/og-image.png"
+  [headers.values]
+    Content-Type = "image/png"
+    Cache-Control = "public, max-age=86400"
 
 [[headers]]
   for = "/api/sb/*"

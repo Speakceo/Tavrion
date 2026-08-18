@@ -4,13 +4,13 @@ export const SITE_URL = 'https://jointavrion.com';
 export const SITE_NAME = 'Tavrion';
 export const BRAND_TAGLINE = 'Train the world. Scale without limits.';
 export const BRAND_POSITIONING = 'Enterprise learning and assessment platform';
-export const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.svg`;
+export const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.png`;
 
 export const SEO = {
   home: {
-    title: 'Tavrion | Enterprise LMS, Skills Assessment & AI Coaching Platform',
+    title: 'Tavrion | Enterprise LMS & Skills Assessment',
     description:
-      'Tavrion is an enterprise learning and assessment platform for global L&D teams. Deliver SCORM courses, run AI mock calls and live coaching, issue certificates, and assess candidates for hiring and upskilling across 150+ countries.',
+      'Enterprise LMS for global teams: SCORM courses, AI mock calls, hiring assessments, and analytics in one platform.',
     keywords:
       'enterprise LMS, learning management system, learning and assessment platform, corporate training software, skills assessment software, hiring assessment platform, employee onboarding LMS, compliance training platform, SCORM LMS, AI coaching platform, mock call training, talent assessment, multi-tenant LMS, learning analytics, L&D software',
     path: '/',
@@ -20,12 +20,14 @@ export const SEO = {
     description:
       'Paste any URL to extract brand DNA, colors, and tone, then generate on-brand social campaigns and images with AI. Free brand analysis tool by Tavrion.',
     path: '/dna-studio',
+    noindex: true,
   },
   tavrionBot: {
     title: 'Tavrion Bot | AI Website Chatbot with RAG | Tavrion',
     description:
       'Turn any website into an AI chatbot in minutes. Crawl your site, embed a branded widget, and answer visitor questions with grounded RAG responses.',
     path: '/tavrion-bot',
+    noindex: true,
   },
   login: {
     title: 'Sign In | Tavrion',
@@ -115,19 +117,6 @@ export function buildHomePageSchema(faqs: { q: string; a: string }[]) {
   return {
     '@context': 'https://schema.org',
     '@graph': [
-      buildOrganizationSchema(),
-      buildWebSiteSchema(),
-      {
-        '@type': 'WebPage',
-        '@id': `${SITE_URL}/#webpage`,
-        url: SITE_URL,
-        name: SEO.home.title,
-        description: SEO.home.description,
-        isPartOf: { '@id': WEBSITE_ID },
-        about: { '@id': SOFTWARE_ID },
-        inLanguage: 'en-GB',
-      },
-      buildSoftwareApplicationSchema(),
       {
         '@type': 'FAQPage',
         '@id': `${SITE_URL}/#faq`,
@@ -234,7 +223,13 @@ export function usePageSeo({
 
     document.title = fullTitle;
     upsertMeta('name', 'description', description);
-    upsertMeta('name', 'robots', noindex ? 'noindex, nofollow' : 'index, follow');
+    upsertMeta(
+      'name',
+      'robots',
+      noindex
+        ? 'noindex, nofollow'
+        : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1',
+    );
     upsertMeta('name', 'application-name', SITE_NAME);
     if (keywords) upsertMeta('name', 'keywords', keywords);
     upsertLink('canonical', url);
