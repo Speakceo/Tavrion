@@ -8,6 +8,7 @@ import {
   longQ,
   listen,
   code,
+  video,
   roleTemplate,
 } from '../templateBuilders';
 
