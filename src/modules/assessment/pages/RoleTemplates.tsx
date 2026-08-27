@@ -97,7 +97,7 @@ function TemplateCard({
       )}
       <button onClick={() => onImport(templateId)} disabled={busy} className="lt-btn-primary" style={{ padding: '8px 14px', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
         <Download size={13} />
-        {busy ? 'Importing...' : 'Import & publish'}
+        {busy ? 'Updating...' : 'Import / refresh & publish'}
       </button>
     </div>
   );
@@ -169,12 +169,16 @@ export function RoleTemplates() {
     setBusy(templateId);
     setMessage('');
     try {
-      const { assessmentId, questionCount } = await importRoleTemplate(
+      const { assessmentId, questionCount, refreshed } = await importRoleTemplate(
         viewer as OrgViewer & { id: string },
         templateId,
         { publish },
       );
-      setMessage(`Imported ${questionCount} questions — assessment ready.`);
+      setMessage(
+        refreshed
+          ? `Refreshed to ${questionCount} questions — existing links now use the updated assessment.`
+          : `Imported ${questionCount} questions — assessment ready.`,
+      );
       window.location.href = `/test/library/${assessmentId}/builder`;
     } catch (e: unknown) {
       setMessage(e instanceof Error ? e.message : 'Import failed');
