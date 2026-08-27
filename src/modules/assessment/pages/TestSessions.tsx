@@ -6,6 +6,7 @@ import {
   bulkUpdateSelectionStatus, bulkDeleteSessions, updateSessionTranscript,
 } from '../services/sessionService';
 import { fetchAssessments } from '../services/assessmentService';
+import { scoreAiAudioResponsesForAttempt, wantsAiAudioEval } from '../services/attemptService';
 import type { Assessment } from '../types';
 import { exportSelectedSessionsCsv } from '../services/exportService';
 import { summarizeCandidate } from '../services/aiService';
@@ -136,6 +137,8 @@ export function TestSessions() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [aiSummary, setAiSummary] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
+  const [videoAiBusy, setVideoAiBusy] = useState(false);
+  const [videoAiMessage, setVideoAiMessage] = useState('');
   const [transcriptEdits, setTranscriptEdits] = useState<Record<string, string>>({});
 
   const load = async () => {
@@ -253,7 +256,73 @@ export function TestSessions() {
     const d = await fetchSessionDetail(id, viewer);
     setDetail(d);
     setAiSummary(d?.analytics?.ai_summary || '');
-    setTranscriptEdits({});
+    setVideoAiMessage('');
+    const edits: Record<string, string> = {};
+    for (const r of d?.responses || []) {
+      const transcript = typeof (r.answer as { transcript?: string })?.transcript === 'string'
+        ? (r.answer as { transcript: string }).transcript
+        : '';
+      if (transcript) edits[r.id] = transcript;
+    }
+    setTranscriptEdits(edits);
+
+    // Auto-run OpenAI Whisper+rubric for unscored AI-audio video responses
+    const needsAi = (d?.responses || []).some((r) => {
+      if (!r.question || !wantsAiAudioEval(r.question)) return false;
+      const mediaUrl = typeof (r.answer as { media_url?: string })?.media_url === 'string';
+      if (!mediaUrl) return false;
+      const hasEval = Boolean((r.answer as { ai_evaluation?: unknown })?.ai_evaluation);
+      return !hasEval || r.final_score == null;
+    });
+
+    if (needsAi && d) {
+      setVideoAiBusy(true);
+      setVideoAiMessage('Scoring video with OpenAI…');
+      try {
+        const result = await scoreAiAudioResponsesForAttempt(d.id, d.organization_id);
+        if (result.scoredCount > 0) {
+          const refreshed = await fetchSessionDetail(id, viewer);
+          setDetail(refreshed);
+          const nextEdits: Record<string, string> = {};
+          for (const r of refreshed?.responses || []) {
+            const transcript = typeof (r.answer as { transcript?: string })?.transcript === 'string'
+              ? (r.answer as { transcript: string }).transcript
+              : '';
+            if (transcript) nextEdits[r.id] = transcript;
+          }
+          setTranscriptEdits(nextEdits);
+          setVideoAiMessage(`AI scored ${result.scoredCount} video response${result.scoredCount === 1 ? '' : 's'}.`);
+        } else if (result.errors.length) {
+          setVideoAiMessage(result.errors[0]);
+        } else {
+          setVideoAiMessage('');
+        }
+      } catch (e) {
+        setVideoAiMessage(e instanceof Error ? e.message : 'AI video scoring failed');
+      } finally {
+        setVideoAiBusy(false);
+      }
+    }
+  };
+
+  const handleScoreVideos = async () => {
+    if (!detail) return;
+    setVideoAiBusy(true);
+    setVideoAiMessage('Scoring video with OpenAI…');
+    try {
+      const result = await scoreAiAudioResponsesForAttempt(detail.id, detail.organization_id, { force: true });
+      const refreshed = await fetchSessionDetail(detail.id, viewer);
+      setDetail(refreshed);
+      if (result.errors.length && !result.scoredCount) {
+        setVideoAiMessage(result.errors[0]);
+      } else {
+        setVideoAiMessage(`AI scored ${result.scoredCount} video response${result.scoredCount === 1 ? '' : 's'}.`);
+      }
+    } catch (e) {
+      setVideoAiMessage(e instanceof Error ? e.message : 'AI video scoring failed');
+    } finally {
+      setVideoAiBusy(false);
+    }
   };
 
   const handleAiSummary = async () => {
@@ -682,10 +751,30 @@ export function TestSessions() {
             </div>
 
             <h3 style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Responses</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <p style={{ fontSize: 11, color: '#808080', margin: 0 }}>
+                {videoAiBusy ? 'Running OpenAI transcription + scoring…' : (videoAiMessage || 'German/speaking videos are scored via org OpenAI.')}
+              </p>
+              <button
+                type="button"
+                onClick={() => void handleScoreVideos()}
+                disabled={videoAiBusy}
+                className="lt-btn-secondary"
+                style={{ padding: '4px 10px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}
+              >
+                <Sparkles size={12} /> {videoAiBusy ? 'Scoring…' : 'Score videos with AI'}
+              </button>
+            </div>
             {(detail.responses || []).map((r) => {
               const mediaUrl = String((r.answer as { media_url?: string })?.media_url ?? '');
               const isVideo = (r.answer as { media_type?: string })?.media_type === 'video' || r.question?.question_type === 'video_response';
               const computedScore = responseScore(r);
+              const aiEval = (r.answer as { ai_evaluation?: Record<string, unknown> })?.ai_evaluation;
+              const aiTranscript = typeof (r.answer as { transcript?: string })?.transcript === 'string'
+                ? (r.answer as { transcript: string }).transcript
+                : typeof aiEval?.transcript === 'string'
+                  ? String(aiEval.transcript)
+                  : '';
               return (
                 <div key={r.id} style={{ padding: '12px 0', borderTop: '1px solid #f5f5f5', fontSize: 12 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 6 }}>
@@ -702,7 +791,9 @@ export function TestSessions() {
                         color: scoreColor(computedScore),
                         background: scoreBackground(computedScore),
                       }}>
-                        {computedScore >= 70 ? 'Correct' : 'Incorrect'}
+                        {isVideo || r.question?.question_type === 'audio_response'
+                          ? `AI ${computedScore}%`
+                          : computedScore >= 70 ? 'Correct' : 'Incorrect'}
                       </span>
                     )}
                   </div>
@@ -714,15 +805,32 @@ export function TestSessions() {
                       <video src={mediaUrl} controls style={{ width: '100%', maxHeight: 200, borderRadius: 8 }} />
                     </div>
                   )}
+                  {aiEval && (
+                    <div style={{ marginBottom: 8, background: '#f8f8f8', borderRadius: 8, padding: 10, fontSize: 11, color: '#555', lineHeight: 1.5 }}>
+                      <div style={{ fontWeight: 700, marginBottom: 4, color: '#171717' }}>OpenAI evaluation</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 6 }}>
+                        {(['grammar_score', 'fluency_score', 'vocabulary_score', 'pronunciation_score', 'clarity_score'] as const).map((key) => (
+                          aiEval[key] != null ? (
+                            <span key={key} style={{ background: '#fff', border: '1px solid #eee', borderRadius: 6, padding: '2px 8px' }}>
+                              {key.replace('_score', '')}: {String(aiEval[key])}
+                            </span>
+                          ) : null
+                        ))}
+                      </div>
+                      {Array.isArray(aiEval.feedback) && (aiEval.feedback as string[]).length > 0 && (
+                        <div>{(aiEval.feedback as string[]).join(' ')}</div>
+                      )}
+                    </div>
+                  )}
                   {isVideo && (
                     <div style={{ marginBottom: 8 }}>
                       <label style={{ fontSize: 11, fontWeight: 600, display: 'block', marginBottom: 4 }}>Transcript</label>
                       <textarea
                         className="lt-input"
                         rows={3}
-                        value={transcriptEdits[r.id] ?? ''}
+                        value={transcriptEdits[r.id] ?? aiTranscript}
                         onChange={(e) => setTranscriptEdits((prev) => ({ ...prev, [r.id]: e.target.value }))}
-                        placeholder="Enter or paste transcript..."
+                        placeholder="AI transcript appears here after scoring…"
                         style={{ width: '100%', fontSize: 12 }}
                       />
                       <button

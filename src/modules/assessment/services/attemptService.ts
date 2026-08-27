@@ -9,11 +9,15 @@ import { invokeCalculateOverallScore, invokeScoreResponse } from './mediaService
 
 const MANUAL_GRADE_TYPES = new Set(['long_answer', 'video_response', 'audio_response']);
 
-function wantsAiAudioEval(q: AssessmentQuestion): boolean {
+export function wantsAiAudioEval(q: Pick<AssessmentQuestion, 'question_type' | 'tags' | 'metadata'>): boolean {
   if (!['video_response', 'audio_response'].includes(q.question_type)) return false;
-  if (q.metadata?.ai_score_audio === true) return true;
-  const tags = (q.tags || []).map((t) => t.toLowerCase());
-  return tags.includes('ai-audio-eval') || (tags.includes('german') && tags.includes('speaking'));
+  if (q.metadata?.ai_score_audio === true || q.metadata?.ai_score_media === true) return true;
+  const tags = (q.tags || []).map((t) => String(t).toLowerCase());
+  return (
+    tags.includes('ai-audio-eval')
+    || tags.includes('german')
+    || (tags.includes('speaking') && tags.includes('language'))
+  );
 }
 
 export async function touchAttemptActivity(
@@ -162,6 +166,9 @@ async function scoreAndPersistResponses(
       || scored.details === 'Requires manual grading'
       || scored.details === 'Manual grading required';
 
+    // AI-audio videos stay unscored until Whisper+LLM finishes
+    const deferForAi = needsManual && wantsAiAudioEval(q);
+
     const questionPct = scored.maxScore > 0
       ? Math.round((scored.autoScore / scored.maxScore) * 100)
       : 0;
@@ -172,7 +179,7 @@ async function scoreAndPersistResponses(
         question_id: q.id,
         answer: enrichAnswerWithLabels(q, sanitizeAnswerForStorage(answer)),
         auto_score: questionPct,
-        final_score: needsManual ? null : questionPct,
+        final_score: (needsManual || deferForAi) ? null : questionPct,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'attempt_id,question_id' },
@@ -183,19 +190,104 @@ async function scoreAndPersistResponses(
   return results;
 }
 
+async function recalculateAttemptFromResponses(attemptId: string, passingScore: number) {
+  const responses = await fetchAttemptResponses(attemptId);
+  const scored = responses
+    .map((r) => r.final_score ?? r.auto_score)
+    .filter((s): s is number => typeof s === 'number');
+  if (!scored.length) return null;
+  const percentage = Math.round(scored.reduce((a, b) => a + b, 0) / scored.length);
+  const passed = percentage >= passingScore;
+  await supabase
+    .from('assessment_attempts')
+    .update({
+      auto_score: percentage,
+      final_score: percentage,
+      passed,
+      status: 'graded',
+    })
+    .eq('id', attemptId);
+  return { percentage, passed };
+}
+
+/** Score AI-audio video/audio responses for an attempt (org OpenAI key). */
+export async function scoreAiAudioResponsesForAttempt(
+  attemptId: string,
+  organizationId?: string | null,
+  opts?: { force?: boolean },
+) {
+  const { data: attempt } = await supabase
+    .from('assessment_attempts')
+    .select('id, organization_id, assignment_id')
+    .eq('id', attemptId)
+    .maybeSingle();
+  if (!attempt) throw new Error('Attempt not found');
+
+  const orgId = organizationId || attempt.organization_id || null;
+  const responses = await fetchAttemptResponses(attemptId);
+
+  const questionIds = responses.map((r) => r.question_id);
+  const { data: questions } = questionIds.length
+    ? await supabase
+      .from('assessment_questions')
+      .select('id, question_type, tags, metadata, prompt')
+      .in('id', questionIds)
+    : { data: [] as AssessmentQuestion[] };
+
+  const byId = new Map((questions || []).map((q) => [q.id, q as AssessmentQuestion]));
+  const scored: string[] = [];
+  const errors: string[] = [];
+
+  for (const resp of responses) {
+    const q = byId.get(resp.question_id);
+    if (!q || !wantsAiAudioEval(q)) continue;
+    const mediaUrl = typeof resp.answer?.media_url === 'string' ? resp.answer.media_url : '';
+    if (!mediaUrl) continue;
+    // Skip if already AI-scored unless forced
+    if (!opts?.force && resp.answer?.ai_evaluation && typeof resp.final_score === 'number') continue;
+
+    try {
+      await invokeScoreResponse({
+        attemptId,
+        responseId: resp.id,
+        questionType: q.question_type,
+        mediaUrl,
+        rubric: typeof q.metadata?.rubric === 'string' ? q.metadata.rubric : undefined,
+        organizationId: orgId,
+        language: typeof q.metadata?.language === 'string' ? q.metadata.language : 'de',
+        prompt: q.prompt,
+      });
+      scored.push(resp.id);
+    } catch (err) {
+      errors.push(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  return { scoredCount: scored.length, errors };
+}
+
 export async function submitAttempt(
   attemptId: string,
   assignmentId: string,
   passingScore = 70,
 ) {
-  const { data: assignment } = await supabase
-    .from('assessment_assignments')
-    .select('assessment_id, passing_score')
-    .eq('id', assignmentId)
-    .single();
+  const [{ data: assignment }, { data: attemptRow }] = await Promise.all([
+    supabase
+      .from('assessment_assignments')
+      .select('assessment_id, passing_score, organization_id')
+      .eq('id', assignmentId)
+      .maybeSingle(),
+    supabase
+      .from('assessment_attempts')
+      .select('organization_id, status')
+      .eq('id', attemptId)
+      .maybeSingle(),
+  ]);
 
-  if (!assignment) throw new Error('Assignment not found');
+  if (!assignment?.assessment_id) throw new Error('Assignment not found');
+  if (!attemptRow) throw new Error('Attempt not found');
 
+  // Bare id fetch — do not apply empty-org scope (breaks public + submit scoring)
   const assessment = await fetchAssessmentWithSections(assignment.assessment_id);
   if (!assessment) throw new Error('Assessment not found');
 
@@ -215,17 +307,19 @@ export async function submitAttempt(
   const passThreshold = assignment.passing_score ?? assessment.passing_score ?? passingScore;
   const { percentage, passed } = calculateAttemptScore(results, passThreshold);
   const submittedAt = new Date().toISOString();
+  const organizationId = attemptRow.organization_id || assignment.organization_id || null;
 
-  const { error: submitError } = await supabase
-    .from('assessment_attempts')
-    .update({
-      status: 'submitted',
-      submitted_at: submittedAt,
-    })
-    .eq('id', attemptId)
-    .eq('status', 'in_progress');
-
-  if (submitError) throw submitError;
+  if (attemptRow.status === 'in_progress') {
+    const { error: submitError } = await supabase
+      .from('assessment_attempts')
+      .update({
+        status: 'submitted',
+        submitted_at: submittedAt,
+      })
+      .eq('id', attemptId)
+      .eq('status', 'in_progress');
+    if (submitError) throw submitError;
+  }
 
   const { data: finalized, error: finalizeError } = await supabase
     .from('assessment_attempts')
@@ -237,43 +331,29 @@ export async function submitAttempt(
       passed,
     })
     .eq('id', attemptId)
-    .in('status', ['in_progress', 'submitted'])
+    .in('status', ['in_progress', 'submitted', 'graded'])
     .select('id')
     .maybeSingle();
 
   if (finalizeError) throw finalizeError;
   if (!finalized) throw new Error('Could not finalize your submission. Please try again.');
 
-  // Auto-evaluate spoken German / AI-audio questions via org OpenAI (Whisper + chat)
+  // Auto-evaluate spoken / AI-audio questions via org OpenAI (Whisper + chat)
   try {
-    const { data: attemptRow } = await supabase
-      .from('assessment_attempts')
-      .select('organization_id')
-      .eq('id', attemptId)
-      .maybeSingle();
-
-    const refreshed = await fetchAttemptResponses(attemptId);
-    const byQuestion = new Map(refreshed.map((r) => [r.question_id, r]));
-
-    for (const q of questions) {
-      if (!wantsAiAudioEval(q)) continue;
-      const resp = byQuestion.get(q.id);
-      const mediaUrl = typeof resp?.answer?.media_url === 'string' ? resp.answer.media_url : '';
-      if (!resp?.id || !mediaUrl) continue;
-
-      const language = typeof q.metadata?.language === 'string' ? q.metadata.language : 'de';
-      const rubric = typeof q.metadata?.rubric === 'string' ? q.metadata.rubric : undefined;
-
-      await invokeScoreResponse({
-        attemptId,
-        responseId: resp.id,
-        questionType: q.question_type,
-        mediaUrl,
-        rubric,
-        organizationId: attemptRow?.organization_id || null,
-        language,
-        prompt: q.prompt,
-      });
+    const aiResult = await scoreAiAudioResponsesForAttempt(attemptId, organizationId);
+    if (aiResult.errors.length) {
+      console.warn('AI audio evaluation errors:', aiResult.errors);
+    }
+    if (aiResult.scoredCount > 0) {
+      const recalculated = await recalculateAttemptFromResponses(attemptId, passThreshold);
+      if (recalculated) {
+        return {
+          percentage: recalculated.percentage,
+          passed: recalculated.passed,
+          results,
+          ai_summary: undefined as string | undefined,
+        };
+      }
     }
   } catch (err) {
     console.warn('AI audio evaluation skipped:', err);
@@ -281,12 +361,12 @@ export async function submitAttempt(
 
   let ai_summary: string | undefined;
   try {
-    const aiResult = await invokeCalculateOverallScore(attemptId);
+    const aiOverall = await invokeCalculateOverallScore(attemptId);
     return {
-      percentage: aiResult.overall_score ?? percentage,
-      passed: aiResult.passed ?? passed,
+      percentage: aiOverall.overall_score ?? percentage,
+      passed: aiOverall.passed ?? passed,
       results,
-      ai_summary: aiResult.ai_summary,
+      ai_summary: aiOverall.ai_summary,
     };
   } catch {
     // AI summary optional — client scores already persisted

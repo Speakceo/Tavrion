@@ -71,7 +71,11 @@ export async function fetchAssessmentQuestionCounts(
 
 export async function fetchAssessmentById(id: string, viewer?: OrgViewer | null) {
   let query = supabase.from('assessments').select('*').eq('id', id);
-  query = applyOrgScope(query, viewer);
+  // Public candidate / submit paths omit viewer — fetch by id only.
+  // Authenticated admin calls pass viewer and stay org-scoped.
+  if (viewer) {
+    query = applyOrgScope(query, viewer);
+  }
   const { data, error } = await query.maybeSingle();
   if (error) throw error;
   return data as Assessment | null;
