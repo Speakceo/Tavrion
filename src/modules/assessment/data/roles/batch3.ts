@@ -1267,6 +1267,62 @@ const executiveAssistant = roleTemplate(
   ],
 );
 
+// ─── 7. German Operations ──────────────────────────────────────────────────
+
+const germanOperations = roleTemplate(
+  'german-operations',
+  'German Operations',
+  'German Operations — Language & Skills Assessment',
+  'Screen operations candidates for basic German workplace language and spoken fluency via a short video evaluated by AI.',
+  [
+    {
+      title: 'German basics',
+      instructions: 'Answer the German workplace questions, then record a short video speaking in German.',
+      questions: [
+        mc(
+          'Workplace greeting',
+          'Ein Kollege kommt morgens ins Büro. Was ist die passende Begrüßung?',
+          [
+            ['Gute Nacht!', false],
+            ['Guten Morgen!', true],
+            ['Auf Wiedersehen!', false],
+            ['Entschuldigung, wo ist der Bahnhof?', false],
+          ],
+          { difficulty: 'easy', tags: ['german', 'vocabulary', 'operations'], metadata: { language: 'de' } },
+        ),
+        mc(
+          'Simple instruction',
+          'Ihr Teamleiter sagt: „Bitte senden Sie den Bericht bis Freitag.“ Was bedeutet das?',
+          [
+            ['Delete the report on Friday', false],
+            ['Please send the report by Friday', true],
+            ['Print the report every Friday morning only', false],
+            ['Ignore the report until next month', false],
+          ],
+          { difficulty: 'easy', tags: ['german', 'comprehension', 'operations'], metadata: { language: 'de' } },
+        ),
+        video(
+          'German speaking sample',
+          'Nehmen Sie ein Video von 60–90 Sekunden auf. Stellen Sie sich auf Deutsch vor und beschreiben Sie einen typischen Arbeitstag in der Operations (Aufgaben, Teamarbeit, Prioritäten). Sprechen Sie klar und natürlich.',
+          {
+            difficulty: 'medium',
+            weight: 3,
+            tags: ['german', 'speaking', 'operations', 'ai-audio-eval'],
+            metadata: {
+              language: 'de',
+              max_duration_seconds: 90,
+              ai_score_audio: true,
+              rubric:
+                'Evaluate spoken German for an operations role. Score grammar, fluency, vocabulary, pronunciation/clarity, and task relevance. Candidate should introduce themselves and describe a typical operations workday in German.',
+            },
+          },
+        ),
+      ],
+    },
+  ],
+  { passing_score: 70, time_limit_minutes: 20, tags: ['german', 'operations', 'hiring', 'language', 'template'] },
+);
+
 export const BATCH3_TEMPLATES: RoleAssessmentTemplate[] = [
   contentWriter,
   devopsEngineer,
@@ -1274,4 +1330,5 @@ export const BATCH3_TEMPLATES: RoleAssessmentTemplate[] = [
   complianceOfficer,
   customerSuccessManager,
   executiveAssistant,
+  germanOperations,
 ];

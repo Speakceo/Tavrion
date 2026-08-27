@@ -25,12 +25,21 @@ export async function invokeScoreResponse(payload: {
   text?: string;
   mediaUrl?: string;
   rubric?: string;
+  organizationId?: string | null;
+  language?: string;
+  prompt?: string;
 }) {
   const { data, error } = await supabase.functions.invoke('assessment-score-response', {
     body: payload,
   });
   if (error) throw error;
-  return data as { score?: number; feedback?: Record<string, unknown>; summary?: string };
+  if (data?.error) throw new Error(String(data.error));
+  return data as {
+    score?: number;
+    feedback?: Record<string, unknown>;
+    transcript?: string | null;
+    summary?: string;
+  };
 }
 
 export async function invokeCalculateOverallScore(attemptId: string) {

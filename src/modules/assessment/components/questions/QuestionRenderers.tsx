@@ -113,6 +113,9 @@ export function MediaRecordQuestion({
   const elapsedRef = useRef(0);
   const maxSeconds = Number(question.metadata?.max_duration_seconds ?? (mode === 'video' ? 120 : 90));
   const playbackUrl = String(value.preview_url || value.media_url || '');
+  const aiAudioEval = question.metadata?.ai_score_audio === true
+    || (question.tags || []).some((t) => ['ai-audio-eval', 'german'].includes(String(t).toLowerCase()));
+  const speakLang = typeof question.metadata?.language === 'string' ? question.metadata.language : null;
 
   useEffect(() => () => {
     if (timerRef.current) window.clearInterval(timerRef.current);
@@ -193,6 +196,13 @@ export function MediaRecordQuestion({
   return (
     <div>
       {error && <p style={{ color: '#c0392b', fontSize: 13, marginBottom: 12 }}>{error}</p>}
+      {aiAudioEval && (
+        <p style={{ fontSize: 12, color: '#666', marginBottom: 12, lineHeight: 1.45 }}>
+          Your recording’s audio will be transcribed and evaluated by AI
+          {speakLang === 'de' ? ' (German — grammar, fluency, vocabulary, clarity)' : ' (grammar, fluency, clarity)'}
+          {' '}after you submit.
+        </p>
+      )}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         {!recording ? (
           <button type="button" onClick={startRecording} disabled={uploading} className="lt-btn-primary" style={{ padding: '8px 16px', fontSize: 13 }}>

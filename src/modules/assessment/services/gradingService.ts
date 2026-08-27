@@ -10,9 +10,12 @@ export interface GradingQueueItem {
   attempt_id: string;
   response_id: string;
   question_id: string;
+  organization_id?: string | null;
   question_title?: string;
   question_prompt?: string;
   question_type?: string;
+  question_tags?: string[];
+  question_metadata?: Record<string, unknown>;
   assignment_title?: string;
   candidate_name?: string | null;
   candidate_email?: string | null;
@@ -61,7 +64,7 @@ export async function fetchGradingQueue(viewer: OrgViewer | null | undefined) {
     .select(`
       *,
       question:assessment_questions (
-        id, title, question_type, prompt,
+        id, title, question_type, prompt, tags, metadata,
         assessment_question_options (id, option_text, is_correct)
       )
     `)
@@ -83,9 +86,12 @@ export async function fetchGradingQueue(viewer: OrgViewer | null | undefined) {
         attempt_id: r.attempt_id,
         response_id: r.id,
         question_id: r.question_id,
+        organization_id: attempt?.organization_id,
         question_title: question?.title,
         question_prompt: question?.prompt,
         question_type: question?.question_type,
+        question_tags: question?.tags,
+        question_metadata: question?.metadata,
         assignment_title: (attempt?.assignment as { title?: string } | undefined)?.title,
         candidate_name: attempt?.candidate_name,
         candidate_email: attempt?.candidate_email,
@@ -203,10 +209,19 @@ export async function runAiScoring(payload: {
   text?: string;
   mediaUrl?: string;
   rubric?: string;
+  organizationId?: string | null;
+  language?: string;
+  prompt?: string;
 }) {
   const { data, error } = await supabase.functions.invoke('assessment-score-response', {
     body: payload,
   });
   if (error) throw error;
-  return data as { score?: number; feedback?: Record<string, unknown>; summary?: string };
+  if (data?.error) throw new Error(String(data.error));
+  return data as {
+    score?: number;
+    feedback?: Record<string, unknown>;
+    transcript?: string | null;
+    summary?: string;
+  };
 }

@@ -146,6 +146,33 @@ export async function chatCompletion(
   });
 }
 
+/** Transcribe audio/video via org Whisper (or compatible) STT model. */
+export async function speechToText(
+  llm: ResolvedOrgLlm,
+  file: Blob,
+  filename: string,
+  language?: string | null,
+): Promise<string> {
+  const formData = new FormData();
+  formData.append("file", file, filename);
+  formData.append("model", llm.sttModel || "whisper-1");
+  if (language) formData.append("language", language);
+
+  const response = await fetch(`${llm.baseUrl}/audio/transcriptions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${llm.apiKey}` },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Speech-to-text failed (${response.status}): ${detail || response.statusText}`);
+  }
+
+  const data = await response.json();
+  return String(data.text || "").trim();
+}
+
 export async function assertOrgAdmin(
   client: SupabaseClient,
   actorUniqueId: string,

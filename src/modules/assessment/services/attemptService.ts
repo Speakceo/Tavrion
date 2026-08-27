@@ -5,9 +5,16 @@ import type { AssessmentAttempt, AssessmentQuestion, AssessmentResponse } from '
 import { fetchAssessmentWithSections } from './assessmentService';
 import { scoreResponse, calculateAttemptScore } from '../utils/scoring';
 import { sanitizeAnswerForStorage, enrichAnswerWithLabels } from '../utils/answerDisplay';
-import { invokeCalculateOverallScore } from './mediaService';
+import { invokeCalculateOverallScore, invokeScoreResponse } from './mediaService';
 
 const MANUAL_GRADE_TYPES = new Set(['long_answer', 'video_response', 'audio_response']);
+
+function wantsAiAudioEval(q: AssessmentQuestion): boolean {
+  if (!['video_response', 'audio_response'].includes(q.question_type)) return false;
+  if (q.metadata?.ai_score_audio === true) return true;
+  const tags = (q.tags || []).map((t) => t.toLowerCase());
+  return tags.includes('ai-audio-eval') || (tags.includes('german') && tags.includes('speaking'));
+}
 
 export async function touchAttemptActivity(
   attemptId: string,
@@ -236,6 +243,41 @@ export async function submitAttempt(
 
   if (finalizeError) throw finalizeError;
   if (!finalized) throw new Error('Could not finalize your submission. Please try again.');
+
+  // Auto-evaluate spoken German / AI-audio questions via org OpenAI (Whisper + chat)
+  try {
+    const { data: attemptRow } = await supabase
+      .from('assessment_attempts')
+      .select('organization_id')
+      .eq('id', attemptId)
+      .maybeSingle();
+
+    const refreshed = await fetchAttemptResponses(attemptId);
+    const byQuestion = new Map(refreshed.map((r) => [r.question_id, r]));
+
+    for (const q of questions) {
+      if (!wantsAiAudioEval(q)) continue;
+      const resp = byQuestion.get(q.id);
+      const mediaUrl = typeof resp?.answer?.media_url === 'string' ? resp.answer.media_url : '';
+      if (!resp?.id || !mediaUrl) continue;
+
+      const language = typeof q.metadata?.language === 'string' ? q.metadata.language : 'de';
+      const rubric = typeof q.metadata?.rubric === 'string' ? q.metadata.rubric : undefined;
+
+      await invokeScoreResponse({
+        attemptId,
+        responseId: resp.id,
+        questionType: q.question_type,
+        mediaUrl,
+        rubric,
+        organizationId: attemptRow?.organization_id || null,
+        language,
+        prompt: q.prompt,
+      });
+    }
+  } catch (err) {
+    console.warn('AI audio evaluation skipped:', err);
+  }
 
   let ai_summary: string | undefined;
   try {

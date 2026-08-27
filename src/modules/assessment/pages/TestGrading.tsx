@@ -107,10 +107,20 @@ export function TestGrading() {
     setBusy(true);
     try {
       const answerText = formatAnswerForDisplay(undefined, selected.answer);
-      const mediaUrl = ['video_response', 'audio_response'].includes(selected.question_type || '')
-        && (answerText.startsWith('http') || answerText.startsWith('/'))
-        ? answerText
+      const mediaFromAnswer = typeof selected.answer?.media_url === 'string'
+        ? selected.answer.media_url
         : undefined;
+      const mediaUrl = ['video_response', 'audio_response'].includes(selected.question_type || '')
+        ? (mediaFromAnswer || ((answerText.startsWith('http') || answerText.startsWith('/')) ? answerText : undefined))
+        : undefined;
+
+      const meta = selected.question_metadata || {};
+      const language = typeof meta.language === 'string'
+        ? meta.language
+        : selected.question_tags?.includes('german')
+          ? 'de'
+          : undefined;
+      const metaRubric = typeof meta.rubric === 'string' ? meta.rubric : undefined;
 
       const result = await runAiScoring({
         attemptId: selected.attempt_id,
@@ -118,14 +128,31 @@ export function TestGrading() {
         questionType: selected.question_type || 'long_answer',
         text: mediaUrl ? undefined : answerText,
         mediaUrl,
-        rubric: rubric || undefined,
+        rubric: rubric || metaRubric || undefined,
+        organizationId: selected.organization_id || viewer?.organization_id || null,
+        language,
+        prompt: selected.question_prompt,
       });
 
       const aiScore = result.score ?? (result.feedback as { overall_score?: number })?.overall_score;
       if (aiScore != null) setScore(aiScore);
       if (result.feedback) {
-        const fb = result.feedback as { feedback?: string[]; strengths?: string[]; improvements?: string[] };
+        const fb = result.feedback as {
+          feedback?: string[];
+          strengths?: string[];
+          improvements?: string[];
+          transcript?: string;
+          grammar_score?: number;
+          fluency_score?: number;
+          vocabulary_score?: number;
+          pronunciation_score?: number;
+        };
         const lines = [
+          result.transcript || fb.transcript ? `Transcript: ${result.transcript || fb.transcript}` : '',
+          fb.grammar_score != null ? `Grammar: ${fb.grammar_score}` : '',
+          fb.fluency_score != null ? `Fluency: ${fb.fluency_score}` : '',
+          fb.vocabulary_score != null ? `Vocabulary: ${fb.vocabulary_score}` : '',
+          fb.pronunciation_score != null ? `Pronunciation: ${fb.pronunciation_score}` : '',
           ...(fb.feedback || []),
           fb.strengths?.length ? `Strengths: ${fb.strengths.join(', ')}` : '',
           fb.improvements?.length ? `Improve: ${fb.improvements.join(', ')}` : '',
