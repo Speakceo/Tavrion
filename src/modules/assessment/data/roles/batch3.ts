@@ -1274,11 +1274,11 @@ const germanOperations = roleTemplate(
   'german-operations',
   'German Operations',
   'German Operations — Language & Skills Assessment',
-  'Screen operations candidates for basic German workplace language and spoken fluency via a short video evaluated by AI.',
+  'Screen operations candidates for basic German workplace language (7 questions) and spoken fluency via a short video evaluated by AI.',
   [
     {
       title: 'German basics',
-      instructions: 'Answer the German workplace questions, then record a short video speaking in German.',
+      instructions: 'Answer the seven German workplace questions, then record a short video speaking in German.',
       questions: [
         mc(
           'Workplace greeting',
@@ -1302,6 +1302,61 @@ const germanOperations = roleTemplate(
           ],
           { difficulty: 'easy', tags: ['german', 'comprehension', 'operations'], metadata: { language: 'de' } },
         ),
+        mc(
+          'Numbers and quantity',
+          'Wie sagt man auf Deutsch: „We need twenty packages today“?',
+          [
+            ['Wir brauchen zwanzig Pakete heute.', true],
+            ['Wir brauchen zwei Pakete morgen.', false],
+            ['Wir verkaufen zwanzig Pakete gestern.', false],
+            ['Wir löschen zwölf Pakete heute.', false],
+          ],
+          { difficulty: 'easy', tags: ['german', 'numbers', 'operations'], metadata: { language: 'de' } },
+        ),
+        mc(
+          'Days of the week',
+          'Welcher Tag kommt direkt nach Montag?',
+          [
+            ['Sonntag', false],
+            ['Dienstag', true],
+            ['Freitag', false],
+            ['Samstag', false],
+          ],
+          { difficulty: 'easy', tags: ['german', 'calendar', 'operations'], metadata: { language: 'de' } },
+        ),
+        mc(
+          'Warehouse vocabulary',
+          'Was bedeutet „Lager“ im Arbeitskontext?',
+          [
+            ['Warehouse / storage', true],
+            ['Laptop charger', false],
+            ['Lunch break', false],
+            ['Customer invoice', false],
+          ],
+          { difficulty: 'easy', tags: ['german', 'vocabulary', 'operations'], metadata: { language: 'de' } },
+        ),
+        mc(
+          'Polite request',
+          'Welche Formulierung ist höflich und passend am Arbeitsplatz?',
+          [
+            ['Gib mir das jetzt!', false],
+            ['Könnten Sie mir bitte helfen?', true],
+            ['Das ist egal.', false],
+            ['Ich gehe ohne zu fragen.', false],
+          ],
+          { difficulty: 'easy', tags: ['german', 'politeness', 'operations'], metadata: { language: 'de' } },
+        ),
+        mc(
+          'Safety sign',
+          'Ein Schild sagt: „Zutritt verboten.“ Was sollen Sie tun?',
+          [
+            ['Enter carefully', false],
+            ['Do not enter', true],
+            ['Take a photo and post it', false],
+            ['Move the sign to another door', false],
+          ],
+          { difficulty: 'easy', tags: ['german', 'safety', 'operations'], metadata: { language: 'de' } },
+        ),
         video(
           'German speaking sample',
           'Nehmen Sie ein Video von 60–90 Sekunden auf. Stellen Sie sich auf Deutsch vor und beschreiben Sie einen typischen Arbeitstag in der Operations (Aufgaben, Teamarbeit, Prioritäten). Sprechen Sie klar und natürlich.',
@@ -1321,7 +1376,7 @@ const germanOperations = roleTemplate(
       ],
     },
   ],
-  { passing_score: 70, time_limit_minutes: 20, tags: ['german', 'operations', 'hiring', 'language', 'template'] },
+  { passing_score: 70, time_limit_minutes: 30, tags: ['german', 'operations', 'hiring', 'language', 'template'] },
 );
 
 export const BATCH3_TEMPLATES: RoleAssessmentTemplate[] = [
