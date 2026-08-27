@@ -214,7 +214,7 @@ async function recalculateAttemptFromResponses(attemptId: string, passingScore: 
 export async function scoreAiAudioResponsesForAttempt(
   attemptId: string,
   organizationId?: string | null,
-  opts?: { force?: boolean },
+  opts?: { force?: boolean; passingScore?: number },
 ) {
   const { data: attempt } = await supabase
     .from('assessment_attempts')
@@ -263,6 +263,10 @@ export async function scoreAiAudioResponsesForAttempt(
     }
   }
 
+  if (scored.length > 0) {
+    await recalculateAttemptFromResponses(attemptId, opts?.passingScore ?? 70);
+  }
+
   return { scoredCount: scored.length, errors };
 }
 
@@ -307,7 +311,6 @@ export async function submitAttempt(
   const passThreshold = assignment.passing_score ?? assessment.passing_score ?? passingScore;
   const { percentage, passed } = calculateAttemptScore(results, passThreshold);
   const submittedAt = new Date().toISOString();
-  const organizationId = attemptRow.organization_id || assignment.organization_id || null;
 
   if (attemptRow.status === 'in_progress') {
     const { error: submitError } = await supabase
@@ -338,26 +341,7 @@ export async function submitAttempt(
   if (finalizeError) throw finalizeError;
   if (!finalized) throw new Error('Could not finalize your submission. Please try again.');
 
-  // Auto-evaluate spoken / AI-audio questions via org OpenAI (Whisper + chat)
-  try {
-    const aiResult = await scoreAiAudioResponsesForAttempt(attemptId, organizationId);
-    if (aiResult.errors.length) {
-      console.warn('AI audio evaluation errors:', aiResult.errors);
-    }
-    if (aiResult.scoredCount > 0) {
-      const recalculated = await recalculateAttemptFromResponses(attemptId, passThreshold);
-      if (recalculated) {
-        return {
-          percentage: recalculated.percentage,
-          passed: recalculated.passed,
-          results,
-          ai_summary: undefined as string | undefined,
-        };
-      }
-    }
-  } catch (err) {
-    console.warn('AI audio evaluation skipped:', err);
-  }
+  // Video AI scoring is admin-side only (Candidate Sessions). Candidates just submit.
 
   let ai_summary: string | undefined;
   try {

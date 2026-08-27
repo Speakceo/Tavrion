@@ -201,7 +201,7 @@ export function TestInterface({
         return;
       }
 
-      setSubmitMessage('Calculating your result (OpenAI video scoring may take a moment)...');
+      setSubmitMessage('Calculating your result...');
       const { submitAttempt } = await import('../services/attemptService');
       const result = await submitAttempt(attemptId, assignmentId);
       const completeResult: TestCompleteResult = {
