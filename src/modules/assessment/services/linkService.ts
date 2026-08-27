@@ -63,8 +63,8 @@ export async function resolvePublicLink(code: string): Promise<ResolvedPublicLin
       assessment_id: assignment.assessment_id,
       assignment_id: assignment.id,
       title: assignment.title,
-      require_camera: false,
-      require_microphone: false,
+      require_camera: true,
+      require_microphone: true,
       post_form_enabled: true,
       assessment_title: assignment.assessment?.title,
     };
@@ -123,8 +123,8 @@ export async function createReusableLink(
       title: payload.title,
       max_uses: payload.max_uses,
       expires_at: payload.expires_at || null,
-      require_camera: payload.require_camera ?? false,
-      require_microphone: payload.require_microphone ?? false,
+      require_camera: payload.require_camera ?? true,
+      require_microphone: payload.require_microphone ?? true,
       created_by: viewer.id,
     })
     .select()

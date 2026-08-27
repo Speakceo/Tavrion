@@ -120,7 +120,7 @@ export function ProctoringMonitor({
         </div>
       )}
       <p style={{ fontSize: 10, color: '#bbb', marginTop: 8, lineHeight: 1.4 }}>
-        Tab switches, copy/paste, fullscreen exit, and focus loss are logged.
+        Tab switches, copy/paste, Chrome side panels / AI tools, fullscreen exit, and focus loss are logged.
       </p>
     </div>
   );

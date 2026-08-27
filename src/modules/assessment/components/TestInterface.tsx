@@ -632,7 +632,7 @@ export function TestInterface({
               </span>
             </div>
           </div>
-          {!practiceMode && <ProctoringMonitor attemptId={attemptId} violationCount={violationCount} />}
+          {!practiceMode && <ProctoringMonitor attemptId={attemptId} violationCount={violationCount} showWebcam />}
         </aside>
       </div>
       {submitting && (

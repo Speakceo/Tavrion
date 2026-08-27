@@ -31,6 +31,12 @@ export const VIOLATION_TYPES = [
   'right_click',
   'fullscreen_exit',
   'screenshot_warning',
+  'browser_side_panel',
+  'ai_sidebar_use',
+  'ai_sidebar_shortcut',
+  'chrome_ai_api_detected',
+  'media_device_missing',
+  'media_permission_revoked',
 ] as const;
 
 export const DEFAULT_INTEGRITY_SETTINGS = {
@@ -40,4 +46,5 @@ export const DEFAULT_INTEGRITY_SETTINGS = {
   requireFullscreen: false,
   logIp: true,
   logDevice: true,
+  detectAiSidebar: true,
 };

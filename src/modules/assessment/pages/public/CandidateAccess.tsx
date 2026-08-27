@@ -6,6 +6,7 @@ import { fetchAttemptResponses } from '../../services/attemptService';
 import { TestInterface } from '../../components/TestInterface';
 import { PostAssessmentForm, type PostFormField } from '../../components/PostAssessmentForm';
 import { savePostFormData } from '../../services/sessionService';
+import { MediaPermissionGate, stopMediaStream, verifyMediaAccess } from '../../components/MediaPermissionGate';
 import { supabase } from '../../../../lib/supabase';
 import type { ResolvedPublicLink, CandidateInfo, AssessmentQuestion } from '../../types';
 import { ClipboardCheck, ArrowRight, Upload, Info } from 'lucide-react';
@@ -58,9 +59,15 @@ export function CandidateAccess() {
   const [questionCount, setQuestionCount] = useState(0);
   const [instructions, setInstructions] = useState('');
   const [passingScore, setPassingScore] = useState<number | null>(null);
+  const [mediaGranted, setMediaGranted] = useState(false);
+  const [previewStream, setPreviewStream] = useState<MediaStream | null>(null);
+  const [starting, setStarting] = useState(false);
 
   const scheduleWindows = (linkSettings.schedule_windows as ScheduleWindow[] | undefined) || [];
   const practiceMode = Boolean(linkSettings.practice_mode);
+  // Always require cam+mic unless practice mode explicitly skips proctoring
+  const requireCamera = !practiceMode;
+  const requireMicrophone = !practiceMode;
 
   useDocumentTitle(resolved?.assessment_title || resolved?.title || 'Assessment');
 
@@ -140,7 +147,10 @@ export function CandidateAccess() {
       mapped[row.question_id] = (row.answer || {}) as Record<string, unknown>;
     }
     setInitialAnswers(mapped);
-    setStep('test');
+    setMediaGranted(false);
+    stopMediaStream(previewStream);
+    setPreviewStream(null);
+    setStep('permissions');
   };
 
   const beginTest = async () => {
@@ -152,9 +162,28 @@ export function CandidateAccess() {
       setError('Please select a scheduled time slot.');
       return;
     }
+    if (!practiceMode) {
+      const check = await verifyMediaAccess({ requireCamera: true, requireMicrophone: true });
+      if (!check.ok) {
+        setMediaGranted(false);
+        setError(check.error);
+        return;
+      }
+      stopMediaStream(check.stream);
+      setMediaGranted(true);
+    }
     setError('');
+    setStarting(true);
     try {
       const token = resumeToken || generateResumeToken(candidate.email);
+
+      // Resume path: attempt already exists
+      if (attemptId && assignmentId) {
+        stopMediaStream(previewStream);
+        setPreviewStream(null);
+        setStep('test');
+        return;
+      }
 
       let resumeUrl: string | undefined;
       const attempt = await startPublicAttempt(resolved, { ...candidate, resume_url: undefined });
@@ -176,9 +205,13 @@ export function CandidateAccess() {
       }).eq('id', attempt.id);
 
       await loadQuestions(resolved.assessment_id);
+      stopMediaStream(previewStream);
+      setPreviewStream(null);
       setStep('test');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Could not start assessment');
+    } finally {
+      setStarting(false);
     }
   };
 
@@ -405,13 +438,26 @@ export function CandidateAccess() {
         {step === 'permissions' && (
           <>
             <p style={{ fontSize: 14, color: '#666', marginBottom: 16, lineHeight: 1.6 }}>
-              {resolved?.require_camera || resolved?.require_microphone
-                ? 'This assessment may require camera and microphone access for speaking/video questions and integrity monitoring.'
-                : 'You may be asked for microphone or camera access for certain question types.'}
+              Camera and microphone access are required before this test can start. Keep Chrome focused — side panels and AI tools are logged as integrity violations.
             </p>
+            {!practiceMode && (
+              <MediaPermissionGate
+                requireCamera={requireCamera}
+                requireMicrophone={requireMicrophone}
+                onGranted={(stream) => {
+                  stopMediaStream(previewStream);
+                  setPreviewStream(stream);
+                  setMediaGranted(true);
+                  setError('');
+                }}
+                onRevoked={() => {
+                  setMediaGranted(false);
+                }}
+              />
+            )}
             <ul style={{ fontSize: 13, color: '#666', marginBottom: 20, paddingLeft: 18, lineHeight: 1.8 }}>
               <li>{questionCount > 0 ? `${questionCount} questions` : 'Complete all questions'}{timeLimit ? ` · ${timeLimit} minutes` : ''}</li>
-              <li>Do not switch tabs during the test</li>
+              <li>Do not switch tabs or open Chrome side panels / AI assistants</li>
               <li>Your session is monitored for integrity</li>
             </ul>
             {resumeToken && (
@@ -421,11 +467,27 @@ export function CandidateAccess() {
             )}
             {error && <p style={{ color: '#c0392b', fontSize: 13, marginBottom: 12 }}>{error}</p>}
             <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" onClick={() => setStep('info')} className="lt-btn-secondary" style={{ padding: '12px 16px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  stopMediaStream(previewStream);
+                  setPreviewStream(null);
+                  setMediaGranted(false);
+                  setStep('info');
+                }}
+                className="lt-btn-secondary"
+                style={{ padding: '12px 16px' }}
+              >
                 Back
               </button>
-              <button onClick={beginTest} className="lt-btn-primary" style={{ flex: 1, padding: '12px 18px' }}>
-                Start assessment
+              <button
+                onClick={() => void beginTest()}
+                className="lt-btn-primary"
+                style={{ flex: 1, padding: '12px 18px', opacity: (!practiceMode && !mediaGranted) || starting ? 0.55 : 1 }}
+                disabled={(!practiceMode && !mediaGranted) || starting}
+                title={!practiceMode && !mediaGranted ? 'Allow camera and microphone first' : undefined}
+              >
+                {starting ? 'Starting…' : attemptId ? 'Continue assessment' : 'Start assessment'}
               </button>
             </div>
           </>
