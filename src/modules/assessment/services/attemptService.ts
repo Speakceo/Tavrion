@@ -247,6 +247,10 @@ export async function scoreAiAudioResponsesForAttempt(
     if (!opts?.force && resp.answer?.ai_evaluation && typeof resp.final_score === 'number') continue;
 
     try {
+      const durationSeconds = typeof resp.answer?.duration_seconds === 'number'
+        ? resp.answer.duration_seconds
+        : undefined;
+
       await invokeScoreResponse({
         attemptId,
         responseId: resp.id,
@@ -256,6 +260,7 @@ export async function scoreAiAudioResponsesForAttempt(
         organizationId: orgId,
         language: typeof q.metadata?.language === 'string' ? q.metadata.language : 'de',
         prompt: q.prompt,
+        durationSeconds,
       });
       scored.push(resp.id);
     } catch (err) {

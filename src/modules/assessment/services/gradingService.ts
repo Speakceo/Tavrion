@@ -212,6 +212,7 @@ export async function runAiScoring(payload: {
   organizationId?: string | null;
   language?: string;
   prompt?: string;
+  durationSeconds?: number;
 }) {
   const { data, error } = await supabase.functions.invoke('assessment-score-response', {
     body: payload,

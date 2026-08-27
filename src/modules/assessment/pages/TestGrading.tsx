@@ -132,6 +132,9 @@ export function TestGrading() {
         organizationId: selected.organization_id || viewer?.organization_id || null,
         language,
         prompt: selected.question_prompt,
+        durationSeconds: typeof selected.answer?.duration_seconds === 'number'
+          ? selected.answer.duration_seconds
+          : undefined,
       });
 
       const aiScore = result.score ?? (result.feedback as { overall_score?: number })?.overall_score;

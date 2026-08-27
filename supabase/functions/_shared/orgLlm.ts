@@ -147,15 +147,50 @@ export async function chatCompletion(
 }
 
 /** Transcribe audio/video via org Whisper (or compatible) STT model. */
+export type SpeechToTextResult = {
+  text: string;
+  duration?: number;
+  noSpeechLikely: boolean;
+  avgNoSpeechProb?: number;
+  avgLogprob?: number;
+};
+
+const WHISPER_SILENCE_HALLUCINATIONS = [
+  /^thanks for watching\.?$/i,
+  /^thank you for watching\.?$/i,
+  /^please subscribe\.?$/i,
+  /^subscribe to .+ channel\.?$/i,
+  /^untertitel( der amara\.org)?\.?$/i,
+  /^字幕由 .+ 提供\.?$/i,
+  /^amara\.org\.?$/i,
+  /^www\.youtube\.com\/watch\?v=/i,
+  /^mbc 뉴스$/i,
+  /^\.+$/,
+  /^♪+$/,
+  /^\[?\s*silence\s*\]?$/i,
+  /^\[?\s*music\s*\]?$/i,
+  /^\[?\s*blank audio\s*\]?$/i,
+];
+
+export function looksLikeWhisperHallucination(text: string): boolean {
+  const t = text.trim();
+  if (!t) return true;
+  if (t.length < 8) return true;
+  const words = t.split(/\s+/).filter(Boolean);
+  if (words.length < 3) return true;
+  return WHISPER_SILENCE_HALLUCINATIONS.some((re) => re.test(t));
+}
+
 export async function speechToText(
   llm: ResolvedOrgLlm,
   file: Blob,
   filename: string,
   language?: string | null,
-): Promise<string> {
+): Promise<SpeechToTextResult> {
   const formData = new FormData();
   formData.append("file", file, filename);
   formData.append("model", llm.sttModel || "whisper-1");
+  formData.append("response_format", "verbose_json");
   if (language) formData.append("language", language);
 
   const response = await fetch(`${llm.baseUrl}/audio/transcriptions`, {
@@ -170,7 +205,41 @@ export async function speechToText(
   }
 
   const data = await response.json();
-  return String(data.text || "").trim();
+  const text = String(data.text || "").trim();
+  const segments = Array.isArray(data.segments) ? data.segments : [];
+  let avgNoSpeechProb: number | undefined;
+  let avgLogprob: number | undefined;
+
+  if (segments.length) {
+    const noSpeechVals = segments
+      .map((s: { no_speech_prob?: number }) => s.no_speech_prob)
+      .filter((n: unknown): n is number => typeof n === "number");
+    const logprobs = segments
+      .map((s: { avg_logprob?: number }) => s.avg_logprob)
+      .filter((n: unknown): n is number => typeof n === "number");
+    if (noSpeechVals.length) {
+      avgNoSpeechProb = noSpeechVals.reduce((a: number, b: number) => a + b, 0) / noSpeechVals.length;
+    }
+    if (logprobs.length) {
+      avgLogprob = logprobs.reduce((a: number, b: number) => a + b, 0) / logprobs.length;
+    }
+  }
+
+  const duration = typeof data.duration === "number" ? data.duration : undefined;
+  const noSpeechLikely =
+    !text
+    || looksLikeWhisperHallucination(text)
+    || (typeof avgNoSpeechProb === "number" && avgNoSpeechProb >= 0.6)
+    || (typeof avgLogprob === "number" && avgLogprob < -1.2 && text.split(/\s+/).length < 12)
+    || (typeof duration === "number" && duration < 2);
+
+  return {
+    text: noSpeechLikely && looksLikeWhisperHallucination(text) ? "" : text,
+    duration,
+    noSpeechLikely,
+    avgNoSpeechProb,
+    avgLogprob,
+  };
 }
 
 export async function assertOrgAdmin(
