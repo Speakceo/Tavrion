@@ -5,11 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node scripts/generate-seo-blog.mjs && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
-    "keepalive": "node scripts/supabase-keepalive.mjs"
+    "generate:seo-blog": "node scripts/generate-seo-blog.mjs",
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",

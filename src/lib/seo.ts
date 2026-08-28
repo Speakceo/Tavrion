@@ -8,12 +8,27 @@ export const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.png`;
 
 export const SEO = {
   home: {
-    title: 'Tavrion | Enterprise LMS & Skills Assessment',
+    title: 'Tavrion LMS | Enterprise Learning Management System',
     description:
-      'Enterprise LMS for global teams: SCORM courses, AI mock calls, hiring assessments, and analytics in one platform.',
+      'Tavrion is an enterprise LMS (learning management system) for global teams: SCORM courses, AI mock calls, skills assessments, hiring tests, and analytics in one platform.',
     keywords:
-      'enterprise LMS, learning management system, learning and assessment platform, corporate training software, skills assessment software, hiring assessment platform, employee onboarding LMS, compliance training platform, SCORM LMS, AI coaching platform, mock call training, talent assessment, multi-tenant LMS, learning analytics, L&D software',
+      'Tavrion, Tavrion LMS, enterprise LMS, learning management system, LMS software, corporate training platform, skills assessment software, SCORM LMS, AI coaching platform, employee onboarding LMS, compliance training LMS, hiring assessment platform, multi-tenant LMS, learning analytics',
     path: '/',
+  },
+  lms: {
+    title: 'Tavrion LMS | Learning Management System for Enterprise Teams',
+    description:
+      'Tavrion LMS helps enterprises deliver SCORM training, AI coaching, compliance programs, and skills assessments. Compare features, use cases, and start a free trial.',
+    keywords:
+      'Tavrion LMS, learning management system, enterprise LMS, corporate LMS, SCORM LMS, training platform, employee learning software, L&D platform',
+    path: '/lms',
+  },
+  blog: {
+    title: 'Blog | Tavrion LMS — Enterprise Training & Assessment Guides',
+    description:
+      'Articles on enterprise LMS, SCORM training, AI mock calls, skills assessments, compliance, and global onboarding from Tavrion.',
+    keywords: 'Tavrion blog, LMS blog, enterprise training, skills assessment, SCORM LMS',
+    path: '/blog',
   },
   dnaStudio: {
     title: 'DNA Studio | AI Brand & Campaign Generator | Tavrion',
@@ -47,6 +62,7 @@ export function buildOrganizationSchema() {
     '@type': 'Organization',
     '@id': ORG_ID,
     name: SITE_NAME,
+    alternateName: ['Tavrion LMS', 'Tavrion Learning Management System'],
     url: SITE_URL,
     logo: `${SITE_URL}/favicon.svg`,
     description: BRAND_POSITIONING,
@@ -66,6 +82,7 @@ export function buildWebSiteSchema() {
     '@id': WEBSITE_ID,
     url: SITE_URL,
     name: SITE_NAME,
+    alternateName: 'Tavrion LMS',
     description: BRAND_POSITIONING,
     slogan: BRAND_TAGLINE,
     publisher: { '@id': ORG_ID },
@@ -77,7 +94,8 @@ export function buildSoftwareApplicationSchema(description = SEO.home.descriptio
   return {
     '@type': 'SoftwareApplication',
     '@id': SOFTWARE_ID,
-    name: SITE_NAME,
+    name: 'Tavrion LMS',
+    alternateName: SITE_NAME,
     url: SITE_URL,
     description,
     applicationCategory: 'BusinessApplication',

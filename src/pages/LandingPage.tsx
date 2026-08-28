@@ -80,8 +80,12 @@ const COMPARE_ROWS = [
 
 const FAQS = [
   {
+    q: 'What is Tavrion LMS?',
+    a: 'Tavrion LMS is an enterprise learning management system for global teams. It combines course delivery (including SCORM), AI coaching, live call practice, hiring assessments, certificates, and analytics in one platform — so L&D and ops teams can train, assess, and prove capability without juggling multiple tools.',
+  },
+  {
     q: 'What is Tavrion?',
-    a: 'Tavrion is an enterprise learning and assessment platform for global teams. Use it to onboard and upskill people with SCORM courses, practice with AI and live call coaching, run hiring and skills assessments, issue certificates, and measure outcomes in one place.',
+    a: 'Tavrion is the company and platform behind Tavrion LMS — an enterprise learning and assessment platform for global teams. Use it to onboard and upskill people with SCORM courses, practice with AI and live call coaching, run hiring and skills assessments, issue certificates, and measure outcomes in one place.',
   },
   {
     q: 'Does Tavrion support SCORM?',
@@ -418,6 +422,9 @@ export function LandingPage() {
               overflowWrap: 'anywhere',
               animationDelay: '80ms',
             }}>
+              <span style={{ display: 'block', fontSize: isMobile ? 14 : 15, fontWeight: 600, letterSpacing: '0.02em', color: T.textMuted, marginBottom: 10 }}>
+                Tavrion LMS — enterprise learning management system
+              </span>
               Train, coach, and assess<br />
               <span style={{ color: T.textMuted }}>every team, in one platform.</span>
             </h1>
@@ -429,7 +436,7 @@ export function LandingPage() {
               letterSpacing: '-0.01em',
               animationDelay: '160ms',
             }}>
-              From onboarding and compliance to AI coaching and hiring assessments. Tavrion helps L&D, people, and ops teams build capability and prove it, worldwide.
+              Tavrion LMS helps L&D, people, and ops teams deliver SCORM training, AI coaching, and hiring assessments — and prove results worldwide.
             </p>
 
             <div className="lp-hero-in lp-hero-ctas" style={{ animationDelay: '240ms' }}>
@@ -958,11 +965,13 @@ export function LandingPage() {
         <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <div>
             <TavrionLogo size="sm" />
-            <p style={{ fontSize: 11, color: T.textFaint, marginTop: 8, marginBottom: 0 }}>Enterprise learning & assessment platform</p>
+            <p style={{ fontSize: 11, color: T.textFaint, marginTop: 8, marginBottom: 0 }}>Tavrion LMS — enterprise learning & assessment platform</p>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? 16 : 24 }}>
             <button type="button" onClick={() => scrollTo('product')} style={{ fontSize: 12, color: T.textFaint, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Product</button>
             <button type="button" onClick={() => scrollTo('platform')} style={{ fontSize: 12, color: T.textFaint, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Platform</button>
+            <a href="/lms" style={{ fontSize: 12, color: T.textFaint, textDecoration: 'none' }}>Tavrion LMS</a>
+            <a href="/blog/" style={{ fontSize: 12, color: T.textFaint, textDecoration: 'none' }}>Blog</a>
             <button type="button" onClick={() => scrollTo('faq')} style={{ fontSize: 12, color: T.textFaint, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>FAQ</button>
             <Link to="/dna-studio" style={{ fontSize: 12, color: T.textFaint, textDecoration: 'none' }}>DNA Studio</Link>
             <Link to="/tavrion-bot" style={{ fontSize: 12, color: T.textFaint, textDecoration: 'none' }}>Tavrion Bot</Link>
