@@ -32,6 +32,16 @@
     Content-Type = "text/xml; charset=utf-8"
 
 [[headers]]
+  for = "/blog/*"
+  [headers.values]
+    Content-Type = "text/html; charset=utf-8"
+
+[[headers]]
+  for = "/lms"
+  [headers.values]
+    Content-Type = "text/html; charset=utf-8"
+
+[[headers]]
   for = "/404.html"
   [headers.values]
     X-Robots-Tag = "noindex, nofollow"

@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "generate:seo-blog": "node scripts/generate-seo-blog.mjs",
+    "keepalive": "node scripts/supabase-keepalive.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
