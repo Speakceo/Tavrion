@@ -115,11 +115,16 @@ export function TestGrading() {
         : undefined;
 
       const meta = selected.question_metadata || {};
+      const tags = (selected.question_tags || []).map((t) => String(t).toLowerCase());
       const language = typeof meta.language === 'string'
         ? meta.language
-        : selected.question_tags?.includes('german')
-          ? 'de'
-          : undefined;
+        : tags.includes('spanish')
+          ? 'es'
+          : tags.includes('french')
+            ? 'fr'
+            : tags.includes('german')
+              ? 'de'
+              : undefined;
       const metaRubric = typeof meta.rubric === 'string' ? meta.rubric : undefined;
 
       const result = await runAiScoring({

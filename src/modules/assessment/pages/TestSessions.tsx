@@ -753,7 +753,7 @@ export function TestSessions() {
             <h3 style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Responses</h3>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 10 }}>
               <p style={{ fontSize: 11, color: '#808080', margin: 0 }}>
-                {videoAiBusy ? 'Running OpenAI transcription + scoring…' : (videoAiMessage || 'German/speaking videos are scored via org OpenAI.')}
+                {videoAiBusy ? 'Running OpenAI transcription + scoring…' : (videoAiMessage || 'Language/speaking videos are scored via org OpenAI.')}
               </p>
               <button
                 type="button"

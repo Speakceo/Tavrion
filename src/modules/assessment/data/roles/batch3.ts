@@ -1379,6 +1379,228 @@ const germanOperations = roleTemplate(
   { passing_score: 70, time_limit_minutes: 30, tags: ['german', 'operations', 'hiring', 'language', 'template'] },
 );
 
+// ─── 8. Spanish Operations ─────────────────────────────────────────────────
+
+const spanishOperations = roleTemplate(
+  'spanish-operations',
+  'Spanish Operations',
+  'Spanish Operations — Language & Skills Assessment',
+  'Screen operations candidates for basic Spanish workplace language (7 questions) and spoken fluency via a short video evaluated by AI.',
+  [
+    {
+      title: 'Spanish basics',
+      instructions: 'Answer the seven Spanish workplace questions, then record a short video speaking in Spanish.',
+      questions: [
+        mc(
+          'Workplace greeting',
+          'Un compañero llega por la mañana a la oficina. ¿Cuál es el saludo adecuado?',
+          [
+            ['¡Buenas noches!', false],
+            ['¡Buenos días!', true],
+            ['¡Adiós!', false],
+            ['¿Dónde está la estación de tren?', false],
+          ],
+          { difficulty: 'easy', tags: ['spanish', 'vocabulary', 'operations'], metadata: { language: 'es' } },
+        ),
+        mc(
+          'Simple instruction',
+          'Su supervisor dice: «Por favor, envíe el informe antes del viernes.» ¿Qué significa?',
+          [
+            ['Borrar el informe el viernes', false],
+            ['Enviar el informe antes del viernes', true],
+            ['Imprimir el informe solo los lunes por la mañana', false],
+            ['Ignorar el informe hasta el próximo mes', false],
+          ],
+          { difficulty: 'easy', tags: ['spanish', 'comprehension', 'operations'], metadata: { language: 'es' } },
+        ),
+        mc(
+          'Numbers and quantity',
+          '¿Cómo se dice en español: «We need twenty packages today»?',
+          [
+            ['Necesitamos veinte paquetes hoy.', true],
+            ['Necesitamos dos paquetes mañana.', false],
+            ['Vendimos veinte paquetes ayer.', false],
+            ['Eliminamos doce paquetes hoy.', false],
+          ],
+          { difficulty: 'easy', tags: ['spanish', 'numbers', 'operations'], metadata: { language: 'es' } },
+        ),
+        mc(
+          'Days of the week',
+          '¿Qué día viene justo después del lunes?',
+          [
+            ['Domingo', false],
+            ['Martes', true],
+            ['Viernes', false],
+            ['Sábado', false],
+          ],
+          { difficulty: 'easy', tags: ['spanish', 'calendar', 'operations'], metadata: { language: 'es' } },
+        ),
+        mc(
+          'Warehouse vocabulary',
+          '¿Qué significa «almacén» en el contexto laboral?',
+          [
+            ['Warehouse / storage', true],
+            ['Laptop charger', false],
+            ['Lunch break', false],
+            ['Customer invoice', false],
+          ],
+          { difficulty: 'easy', tags: ['spanish', 'vocabulary', 'operations'], metadata: { language: 'es' } },
+        ),
+        mc(
+          'Polite request',
+          '¿Cuál formulación es educada y adecuada en el lugar de trabajo?',
+          [
+            ['¡Dame eso ahora!', false],
+            ['¿Podría ayudarme, por favor?', true],
+            ['No importa.', false],
+            ['Me voy sin avisar.', false],
+          ],
+          { difficulty: 'easy', tags: ['spanish', 'politeness', 'operations'], metadata: { language: 'es' } },
+        ),
+        mc(
+          'Safety sign',
+          'Un cartel dice: «Prohibido el paso.» ¿Qué debe hacer?',
+          [
+            ['Entrar con cuidado', false],
+            ['No entrar', true],
+            ['Tomar una foto y publicarla', false],
+            ['Mover el cartel a otra puerta', false],
+          ],
+          { difficulty: 'easy', tags: ['spanish', 'safety', 'operations'], metadata: { language: 'es' } },
+        ),
+        video(
+          'Spanish speaking sample',
+          'Grabe un video de 60–90 segundos. Preséntese en español y describa un día típico de trabajo en operaciones (tareas, trabajo en equipo, prioridades). Hable con claridad y de forma natural.',
+          {
+            difficulty: 'medium',
+            weight: 3,
+            tags: ['spanish', 'speaking', 'operations', 'ai-audio-eval'],
+            metadata: {
+              language: 'es',
+              max_duration_seconds: 90,
+              ai_score_audio: true,
+              rubric:
+                'Evaluate spoken Spanish for an operations role. Score grammar, fluency, vocabulary, pronunciation/clarity, and task relevance. Candidate should introduce themselves and describe a typical operations workday in Spanish.',
+            },
+          },
+        ),
+      ],
+    },
+  ],
+  { passing_score: 70, time_limit_minutes: 30, tags: ['spanish', 'operations', 'hiring', 'language', 'template'] },
+);
+
+// ─── 9. French Operations ──────────────────────────────────────────────────
+
+const frenchOperations = roleTemplate(
+  'french-operations',
+  'French Operations',
+  'French Operations — Language & Skills Assessment',
+  'Screen operations candidates for basic French workplace language (7 questions) and spoken fluency via a short video evaluated by AI.',
+  [
+    {
+      title: 'French basics',
+      instructions: 'Answer the seven French workplace questions, then record a short video speaking in French.',
+      questions: [
+        mc(
+          'Workplace greeting',
+          'Un collègue arrive le matin au bureau. Quelle est la salutation appropriée ?',
+          [
+            ['Bonne nuit !', false],
+            ['Bonjour !', true],
+            ['Au revoir !', false],
+            ['Où est la gare ?', false],
+          ],
+          { difficulty: 'easy', tags: ['french', 'vocabulary', 'operations'], metadata: { language: 'fr' } },
+        ),
+        mc(
+          'Simple instruction',
+          'Votre responsable dit : « Veuillez envoyer le rapport avant vendredi. » Que cela signifie-t-il ?',
+          [
+            ['Supprimer le rapport vendredi', false],
+            ['Envoyer le rapport avant vendredi', true],
+            ['Imprimer le rapport uniquement le lundi matin', false],
+            ['Ignorer le rapport jusqu\'au mois prochain', false],
+          ],
+          { difficulty: 'easy', tags: ['french', 'comprehension', 'operations'], metadata: { language: 'fr' } },
+        ),
+        mc(
+          'Numbers and quantity',
+          'Comment dit-on en français : « We need twenty packages today » ?',
+          [
+            ['Nous avons besoin de vingt colis aujourd\'hui.', true],
+            ['Nous avons besoin de deux colis demain.', false],
+            ['Nous vendons vingt colis hier.', false],
+            ['Nous supprimons douze colis aujourd\'hui.', false],
+          ],
+          { difficulty: 'easy', tags: ['french', 'numbers', 'operations'], metadata: { language: 'fr' } },
+        ),
+        mc(
+          'Days of the week',
+          'Quel jour vient juste après lundi ?',
+          [
+            ['Dimanche', false],
+            ['Mardi', true],
+            ['Vendredi', false],
+            ['Samedi', false],
+          ],
+          { difficulty: 'easy', tags: ['french', 'calendar', 'operations'], metadata: { language: 'fr' } },
+        ),
+        mc(
+          'Warehouse vocabulary',
+          'Que signifie « entrepôt » dans un contexte professionnel ?',
+          [
+            ['Warehouse / storage', true],
+            ['Laptop charger', false],
+            ['Lunch break', false],
+            ['Customer invoice', false],
+          ],
+          { difficulty: 'easy', tags: ['french', 'vocabulary', 'operations'], metadata: { language: 'fr' } },
+        ),
+        mc(
+          'Polite request',
+          'Quelle formulation est polie et appropriée au travail ?',
+          [
+            ['Donne-moi ça maintenant !', false],
+            ['Pourriez-vous m\'aider, s\'il vous plaît ?', true],
+            ['Peu importe.', false],
+            ['Je pars sans prévenir.', false],
+          ],
+          { difficulty: 'easy', tags: ['french', 'politeness', 'operations'], metadata: { language: 'fr' } },
+        ),
+        mc(
+          'Safety sign',
+          'Un panneau indique : « Accès interdit. » Que devez-vous faire ?',
+          [
+            ['Entrer prudemment', false],
+            ['Ne pas entrer', true],
+            ['Prendre une photo et la publier', false],
+            ['Déplacer le panneau vers une autre porte', false],
+          ],
+          { difficulty: 'easy', tags: ['french', 'safety', 'operations'], metadata: { language: 'fr' } },
+        ),
+        video(
+          'French speaking sample',
+          'Enregistrez une vidéo de 60 à 90 secondes. Présentez-vous en français et décrivez une journée de travail typique en opérations (tâches, travail d\'équipe, priorités). Parlez clairement et naturellement.',
+          {
+            difficulty: 'medium',
+            weight: 3,
+            tags: ['french', 'speaking', 'operations', 'ai-audio-eval'],
+            metadata: {
+              language: 'fr',
+              max_duration_seconds: 90,
+              ai_score_audio: true,
+              rubric:
+                'Evaluate spoken French for an operations role. Score grammar, fluency, vocabulary, pronunciation/clarity, and task relevance. Candidate should introduce themselves and describe a typical operations workday in French.',
+            },
+          },
+        ),
+      ],
+    },
+  ],
+  { passing_score: 70, time_limit_minutes: 30, tags: ['french', 'operations', 'hiring', 'language', 'template'] },
+);
+
 export const BATCH3_TEMPLATES: RoleAssessmentTemplate[] = [
   contentWriter,
   devopsEngineer,
@@ -1387,4 +1609,6 @@ export const BATCH3_TEMPLATES: RoleAssessmentTemplate[] = [
   customerSuccessManager,
   executiveAssistant,
   germanOperations,
+  spanishOperations,
+  frenchOperations,
 ];

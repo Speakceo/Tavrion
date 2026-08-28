@@ -9,13 +9,24 @@ import { invokeCalculateOverallScore, invokeScoreResponse } from './mediaService
 
 const MANUAL_GRADE_TYPES = new Set(['long_answer', 'video_response', 'audio_response']);
 
+const LANGUAGE_TAGS = ['german', 'spanish', 'french'] as const;
+
+function languageFromQuestion(q: Pick<AssessmentQuestion, 'tags' | 'metadata'>): string | undefined {
+  if (typeof q.metadata?.language === 'string') return q.metadata.language;
+  const tags = (q.tags || []).map((t) => String(t).toLowerCase());
+  if (tags.includes('spanish')) return 'es';
+  if (tags.includes('french')) return 'fr';
+  if (tags.includes('german')) return 'de';
+  return undefined;
+}
+
 export function wantsAiAudioEval(q: Pick<AssessmentQuestion, 'question_type' | 'tags' | 'metadata'>): boolean {
   if (!['video_response', 'audio_response'].includes(q.question_type)) return false;
   if (q.metadata?.ai_score_audio === true || q.metadata?.ai_score_media === true) return true;
   const tags = (q.tags || []).map((t) => String(t).toLowerCase());
   return (
     tags.includes('ai-audio-eval')
-    || tags.includes('german')
+    || LANGUAGE_TAGS.some((lang) => tags.includes(lang))
     || (tags.includes('speaking') && tags.includes('language'))
   );
 }
@@ -258,7 +269,7 @@ export async function scoreAiAudioResponsesForAttempt(
         mediaUrl,
         rubric: typeof q.metadata?.rubric === 'string' ? q.metadata.rubric : undefined,
         organizationId: orgId,
-        language: typeof q.metadata?.language === 'string' ? q.metadata.language : 'de',
+        language: languageFromQuestion(q),
         prompt: q.prompt,
         durationSeconds,
       });

@@ -34,6 +34,26 @@ function clampScore(n: unknown, fallback = 0): number {
   return Math.max(0, Math.min(100, Math.round(v)));
 }
 
+const LANGUAGE_LABELS: Record<string, string> = {
+  de: "German",
+  es: "Spanish",
+  fr: "French",
+};
+
+function resolveAssessmentLanguage(
+  language?: string,
+  rubric?: string,
+): { code?: string; label: string } {
+  if (language && LANGUAGE_LABELS[language]) {
+    return { code: language, label: LANGUAGE_LABELS[language] };
+  }
+  const rub = String(rubric || "").toLowerCase();
+  if (rub.includes("german")) return { code: "de", label: "German" };
+  if (rub.includes("spanish")) return { code: "es", label: "Spanish" };
+  if (rub.includes("french")) return { code: "fr", label: "French" };
+  return { code: language, label: "" };
+}
+
 function emptySpeechResult(reason: string) {
   return {
     overall_score: 0,
@@ -104,7 +124,7 @@ Deno.serve(async (req: Request) => {
           transcript = "";
           sttMeta = { reject_reason: "duration_too_short", duration_seconds: durationSeconds };
         } else {
-          const lang = language || (String(rubric || "").toLowerCase().includes("german") ? "de" : undefined);
+          const { code: lang } = resolveAssessmentLanguage(language, rubric);
           const stt = await speechToText(llm, blob, filenameFromUrl(String(mediaUrl)), lang);
           transcript = stt.text;
           noSpeechLikely = stt.noSpeechLikely || looksLikeWhisperHallucination(stt.text);
@@ -166,15 +186,18 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const isGerman = language === "de" || String(rubric || "").toLowerCase().includes("german");
+    const { label: targetLanguage } = resolveAssessmentLanguage(language, rubric);
+    const languageRule = targetLanguage
+      ? `- For ${targetLanguage} tasks, heavily penalize responses not primarily in ${targetLanguage}.`
+      : "";
     const evalPrompt = isMedia
-      ? `You are a strict language assessor grading a spoken ${isGerman ? "German" : ""} assessment from a speech-to-text transcript.
+      ? `You are a strict language assessor grading a spoken ${targetLanguage || "language"} assessment from a speech-to-text transcript.
 
 STRICT RULES:
 - Grade ONLY the transcript below. Do NOT invent or improve what was said.
 - If the transcript is empty, nonsense, unrelated, or clearly not answering the prompt, overall_score must be 0–15.
 - Do not give high scores for incomplete answers.
-- For German tasks, heavily penalize English-only or mostly English responses.
+${languageRule}
 - Keep transcript field EXACTLY equal to the provided transcript (copy it verbatim).
 
 Question prompt: ${questionPrompt || "(not provided)"}
