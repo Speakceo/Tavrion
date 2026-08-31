@@ -3,6 +3,7 @@ import { orgIdForInsert } from '../../../utils/orgScope';
 import type { OrgViewer } from '../../../utils/orgScope';
 import type { AssessmentAttempt, AssessmentQuestion, AssessmentResponse } from '../types';
 import { fetchAssessmentWithSections } from './assessmentService';
+import { assertCandidateCanSubmitAttempt } from './linkService';
 import { scoreResponse, calculateAttemptScore } from '../utils/scoring';
 import { sanitizeAnswerForStorage, enrichAnswerWithLabels } from '../utils/answerDisplay';
 import { invokeCalculateOverallScore, invokeScoreResponse } from './mediaService';
@@ -306,6 +307,8 @@ export async function submitAttempt(
 
   if (!assignment?.assessment_id) throw new Error('Assignment not found');
   if (!attemptRow) throw new Error('Attempt not found');
+
+  await assertCandidateCanSubmitAttempt(attemptId, assignmentId);
 
   // Bare id fetch — do not apply empty-org scope (breaks public + submit scoring)
   const assessment = await fetchAssessmentWithSections(assignment.assessment_id);

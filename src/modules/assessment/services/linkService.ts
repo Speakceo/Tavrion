@@ -30,15 +30,82 @@ function normalizeCandidateEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
+export function extractCandidateEmail(row: {
+  candidate_email?: string | null;
+  candidate_info?: unknown;
+}): string {
+  const info = (row.candidate_info || {}) as { email?: string };
+  return normalizeCandidateEmail(row.candidate_email || info.email || '');
+}
+
 type ExistingAttemptRow = {
   id: string;
   status: string;
   candidate_email: string | null;
+  candidate_info?: unknown;
   submitted_at: string | null;
   progress: Record<string, unknown> | null;
 };
 
-/** Block duplicate candidate emails per public link / assessment (non-practice). */
+function isPracticeAttempt(row: ExistingAttemptRow) {
+  return Boolean(row.progress?.practice_mode);
+}
+
+function isSubmittedAttempt(row: ExistingAttemptRow) {
+  return ['submitted', 'graded', 'expired'].includes(row.status) || Boolean(row.submitted_at);
+}
+
+/** All attempts for this assessment + org whose email matches (any public link). */
+export async function listAssessmentAttemptsForEmail(
+  organizationId: string,
+  assessmentId: string,
+  email: string,
+): Promise<ExistingAttemptRow[]> {
+  const normalized = normalizeCandidateEmail(email);
+  if (!normalized) return [];
+
+  const { data: assignments, error: assignErr } = await supabase
+    .from('assessment_assignments')
+    .select('id')
+    .eq('assessment_id', assessmentId)
+    .eq('organization_id', organizationId);
+  if (assignErr) throw assignErr;
+
+  const assignmentIds = (assignments || []).map((a) => a.id);
+  if (!assignmentIds.length) return [];
+
+  const { data: existing, error } = await supabase
+    .from('assessment_attempts')
+    .select('id, status, candidate_email, candidate_info, submitted_at, progress')
+    .in('assignment_id', assignmentIds);
+
+  if (error) throw error;
+
+  return ((existing || []) as ExistingAttemptRow[]).filter(
+    (row) => extractCandidateEmail(row) === normalized,
+  );
+}
+
+function assertNoDuplicateFromMatches(
+  matches: ExistingAttemptRow[],
+  opts?: { allowAttemptId?: string; practiceMode?: boolean },
+) {
+  if (opts?.practiceMode) return;
+
+  const relevant = matches.filter((row) => {
+    if (opts?.allowAttemptId && row.id === opts.allowAttemptId) return false;
+    if (isPracticeAttempt(row)) return false;
+    return true;
+  });
+
+  const submitted = relevant.find(isSubmittedAttempt);
+  if (submitted) throw new Error(DUPLICATE_EMAIL_SUBMITTED_MSG);
+
+  const inProgress = relevant.find((row) => row.status === 'in_progress' && !row.submitted_at);
+  if (inProgress) throw new Error(DUPLICATE_EMAIL_IN_PROGRESS_MSG);
+}
+
+/** Block duplicate candidate emails per assessment (non-practice). */
 export async function assertCandidateEmailAvailable(
   resolved: ResolvedPublicLink,
   email: string,
@@ -46,46 +113,48 @@ export async function assertCandidateEmailAvailable(
 ) {
   if (opts?.practiceMode) return;
 
-  const normalized = normalizeCandidateEmail(email);
-  if (!normalized) return;
-
-  let query = supabase
-    .from('assessment_attempts')
-    .select('id, status, candidate_email, submitted_at, progress');
-
-  if (resolved.link_id) {
-    query = query.eq('reusable_link_id', resolved.link_id);
-  } else if (resolved.assignment_id) {
-    query = query.eq('assignment_id', resolved.assignment_id);
-  } else {
-    const { data: assignments, error: assignErr } = await supabase
-      .from('assessment_assignments')
-      .select('id')
-      .eq('assessment_id', resolved.assessment_id)
-      .eq('organization_id', resolved.organization_id);
-    if (assignErr) throw assignErr;
-    const ids = (assignments || []).map((a) => a.id);
-    if (!ids.length) return;
-    query = query.in('assignment_id', ids);
-  }
-
-  const { data: existing, error } = await query;
-  if (error) throw error;
-
-  const matches = ((existing || []) as ExistingAttemptRow[]).filter((row) => {
-    if (opts?.allowAttemptId && row.id === opts.allowAttemptId) return false;
-    if (normalizeCandidateEmail(row.candidate_email || '') !== normalized) return false;
-    if (row.progress?.practice_mode) return false;
-    return true;
-  });
-
-  const submitted = matches.find(
-    (row) => ['submitted', 'graded', 'expired'].includes(row.status) || Boolean(row.submitted_at),
+  const matches = await listAssessmentAttemptsForEmail(
+    resolved.organization_id,
+    resolved.assessment_id,
+    email,
   );
-  if (submitted) throw new Error(DUPLICATE_EMAIL_SUBMITTED_MSG);
+  assertNoDuplicateFromMatches(matches, opts);
+}
 
-  const inProgress = matches.find((row) => row.status === 'in_progress' && !row.submitted_at);
-  if (inProgress) throw new Error(DUPLICATE_EMAIL_IN_PROGRESS_MSG);
+/** Final guard at submit — blocks a second completed submission for the same email. */
+export async function assertCandidateCanSubmitAttempt(
+  attemptId: string,
+  assignmentId: string,
+) {
+  const [{ data: assignment }, { data: attempt }] = await Promise.all([
+    supabase
+      .from('assessment_assignments')
+      .select('assessment_id, organization_id')
+      .eq('id', assignmentId)
+      .maybeSingle(),
+    supabase
+      .from('assessment_attempts')
+      .select('id, status, candidate_email, candidate_info, submitted_at, progress')
+      .eq('id', attemptId)
+      .maybeSingle(),
+  ]);
+
+  if (!assignment?.assessment_id || !attempt) return;
+  if (isPracticeAttempt(attempt as ExistingAttemptRow)) return;
+
+  const email = extractCandidateEmail(attempt);
+  if (!email) return;
+
+  const matches = await listAssessmentAttemptsForEmail(
+    assignment.organization_id,
+    assignment.assessment_id,
+    email,
+  );
+
+  const otherSubmitted = matches.find(
+    (row) => row.id !== attemptId && isSubmittedAttempt(row) && !isPracticeAttempt(row),
+  );
+  if (otherSubmitted) throw new Error(DUPLICATE_EMAIL_SUBMITTED_MSG);
 }
 
 export async function resolvePublicLink(code: string): Promise<ResolvedPublicLink | null> {
@@ -284,14 +353,16 @@ export async function startPublicAttempt(
 
   if (!assignmentId) throw new Error('Could not create session');
 
+  const normalizedEmail = candidate.email.trim().toLowerCase();
+
   const { data, error } = await supabase
     .from('assessment_attempts')
     .insert({
       organization_id: resolved.organization_id,
       assignment_id: assignmentId,
       candidate_name: candidate.name,
-      candidate_email: candidate.email,
-      candidate_info: { ...candidate },
+      candidate_email: normalizedEmail,
+      candidate_info: { ...candidate, email: normalizedEmail },
       reusable_link_id: resolved.link_id || null,
       status: 'in_progress',
       device_fingerprint: navigator.userAgent.slice(0, 200),
