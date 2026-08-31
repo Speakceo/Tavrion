@@ -20,6 +20,74 @@ export type ResolvedPublicLink = {
   assessment_title?: string;
 };
 
+export const DUPLICATE_EMAIL_SUBMITTED_MSG =
+  'This email and submission already exist for this assessment. Each candidate may only submit once.';
+
+export const DUPLICATE_EMAIL_IN_PROGRESS_MSG =
+  'This email already has an active session. Enter your resume token below to continue.';
+
+function normalizeCandidateEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+type ExistingAttemptRow = {
+  id: string;
+  status: string;
+  candidate_email: string | null;
+  submitted_at: string | null;
+  progress: Record<string, unknown> | null;
+};
+
+/** Block duplicate candidate emails per public link / assessment (non-practice). */
+export async function assertCandidateEmailAvailable(
+  resolved: ResolvedPublicLink,
+  email: string,
+  opts?: { allowAttemptId?: string; practiceMode?: boolean },
+) {
+  if (opts?.practiceMode) return;
+
+  const normalized = normalizeCandidateEmail(email);
+  if (!normalized) return;
+
+  let query = supabase
+    .from('assessment_attempts')
+    .select('id, status, candidate_email, submitted_at, progress');
+
+  if (resolved.link_id) {
+    query = query.eq('reusable_link_id', resolved.link_id);
+  } else if (resolved.assignment_id) {
+    query = query.eq('assignment_id', resolved.assignment_id);
+  } else {
+    const { data: assignments, error: assignErr } = await supabase
+      .from('assessment_assignments')
+      .select('id')
+      .eq('assessment_id', resolved.assessment_id)
+      .eq('organization_id', resolved.organization_id);
+    if (assignErr) throw assignErr;
+    const ids = (assignments || []).map((a) => a.id);
+    if (!ids.length) return;
+    query = query.in('assignment_id', ids);
+  }
+
+  const { data: existing, error } = await query;
+  if (error) throw error;
+
+  const matches = ((existing || []) as ExistingAttemptRow[]).filter((row) => {
+    if (opts?.allowAttemptId && row.id === opts.allowAttemptId) return false;
+    if (normalizeCandidateEmail(row.candidate_email || '') !== normalized) return false;
+    if (row.progress?.practice_mode) return false;
+    return true;
+  });
+
+  const submitted = matches.find(
+    (row) => ['submitted', 'graded', 'expired'].includes(row.status) || Boolean(row.submitted_at),
+  );
+  if (submitted) throw new Error(DUPLICATE_EMAIL_SUBMITTED_MSG);
+
+  const inProgress = matches.find((row) => row.status === 'in_progress' && !row.submitted_at);
+  if (inProgress) throw new Error(DUPLICATE_EMAIL_IN_PROGRESS_MSG);
+}
+
 export async function resolvePublicLink(code: string): Promise<ResolvedPublicLink | null> {
   const normalized = code.trim();
 
@@ -193,7 +261,10 @@ export async function deleteReusableLink(viewer: OrgViewer & { id: string }, lin
 export async function startPublicAttempt(
   resolved: ResolvedPublicLink,
   candidate: CandidateInfo,
+  opts?: { practiceMode?: boolean },
 ) {
+  await assertCandidateEmailAvailable(resolved, candidate.email, { practiceMode: opts?.practiceMode });
+
   let assignmentId = resolved.assignment_id;
 
   if (!assignmentId) {

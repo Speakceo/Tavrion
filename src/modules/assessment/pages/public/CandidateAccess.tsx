@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { resolvePublicLink, startPublicAttempt } from '../../services/linkService';
+import { resolvePublicLink, startPublicAttempt, assertCandidateEmailAvailable } from '../../services/linkService';
 import { fetchAssessmentWithSections } from '../../services/assessmentService';
 import { fetchAttemptResponses } from '../../services/attemptService';
 import { TestInterface } from '../../components/TestInterface';
@@ -163,6 +163,17 @@ export function CandidateAccess() {
       return;
     }
     if (!practiceMode) {
+      try {
+        await assertCandidateEmailAvailable(resolved, candidate.email, {
+          allowAttemptId: attemptId || undefined,
+          practiceMode: false,
+        });
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'This email cannot be used.');
+        return;
+      }
+    }
+    if (!practiceMode) {
       const check = await verifyMediaAccess({ requireCamera: true, requireMicrophone: true });
       if (!check.ok) {
         setMediaGranted(false);
@@ -186,7 +197,7 @@ export function CandidateAccess() {
       }
 
       let resumeUrl: string | undefined;
-      const attempt = await startPublicAttempt(resolved, { ...candidate, resume_url: undefined });
+      const attempt = await startPublicAttempt(resolved, { ...candidate, resume_url: undefined }, { practiceMode });
       setAttemptId(attempt.id);
       setAssignmentId(attempt.assignment_id);
 
@@ -414,7 +425,7 @@ export function CandidateAccess() {
 
             {error && <p style={{ color: '#c0392b', fontSize: 13, marginBottom: 12 }}>{error}</p>}
             <button
-              onClick={() => {
+              onClick={async () => {
                 if (!candidate.name.trim() || !candidate.email.trim()) {
                   setError('Name and email are required.');
                   return;
@@ -422,6 +433,14 @@ export function CandidateAccess() {
                 if (scheduleWindows.length && !selectedSlot) {
                   setError('Please select a scheduled time slot.');
                   return;
+                }
+                if (!practiceMode && resolved) {
+                  try {
+                    await assertCandidateEmailAvailable(resolved, candidate.email, { practiceMode: false });
+                  } catch (e: unknown) {
+                    setError(e instanceof Error ? e.message : 'This email cannot be used.');
+                    return;
+                  }
                 }
                 setError('');
                 setResumeToken(generateResumeToken(candidate.email));
