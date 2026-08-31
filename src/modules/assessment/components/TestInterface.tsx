@@ -9,6 +9,7 @@ import {
   MCQQuestion, WritingQuestion, ListeningQuestion, MediaRecordQuestion,
   CodingQuestion, SqlQuestion, ExcelQuestion,
 } from './questions/QuestionRenderers';
+import { PostAssessmentForm, type PostFormField } from './PostAssessmentForm';
 
 export type TestCompleteResult = {
   percentage: number;
@@ -41,6 +42,8 @@ type Props = {
   practiceMode?: boolean;
   onComplete: (result: TestCompleteResult) => void;
   showPostForm?: boolean;
+  postFormFields?: PostFormField[];
+  onPostFormSave?: (data: Record<string, unknown>) => Promise<void>;
   /** When false, candidates see a thank-you screen without scores (default for hiring). */
   showScoreToCandidate?: boolean;
   initialAnswers?: Record<string, Record<string, unknown>>;
@@ -111,6 +114,8 @@ export function TestInterface({
   practiceMode = false,
   onComplete,
   showPostForm = false,
+  postFormFields,
+  onPostFormSave,
   showScoreToCandidate = false,
   initialAnswers,
 }: Props) {
@@ -124,6 +129,8 @@ export function TestInterface({
   const [timeLeft, setTimeLeft] = useState<number | null>(timeLimitMinutes ? timeLimitMinutes * 60 : null);
   const [sectionTimeLeft, setSectionTimeLeft] = useState<number | null>(null);
   const [resultScreen, setResultScreen] = useState<TestCompleteResult | null>(null);
+  const [postFormPhase, setPostFormPhase] = useState<'none' | 'collecting' | 'done'>('none');
+  const [postFormSaving, setPostFormSaving] = useState(false);
   const sectionAdvancedRef = useRef(false);
   const submitStartedRef = useRef(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -208,7 +215,7 @@ export function TestInterface({
         percentage: result.percentage,
         passed: result.passed,
         attemptId,
-        showPostForm,
+        showPostForm: false,
         certificateUrl: result.passed ? `/certificates?attempt=${attemptId}` : undefined,
         practiceMode: false,
       };
@@ -220,7 +227,31 @@ export function TestInterface({
     } finally {
       setSubmitting(false);
     }
-  }, [activeQuestions, answers, flagged, attemptId, assignmentId, practiceMode, showPostForm]);
+  }, [activeQuestions, answers, flagged, attemptId, assignmentId, practiceMode]);
+
+  const needsPostForm = showPostForm && !practiceMode && postFormPhase !== 'done';
+
+  const requestSubmit = useCallback(async () => {
+    if (needsPostForm) {
+      setPostFormPhase('collecting');
+      return;
+    }
+    await doSubmit();
+  }, [needsPostForm, doSubmit]);
+
+  const handlePostFormSubmit = useCallback(async (data: Record<string, unknown>) => {
+    setPostFormSaving(true);
+    setSubmitError('');
+    try {
+      if (onPostFormSave) await onPostFormSave(data);
+      setPostFormPhase('done');
+      await doSubmit();
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Could not save application details.');
+    } finally {
+      setPostFormSaving(false);
+    }
+  }, [onPostFormSave, doSubmit]);
 
   useEffect(() => {
     if (!attemptId || practiceMode || resultScreen) return undefined;
@@ -234,17 +265,17 @@ export function TestInterface({
   }, [attemptId, practiceMode, resultScreen]);
 
   const handleAutoSubmit = useCallback(async () => {
-    if (submitting || resultScreen) return;
-    await doSubmit();
-  }, [submitting, resultScreen, doSubmit]);
+    if (submitting || resultScreen || postFormPhase === 'collecting') return;
+    await requestSubmit();
+  }, [submitting, resultScreen, postFormPhase, requestSubmit]);
 
   const { violationCount } = useIntegrityMonitor(attemptId, practiceMode ? undefined : handleAutoSubmit);
 
   useEffect(() => {
-    if (!resultScreen || showScoreToCandidate || showPostForm || resultScreen.practiceMode) return undefined;
+    if (!resultScreen || showScoreToCandidate || resultScreen.practiceMode) return undefined;
     const timer = window.setTimeout(() => onComplete(resultScreen), 900);
     return () => window.clearTimeout(timer);
-  }, [resultScreen, showScoreToCandidate, showPostForm, onComplete]);
+  }, [resultScreen, showScoreToCandidate, onComplete]);
 
   useEffect(() => {
     if (timeLeft == null || timeLeft <= 0 || practiceMode) return;
@@ -344,8 +375,27 @@ export function TestInterface({
       setReviewMode(true);
       return;
     }
-    await doSubmit();
+    await requestSubmit();
   };
+
+  if (postFormPhase === 'collecting') {
+    return (
+      <div style={{ minHeight: '100vh', background: '#fafafa' }}>
+        {submitError && (
+          <div style={{ maxWidth: 520, margin: '0 auto', padding: '16px 24px 0' }}>
+            <div className="lt-card" style={{ padding: 14, borderRadius: 14, background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', fontSize: 13 }}>
+              {submitError}
+            </div>
+          </div>
+        )}
+        <PostAssessmentForm
+          customFields={postFormFields?.length ? postFormFields : undefined}
+          loading={postFormSaving || submitting}
+          onSubmit={handlePostFormSubmit}
+        />
+      </div>
+    );
+  }
 
   if (resultScreen) {
     return (
@@ -516,7 +566,7 @@ export function TestInterface({
               <div className="test-interface-nav" style={{ display: 'flex', gap: 10, marginTop: 20 }}>
                 <button type="button" onClick={() => setReviewMode(false)} className="lt-btn-secondary" style={{ padding: '10px 18px' }}>Back</button>
                 <button type="button" onClick={handleSubmit} disabled={submitting} className="lt-btn-primary" style={{ padding: '10px 18px' }}>
-                  {submitting ? 'Submitting...' : practiceMode ? 'Finish practice' : 'Submit assessment'}
+                  {submitting ? 'Submitting...' : practiceMode ? 'Finish practice' : needsPostForm ? 'Continue to application details' : 'Submit assessment'}
                 </button>
               </div>
             </div>

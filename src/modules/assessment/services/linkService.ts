@@ -262,6 +262,7 @@ export async function createReusableLink(
       expires_at: payload.expires_at || null,
       require_camera: payload.require_camera ?? true,
       require_microphone: payload.require_microphone ?? true,
+      post_form_enabled: true,
       created_by: viewer.id,
     })
     .select()

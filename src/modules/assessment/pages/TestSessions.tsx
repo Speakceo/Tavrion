@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { formatAnswerForDisplay } from '../utils/answerDisplay';
 import { scoreResponse } from '../utils/scoring';
+import { POST_ASSESSMENT_DEFAULT_FIELDS, type PostFormField } from '../components/PostAssessmentForm';
 
 const SELECTION_OPTIONS: SelectionStatus[] = ['pending', 'shortlisted', 'selected', 'rejected', 'on_hold'];
 
@@ -32,6 +33,28 @@ const SELECTION_COLORS: Record<SelectionStatus, string> = {
 type Tab = 'sessions' | 'proctor' | 'compare';
 
 type SessionDetail = NonNullable<Awaited<ReturnType<typeof fetchSessionDetail>>>;
+
+function formatPostFormValue(value: unknown, field?: PostFormField): string {
+  if (value === undefined || value === null || value === '') return '—';
+  if (field?.type === 'boolean') return value ? 'Yes' : 'No';
+  return String(value);
+}
+
+function postFormEntries(data: Record<string, unknown> | null | undefined) {
+  if (!data || !Object.keys(data).length) return [];
+  const known = new Map(POST_ASSESSMENT_DEFAULT_FIELDS.map((f) => [f.id, f]));
+  const entries: { id: string; label: string; value: string }[] = [];
+  for (const field of POST_ASSESSMENT_DEFAULT_FIELDS) {
+    if (field.id in data) {
+      entries.push({ id: field.id, label: field.label, value: formatPostFormValue(data[field.id], field) });
+    }
+  }
+  for (const [id, value] of Object.entries(data)) {
+    if (known.has(id)) continue;
+    entries.push({ id, label: id.replace(/_/g, ' '), value: formatPostFormValue(value) });
+  }
+  return entries;
+}
 
 function sessionPrimaryScore(session: {
   auto_score?: number | null;
@@ -676,6 +699,25 @@ export function TestSessions() {
           <div className="lt-card" style={{ maxWidth: 720, width: '100%', maxHeight: '85vh', overflow: 'auto', padding: 24 }} onClick={(e) => e.stopPropagation()}>
             <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Session details</h2>
             <p style={{ fontSize: 13, marginBottom: 8 }}><strong>{detail.candidate_name}</strong> · {detail.candidate_email}</p>
+
+            {(() => {
+              const applicationDetails = postFormEntries(detail.post_form_data as Record<string, unknown> | undefined);
+              if (!applicationDetails.length) return null;
+              return (
+                <div style={{ marginBottom: 16 }}>
+                  <h3 style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Application details</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 10, background: '#f8f8f8', borderRadius: 8, padding: 12 }}>
+                    {applicationDetails.map((entry) => (
+                      <div key={entry.id}>
+                        <div style={{ fontSize: 10, color: '#999', textTransform: 'capitalize' }}>{entry.label}</div>
+                        <div style={{ fontSize: 14, fontWeight: 600, marginTop: 2 }}>{entry.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
               <span style={{
                 display: 'inline-flex', alignItems: 'center', padding: '6px 10px', borderRadius: 999,

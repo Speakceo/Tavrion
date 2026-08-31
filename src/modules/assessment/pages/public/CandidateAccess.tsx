@@ -4,7 +4,7 @@ import { resolvePublicLink, startPublicAttempt, assertCandidateEmailAvailable } 
 import { fetchAssessmentWithSections } from '../../services/assessmentService';
 import { fetchAttemptResponses } from '../../services/attemptService';
 import { TestInterface } from '../../components/TestInterface';
-import { PostAssessmentForm, type PostFormField } from '../../components/PostAssessmentForm';
+import { type PostFormField } from '../../components/PostAssessmentForm';
 import { savePostFormData } from '../../services/sessionService';
 import { MediaPermissionGate, stopMediaStream, verifyMediaAccess } from '../../components/MediaPermissionGate';
 import { supabase } from '../../../../lib/supabase';
@@ -12,7 +12,7 @@ import type { ResolvedPublicLink, CandidateInfo, AssessmentQuestion } from '../.
 import { ClipboardCheck, ArrowRight, Upload, Info } from 'lucide-react';
 import { useDocumentTitle } from '../../../../lib/seo';
 
-type Step = 'info' | 'permissions' | 'test' | 'post_form' | 'done';
+type Step = 'info' | 'permissions' | 'test' | 'done';
 
 type ScheduleWindow = { start: string; end: string; label?: string };
 
@@ -245,6 +245,7 @@ export function CandidateAccess() {
   }
 
   if (step === 'test' && attemptId && assignmentId) {
+    const showPostForm = !practiceMode && resolved?.post_form_enabled !== false;
     return (
       <TestInterface
         attemptId={attemptId}
@@ -253,23 +254,11 @@ export function CandidateAccess() {
         title={resolved?.assessment_title || resolved?.title || 'Assessment'}
         timeLimitMinutes={timeLimit}
         practiceMode={practiceMode}
-        showPostForm={resolved?.post_form_enabled}
+        showPostForm={showPostForm}
+        postFormFields={postFormFields.length ? postFormFields : undefined}
+        onPostFormSave={showPostForm ? async (data) => savePostFormData(attemptId, data) : undefined}
         initialAnswers={initialAnswers}
-        onComplete={(r) => {
-          setStep(r.showPostForm ? 'post_form' : 'done');
-        }}
-      />
-    );
-  }
-
-  if (step === 'post_form' && attemptId) {
-    return (
-      <PostAssessmentForm
-        customFields={postFormFields.length ? postFormFields : undefined}
-        onSubmit={async (data) => {
-          await savePostFormData(attemptId, data);
-          setStep('done');
-        }}
+        onComplete={() => setStep('done')}
       />
     );
   }

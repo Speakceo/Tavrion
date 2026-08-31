@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 
-const DEFAULT_FIELDS = [
+export const POST_ASSESSMENT_DEFAULT_FIELDS = [
   { id: 'phone', label: 'Contact number', type: 'tel', required: true },
   { id: 'experience_years', label: 'Total experience (years)', type: 'number', required: true },
   { id: 'current_ctc', label: 'Current CTC (LPA)', type: 'number', required: true },
@@ -26,7 +26,7 @@ type Props = {
 export function PostAssessmentForm({ onSubmit, loading, customFields }: Props) {
   const fields = useMemo(() => {
     if (customFields?.length) return customFields;
-    return DEFAULT_FIELDS;
+    return POST_ASSESSMENT_DEFAULT_FIELDS;
   }, [customFields]);
 
   const [form, setForm] = useState<Record<string, unknown>>({});
